@@ -17,6 +17,18 @@ dependencies = [
     "webdataset>=1.0.2",
 ]
 
+# Linux GPU pods (e.g. RunPod): default PyPI torch is often +cu130 (needs a newer driver than
+# many 12.8-capable hosts). Use the official CUDA 12.8 wheel index on Linux only.
+# macOS/Windows fall through to default PyPI when the marker does not match.
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux'" }]
+
 [project.optional-dependencies]
 openx = [
     "tensorflow>=2.16.0",
