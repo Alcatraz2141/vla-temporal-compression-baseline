@@ -1,0 +1,4 @@
+timestamp,baseline,checkpoint,seed,mse,success_rate,rollout_consistency
+2026-04-29T18:23:41.209664+00:00,sliding_window,checkpoints/smoke/sliding_window/best.pt,42,4.501163005828857,nan,nan
+2026-04-29T18:23:57.901290+00:00,bc_resnet50,checkpoints/smoke/bc_resnet50/best.pt,42,4.226988792419434,nan,nan
+2026-04-29T18:51:09.510402+00:00,sliding_window,checkpoints/webdataset_smoke/sliding_window/best.pt,42,4.549575646718343,nan,nan

@@ -1,0 +1,30 @@
+[project]
+name = "goal-build-a-clean-pytorch-baseline"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "datasets>=4.8.5",
+    "hf-transfer>=0.1.9",
+    "huggingface-hub>=1.12.2",
+    "opencv-python>=4.13.0.92",
+    "pyyaml>=6.0.3",
+    "torch>=2.11.0",
+    "torchvision>=0.26.0",
+    "tqdm>=4.67.3",
+    "transformers>=5.7.0",
+    "webdataset>=1.0.2",
+]
+
+[project.optional-dependencies]
+openx = [
+    "tensorflow>=2.16.0",
+    "tensorflow-datasets>=4.9.0",
+    # TFDS/etils references ``importlib_resources``; PyPI backport (stdlib is ``importlib.resources``).
+    "importlib-resources>=6.0.0",
+    # TFDS robotics DatasetInfo uses FieldDescriptor.label; protobuf 5+ drops it (UPB / new API).
+    "protobuf>=4.25.3,<5",
+    # Only needed if you pass --download (Beam materializes RLDS into ~/tensorflow_datasets).
+    "apache-beam>=2.61.0",
+]

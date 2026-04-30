@@ -1,0 +1,50 @@
+seed: 42
+device: auto
+
+data:
+  source: webdataset
+  root: data
+  processed_root: data/processed
+  webdataset:
+    root: data/webdataset
+    train_urls: data/webdataset/train/shard-{000000..000000}.tar
+    val_urls: data/webdataset/val/shard-{000000..000000}.tar
+    stats_path: data/webdataset/stats.json
+  split: train
+  val_split: val
+  image_size: 64
+  T_obs: 2
+  T_action: 4
+  state_dim: 8
+  action_dim: 7
+  num_workers: 0
+  augment:
+    enabled: false
+  normalization:
+    stats_path: data/webdataset/stats.json
+
+model:
+  baseline: sliding_window
+  vision_encoder: resnet18
+  pretrained_vision: false
+  d_model: 64
+  n_layers: 1
+  n_heads: 2
+  dropout: 0.1
+  use_memory: false
+  state_hidden_dim: 32
+  action_hidden_dim: 64
+
+training:
+  batch_size: 2
+  epochs: 1
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  grad_clip_norm: 1.0
+  temporal_smoothness_weight: 0.0
+  log_every: 1
+  checkpoint_dir: checkpoints/webdataset_smoke
+
+evaluation:
+  batch_size: 2
+  results_path: results/baselines.csv

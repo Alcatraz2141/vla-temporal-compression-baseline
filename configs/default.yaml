@@ -1,0 +1,54 @@
+seed: 42
+device: auto
+
+data:
+  source: local
+  root: data
+  processed_root: data/processed
+  webdataset:
+    root: data/webdataset
+    train_urls: null
+    val_urls: null
+    stats_path: data/webdataset/stats.json
+  split: train
+  val_split: val
+  image_size: 224
+  T_obs: 4
+  T_action: 16
+  state_dim: null
+  action_dim: null
+  num_workers: 2
+  augment:
+    enabled: true
+    random_resized_crop: true
+    color_jitter: true
+  normalization:
+    stats_path: data/processed/stats.json
+
+model:
+  baseline: sliding_window
+  vision_encoder: resnet18
+  pretrained_vision: true
+  d_model: 256
+  n_layers: 4
+  n_heads: 4
+  dropout: 0.1
+  use_memory: false
+  state_hidden_dim: 128
+  action_hidden_dim: 256
+
+training:
+  batch_size: 32
+  epochs: 5
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  grad_clip_norm: 1.0
+  temporal_smoothness_weight: 0.0
+  log_every: 20
+  checkpoint_dir: checkpoints
+  resume: null
+
+evaluation:
+  checkpoint: checkpoints/best.pt
+  batch_size: 32
+  results_path: results/baselines.csv
