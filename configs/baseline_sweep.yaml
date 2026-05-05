@@ -1,0 +1,9 @@
+config: configs/runpod_webdataset.yaml
+baselines:
+  - no_temporal
+  - sliding_window
+  - larger_window
+  - bc_resnet50
+  - rt1_style
+train: true
+eval: true

@@ -116,6 +116,8 @@ class BaselineVLA(nn.Module):
     ) -> torch.Tensor:
         bsz, timesteps, channels, height, width = images.shape
         flat_images = images.view(bsz * timesteps, channels, height, width)
+        if flat_images.is_cuda:
+            flat_images = flat_images.contiguous(memory_format=torch.channels_last)
         vision_tokens = self.vision_proj(self.vision(flat_images)).view(bsz, timesteps, -1)
         state_tokens = self.state_encoder(states)
         tokens = self.fusion(torch.cat([vision_tokens, state_tokens], dim=-1))
@@ -123,6 +125,78 @@ class BaselineVLA(nn.Module):
         tokens = self.transformer(tokens)
         if self.memory is not None:
             tokens, _ = self.memory(tokens, past_memory)
+        pooled = tokens[:, -1]
+        return self.action_head(pooled).view(bsz, self.T_action, self.action_dim)
+
+
+class RT1StyleBaseline(nn.Module):
+    """RT-1-inspired baseline using CNN tokens + causal Transformer policy.
+
+    This is not an exact reproduction of Google's RT-1 training recipe. It is a
+    controlled PyTorch baseline with RT-1-like ingredients: per-timestep visual
+    tokens, proprioceptive tokens, temporal embeddings, causal attention, and
+    chunked action prediction.
+    """
+
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int,
+        T_obs: int,
+        T_action: int,
+        d_model: int = 256,
+        n_layers: int = 4,
+        n_heads: int = 4,
+        dropout: float = 0.1,
+        pretrained_vision: bool = True,
+        action_hidden_dim: int = 256,
+    ) -> None:
+        super().__init__()
+        self.T_obs = T_obs
+        self.T_action = T_action
+        self.action_dim = action_dim
+        self.vision, vision_dim = _build_resnet18(pretrained_vision)
+        self.image_token = nn.Linear(vision_dim, d_model)
+        self.state_token = nn.Sequential(
+            nn.Linear(state_dim, d_model),
+            nn.GELU(),
+            nn.Linear(d_model, d_model),
+        )
+        self.type_embedding = nn.Parameter(torch.zeros(1, 2, d_model))
+        self.time_embedding = nn.Parameter(torch.zeros(1, T_obs, d_model))
+        layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=n_heads,
+            dim_feedforward=d_model * 4,
+            dropout=dropout,
+            batch_first=True,
+            activation="gelu",
+        )
+        self.transformer = nn.TransformerEncoder(layer, num_layers=n_layers)
+        self.action_head = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Linear(d_model, action_hidden_dim),
+            nn.GELU(),
+            nn.Linear(action_hidden_dim, T_action * action_dim),
+        )
+
+    def forward(self, images: torch.Tensor, states: torch.Tensor, **_: Any) -> torch.Tensor:
+        bsz, timesteps, channels, height, width = images.shape
+        flat_images = images.view(bsz * timesteps, channels, height, width)
+        if flat_images.is_cuda:
+            flat_images = flat_images.contiguous(memory_format=torch.channels_last)
+        image_tokens = self.image_token(self.vision(flat_images)).view(bsz, timesteps, -1)
+        state_tokens = self.state_token(states)
+
+        tokens = torch.stack([image_tokens, state_tokens], dim=2)
+        tokens = tokens + self.type_embedding[:, None, :, :]
+        tokens = tokens + self.time_embedding[:, :timesteps, None, :]
+        tokens = tokens.flatten(1, 2)
+        causal_mask = torch.triu(
+            torch.ones(tokens.size(1), tokens.size(1), device=tokens.device, dtype=torch.bool),
+            diagonal=1,
+        )
+        tokens = self.transformer(tokens, mask=causal_mask)
         pooled = tokens[:, -1]
         return self.action_head(pooled).view(bsz, self.T_action, self.action_dim)
 
@@ -164,6 +238,19 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
         )
     if baseline == "octo":
         return OctoBaseline(model_cfg.get("octo_checkpoint"))
+    if baseline == "rt1_style":
+        return RT1StyleBaseline(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            T_obs=T_obs,
+            T_action=int(data_cfg["T_action"]),
+            d_model=int(model_cfg.get("d_model", 256)),
+            n_layers=int(model_cfg.get("n_layers", 4)),
+            n_heads=int(model_cfg.get("n_heads", 4)),
+            dropout=float(model_cfg.get("dropout", 0.1)),
+            pretrained_vision=bool(model_cfg.get("pretrained_vision", True)),
+            action_hidden_dim=int(model_cfg.get("action_hidden_dim", 256)),
+        )
     if baseline not in {"sliding_window", "no_temporal", "larger_window"}:
         raise ValueError(f"Unknown baseline: {baseline}")
     return BaselineVLA(

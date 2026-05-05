@@ -149,3 +149,11 @@ model:
 ```
 
 The hook is deliberately scaffolded only. It marks the insertion point for short-term buffers, mid-term summaries, long-term slots, KV-cache experiments, and summary tokens.
+
+## Real Experiments
+
+For larger RunPod runs, WebDataset sweeps, and simulator rollout wiring, see:
+
+```text
+docs/runpod_experiments.md
+```

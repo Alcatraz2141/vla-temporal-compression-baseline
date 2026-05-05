@@ -24,13 +24,22 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
         if not urls:
             root = Path(urls_cfg.get("root", "data/webdataset"))
             urls = str(root / split / "shard-{000000..999999}.tar")
+        T_obs = int(data_cfg["T_obs"])
+        if model_cfg.get("baseline", "sliding_window") == "no_temporal":
+            T_obs = 1
+        elif model_cfg.get("baseline", "sliding_window") == "larger_window":
+            T_obs *= 2
         return build_streaming_dataset(
             urls=urls,
             image_size=int(data_cfg.get("image_size", 224)),
+            T_obs=T_obs,
+            T_action=int(data_cfg["T_action"]),
             batch_size=int(batch_size),
             shuffle=shuffle,
             augment=bool(augment_cfg.get("enabled", False)) and split == data_cfg.get("split", "train"),
             stats_path=data_cfg.get("normalization", {}).get("stats_path") or urls_cfg.get("stats_path"),
+            num_workers=int(data_cfg.get("num_workers", 4)),
+            prefetch_factor=int(data_cfg.get("prefetch_factor", 4)),
         )
 
     T_obs = int(data_cfg["T_obs"])
@@ -49,13 +58,17 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
 
     generator = torch.Generator()
     generator.manual_seed(int(config.get("seed", 42)))
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=int(data_cfg.get("num_workers", 2)),
-        pin_memory=torch.cuda.is_available(),
-        collate_fn=vla_collate_fn,
-        worker_init_fn=seed_worker,
-        generator=generator,
-    )
+    num_workers = int(data_cfg.get("num_workers", 2))
+    kwargs: dict[str, Any] = {
+        "batch_size": batch_size,
+        "shuffle": shuffle,
+        "num_workers": num_workers,
+        "pin_memory": torch.cuda.is_available(),
+        "persistent_workers": num_workers > 0,
+        "collate_fn": vla_collate_fn,
+        "worker_init_fn": seed_worker,
+        "generator": generator,
+    }
+    if num_workers > 0:
+        kwargs["prefetch_factor"] = int(data_cfg.get("prefetch_factor", 4))
+    return DataLoader(dataset, **kwargs)

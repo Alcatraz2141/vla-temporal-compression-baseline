@@ -1,0 +1,36 @@
+seed: 42
+device: auto
+
+data:
+  image_size: 224
+  T_obs: 4
+  T_action: 16
+  state_dim: 8
+  action_dim: 7
+  normalization:
+    stats_path: data/webdataset/stats.json
+
+model:
+  baseline: sliding_window
+  vision_encoder: resnet18
+  pretrained_vision: true
+  d_model: 256
+  n_layers: 4
+  n_heads: 4
+  dropout: 0.1
+  use_memory: false
+  state_hidden_dim: 128
+  action_hidden_dim: 256
+
+rollout:
+  env_id: null
+  checkpoint: checkpoints/runpod_webdataset/sliding_window/best.pt
+  episodes: 20
+  max_steps: 300
+  action_repeat: 1
+  render_mode: rgb_array
+  image_key: image
+  state_key: state
+  success_key: success
+  reward_success_threshold: null
+  results_path: results/rollouts.csv

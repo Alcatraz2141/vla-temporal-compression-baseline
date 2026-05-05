@@ -1,4 +1,7 @@
-timestamp,baseline,checkpoint,seed,mse,success_rate,rollout_consistency
-2026-04-29T18:23:41.209664+00:00,sliding_window,checkpoints/smoke/sliding_window/best.pt,42,4.501163005828857,nan,nan
-2026-04-29T18:23:57.901290+00:00,bc_resnet50,checkpoints/smoke/bc_resnet50/best.pt,42,4.226988792419434,nan,nan
-2026-04-29T18:51:09.510402+00:00,sliding_window,checkpoints/webdataset_smoke/sliding_window/best.pt,42,4.549575646718343,nan,nan
+timestamp,baseline,checkpoint,seed,mse,mae,pred_temporal_smoothness,success_rate,rollout_consistency
+2026-04-29T18:23:41.209664+00:00,sliding_window,checkpoints/smoke/sliding_window/best.pt,42,4.501163005828857,,,nan,nan
+2026-04-29T18:23:57.901290+00:00,bc_resnet50,checkpoints/smoke/bc_resnet50/best.pt,42,4.226988792419434,,,nan,nan
+2026-04-29T18:51:09.510402+00:00,sliding_window,checkpoints/webdataset_smoke/sliding_window/best.pt,42,4.549575646718343,,,nan,nan
+2026-04-30T10:27:25.587624+00:00,sliding_window,checkpoints/webdataset_smoke/sliding_window/best.pt,42,6.631142654697302,4.645460805312026,0.018675181601045247,nan,nan
+2026-04-30T10:29:42.500004+00:00,sliding_window,checkpoints/webdataset_smoke/sliding_window/best.pt,42,6.827813131252521,4.572891893120587,0.061904778070558754,nan,nan
+2026-05-01T11:30:03.638286+00:00,rt1_style,checkpoints/webdataset_smoke/rt1_style/best.pt,42,6.835207815854077,4.599653680312452,0.03496469928868833,nan,nan

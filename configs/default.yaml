@@ -18,6 +18,7 @@ data:
   state_dim: null
   action_dim: null
   num_workers: 2
+  prefetch_factor: 4
   augment:
     enabled: true
     random_resized_crop: true
@@ -40,9 +41,15 @@ model:
 training:
   batch_size: 32
   epochs: 5
+  max_steps_per_epoch: null
   lr: 1.0e-4
   weight_decay: 1.0e-4
   grad_clip_norm: 1.0
+  amp: true
+  amp_dtype: bfloat16
+  channels_last: true
+  compile: false
+  compile_mode: reduce-overhead
   temporal_smoothness_weight: 0.0
   log_every: 20
   checkpoint_dir: checkpoints

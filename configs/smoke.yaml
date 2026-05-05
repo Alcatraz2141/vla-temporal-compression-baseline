@@ -16,6 +16,7 @@ data:
   T_obs: 2
   T_action: 4
   num_workers: 0
+  prefetch_factor: 2
   augment:
     enabled: false
   normalization:
@@ -36,9 +37,15 @@ model:
 training:
   batch_size: 2
   epochs: 1
+  max_steps_per_epoch: null
   lr: 1.0e-4
   weight_decay: 1.0e-4
   grad_clip_norm: 1.0
+  amp: false
+  amp_dtype: bfloat16
+  channels_last: false
+  compile: false
+  compile_mode: reduce-overhead
   temporal_smoothness_weight: 0.0
   log_every: 1
   checkpoint_dir: checkpoints/smoke

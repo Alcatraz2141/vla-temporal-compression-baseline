@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
 from datasets.data_loader import build_dataloader
 from models.vla_baseline import build_model
 from utils.config import load_config
-from utils.metrics import masked_mse
+from utils.metrics import masked_mse, temporal_smoothness
 from utils.seed import resolve_device, set_seed
 
 
@@ -31,20 +31,46 @@ def _safe_len(loader: torch.utils.data.DataLoader) -> int:
 def evaluate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device: torch.device) -> dict[str, float]:
     model.eval()
     total_mse = 0.0
+    total_mae = 0.0
+    total_smoothness = 0.0
     batches = 0
     for batch in tqdm(loader, desc="eval", leave=False):
-        pred = model(images=batch["images"].to(device), states=batch["states"].to(device))
-        mse = masked_mse(pred, batch["actions"].to(device), batch["mask"].to(device))
+        actions = batch["actions"].to(device)
+        mask = batch["mask"].to(device)
+        pred = model(images=batch["images"].to(device, non_blocking=True), states=batch["states"].to(device, non_blocking=True))
+        mse = masked_mse(pred, actions, mask)
+        mae = (pred - actions).abs()
+        mae = (mae * mask.to(mae.dtype).unsqueeze(-1)).sum() / mask.to(mae.dtype).sum().clamp_min(1.0)
         total_mse += float(mse.cpu())
+        total_mae += float(mae.cpu())
+        total_smoothness += float(temporal_smoothness(pred).cpu())
         batches += 1
     mse = total_mse / max(batches or _safe_len(loader), 1)
-    return {"mse": mse, "success_rate": float("nan"), "rollout_consistency": float("nan")}
+    denom = max(batches or _safe_len(loader), 1)
+    return {
+        "mse": mse,
+        "mae": total_mae / denom,
+        "pred_temporal_smoothness": total_smoothness / denom,
+        "success_rate": float("nan"),
+        "rollout_consistency": float("nan"),
+    }
 
 
 def append_results(path: Path, row: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     exists = path.exists()
-    with path.open("a", newline="", encoding="utf-8") as f:
+    mode = "a"
+    if exists:
+        with path.open("r", newline="", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            header = next(reader, [])
+        if header and header != list(row.keys()):
+            existing = path.read_text(encoding="utf-8")
+            backup = path.with_suffix(path.suffix + ".bak")
+            backup.write_text(existing, encoding="utf-8")
+            exists = False
+            mode = "w"
+    with path.open(mode, newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(row.keys()))
         if not exists:
             writer.writeheader()
@@ -55,7 +81,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate a trained VLA baseline checkpoint.")
     parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
     parser.add_argument("--checkpoint", type=Path, default=None)
-    parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "octo"], default=None)
+    parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "rt1_style", "octo"], default=None)
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -81,6 +107,8 @@ def main() -> None:
         "checkpoint": str(checkpoint_path),
         "seed": ckpt_cfg.get("seed", 42),
         "mse": metrics["mse"],
+        "mae": metrics["mae"],
+        "pred_temporal_smoothness": metrics["pred_temporal_smoothness"],
         "success_rate": metrics["success_rate"],
         "rollout_consistency": metrics["rollout_consistency"],
     }

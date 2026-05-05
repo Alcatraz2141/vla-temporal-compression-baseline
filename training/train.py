@@ -19,11 +19,28 @@ from utils.metrics import masked_mse, temporal_smoothness
 from utils.seed import resolve_device, set_seed
 
 
+def amp_dtype(name: str) -> torch.dtype:
+    if name == "float16":
+        return torch.float16
+    if name == "bfloat16":
+        return torch.bfloat16
+    raise ValueError(f"Unsupported amp dtype: {name}")
+
+
+def autocast_context(device: torch.device, cfg: dict[str, Any]) -> torch.amp.autocast_mode.autocast:
+    enabled = bool(cfg["training"].get("amp", False)) and device.type == "cuda"
+    return torch.autocast(device_type=device.type, dtype=amp_dtype(cfg["training"].get("amp_dtype", "bfloat16")), enabled=enabled)
+
+
 def _safe_len(loader: torch.utils.data.DataLoader) -> int:
     try:
         return len(loader)
     except TypeError:
         return 1
+
+
+def _unwrap_model(model: torch.nn.Module) -> torch.nn.Module:
+    return getattr(model, "_orig_mod", model)
 
 
 def infer_dims(loader: torch.utils.data.DataLoader, config: dict[str, Any]) -> tuple[int, int]:
@@ -37,26 +54,45 @@ def infer_dims(loader: torch.utils.data.DataLoader, config: dict[str, Any]) -> t
     return state_dim, action_dim
 
 
-def run_epoch(model: torch.nn.Module, loader: torch.utils.data.DataLoader, optimizer: torch.optim.Optimizer, device: torch.device, cfg: dict[str, Any]) -> float:
+def _move_batch(batch: dict[str, Any], device: torch.device, channels_last: bool) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    images = batch["images"].to(device, non_blocking=True)
+    states = batch["states"].to(device, non_blocking=True)
+    actions = batch["actions"].to(device, non_blocking=True)
+    mask = batch["mask"].to(device, non_blocking=True)
+    return images, states, actions, mask
+
+
+def run_epoch(
+    model: torch.nn.Module,
+    loader: torch.utils.data.DataLoader,
+    optimizer: torch.optim.Optimizer,
+    scaler: torch.amp.GradScaler,
+    device: torch.device,
+    cfg: dict[str, Any],
+) -> float:
     model.train()
     total = 0.0
     batches = 0
     smooth_weight = float(cfg["training"].get("temporal_smoothness_weight", 0.0))
+    max_steps = cfg["training"].get("max_steps_per_epoch")
+    channels_last = bool(cfg["training"].get("channels_last", False)) and device.type == "cuda"
     for step, batch in enumerate(tqdm(loader, desc="train", leave=False), start=1):
-        images = batch["images"].to(device, non_blocking=True)
-        states = batch["states"].to(device, non_blocking=True)
-        actions = batch["actions"].to(device, non_blocking=True)
-        mask = batch["mask"].to(device, non_blocking=True)
+        if max_steps is not None and step > int(max_steps):
+            break
+        images, states, actions, mask = _move_batch(batch, device, channels_last)
 
-        pred = model(images=images, states=states)
-        loss = masked_mse(pred, actions, mask)
-        if smooth_weight > 0:
-            loss = loss + smooth_weight * temporal_smoothness(pred)
+        with autocast_context(device, cfg):
+            pred = model(images=images, states=states)
+            loss = masked_mse(pred, actions, mask)
+            if smooth_weight > 0:
+                loss = loss + smooth_weight * temporal_smoothness(pred)
 
         optimizer.zero_grad(set_to_none=True)
-        loss.backward()
+        scaler.scale(loss).backward()
+        scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), float(cfg["training"].get("grad_clip_norm", 1.0)))
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
         total += float(loss.detach().cpu())
         batches += 1
 
@@ -70,9 +106,11 @@ def validate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device
     model.eval()
     total = 0.0
     batches = 0
+    channels_last = False
     for batch in tqdm(loader, desc="val", leave=False):
-        pred = model(images=batch["images"].to(device), states=batch["states"].to(device))
-        loss = masked_mse(pred, batch["actions"].to(device), batch["mask"].to(device))
+        images, states, actions, mask = _move_batch(batch, device, channels_last)
+        pred = model(images=images, states=states)
+        loss = masked_mse(pred, actions, mask)
         total += float(loss.cpu())
         batches += 1
     return total / max(batches or _safe_len(loader), 1)
@@ -81,7 +119,7 @@ def validate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the PyTorch VLA baseline.")
     parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
-    parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "octo"], default=None)
+    parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "rt1_style", "octo"], default=None)
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -94,27 +132,45 @@ def main() -> None:
     val_loader = build_dataloader(cfg, cfg["data"].get("val_split", "val"), shuffle=False)
     state_dim, action_dim = infer_dims(train_loader, cfg)
     model = build_model(cfg, state_dim, action_dim).to(device)
+    if bool(cfg["training"].get("channels_last", False)) and device.type == "cuda":
+        model = model.to(memory_format=torch.channels_last)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(cfg["training"].get("lr", 1e-4)),
         weight_decay=float(cfg["training"].get("weight_decay", 1e-4)),
     )
+    scaler = torch.amp.GradScaler("cuda", enabled=bool(cfg["training"].get("amp", False)) and device.type == "cuda")
 
     ckpt_dir = Path(cfg["training"].get("checkpoint_dir", "checkpoints")) / cfg["model"].get("baseline", "sliding_window")
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     best_val = float("inf")
-    for epoch in range(1, int(cfg["training"].get("epochs", 5)) + 1):
-        train_loss = run_epoch(model, train_loader, optimizer, device, cfg)
+    start_epoch = 1
+    resume = cfg["training"].get("resume")
+    if resume:
+        checkpoint = torch.load(resume, map_location=device)
+        model.load_state_dict(checkpoint["model"])
+        optimizer.load_state_dict(checkpoint["optimizer"])
+        if "scaler" in checkpoint:
+            scaler.load_state_dict(checkpoint["scaler"])
+        start_epoch = int(checkpoint.get("epoch", 0)) + 1
+        best_val = float(checkpoint.get("best_val", checkpoint.get("val_mse", best_val)))
+    if bool(cfg["training"].get("compile", False)) and hasattr(torch, "compile"):
+        model = torch.compile(model, mode=cfg["training"].get("compile_mode", "reduce-overhead"))
+
+    for epoch in range(start_epoch, int(cfg["training"].get("epochs", 5)) + 1):
+        train_loss = run_epoch(model, train_loader, optimizer, scaler, device, cfg)
         val_loss = validate(model, val_loader, device)
         print(f"epoch={epoch} train_mse={train_loss:.6f} val_mse={val_loss:.6f}")
         checkpoint = {
-            "model": model.state_dict(),
+            "model": _unwrap_model(model).state_dict(),
             "optimizer": optimizer.state_dict(),
+            "scaler": scaler.state_dict(),
             "config": cfg,
             "state_dim": state_dim,
             "action_dim": action_dim,
             "epoch": epoch,
             "val_mse": val_loss,
+            "best_val": min(best_val, val_loss),
         }
         torch.save(checkpoint, ckpt_dir / "last.pt")
         if val_loss < best_val:

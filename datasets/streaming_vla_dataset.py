@@ -23,11 +23,27 @@ def _load_stats(stats_path: str | Path | None) -> dict[str, Any]:
         return json.load(f)
 
 
-def _decode_sample(raw: dict[str, Any], transform: transforms.Compose, stats: dict[str, Any]) -> dict[str, Any]:
+def _take_or_pad(array: np.ndarray, length: int) -> np.ndarray:
+    if array.shape[0] >= length:
+        return array[:length]
+    pad = np.repeat(array[-1:], length - array.shape[0], axis=0)
+    return np.concatenate([array, pad], axis=0)
+
+
+def _decode_sample(
+    raw: dict[str, Any],
+    transform: transforms.Compose,
+    stats: dict[str, Any],
+    T_obs: int,
+    T_action: int,
+) -> dict[str, Any]:
     images_np = np.load(io.BytesIO(raw["images.npy"])).astype(np.uint8)
     states_np = np.load(io.BytesIO(raw["states.npy"])).astype(np.float32)
     actions_np = np.load(io.BytesIO(raw["actions.npy"])).astype(np.float32)
     metadata = json.loads(raw.get("metadata.json", b"{}").decode("utf-8"))
+    images_np = _take_or_pad(images_np, T_obs)
+    states_np = _take_or_pad(states_np, T_obs)
+    actions_np = _take_or_pad(actions_np, T_action)
 
     images = torch.stack([transform(Image.fromarray(image)) for image in images_np])
     states = torch.from_numpy(states_np)
@@ -66,18 +82,30 @@ def _make_transform(image_size: int, augment: bool) -> transforms.Compose:
 def build_streaming_dataset(
     urls: str | list[str],
     image_size: int,
+    T_obs: int,
+    T_action: int,
     batch_size: int,
     shuffle: bool,
     augment: bool,
     stats_path: str | Path | None,
+    num_workers: int = 4,
+    prefetch_factor: int = 4,
 ) -> wds.WebLoader:
     stats = _load_stats(stats_path)
     transform = _make_transform(image_size, augment)
     dataset = wds.WebDataset(urls, shardshuffle=100 if shuffle else False)
     if shuffle:
         dataset = dataset.shuffle(512)
-    dataset = dataset.map(lambda sample: _decode_sample(sample, transform, stats))
-    return wds.WebLoader(dataset, batch_size=batch_size, num_workers=0)
+    dataset = dataset.map(lambda sample: _decode_sample(sample, transform, stats, T_obs, T_action))
+    kwargs: dict[str, Any] = {
+        "batch_size": batch_size,
+        "num_workers": num_workers,
+        "pin_memory": torch.cuda.is_available(),
+        "persistent_workers": num_workers > 0,
+    }
+    if num_workers > 0:
+        kwargs["prefetch_factor"] = prefetch_factor
+    return wds.WebLoader(dataset, **kwargs)
 
 
 def seed_streaming(seed: int) -> None:

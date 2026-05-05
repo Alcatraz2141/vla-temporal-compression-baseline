@@ -7,51 +7,54 @@ data:
   processed_root: data/processed
   webdataset:
     root: data/webdataset
-    train_urls: data/webdataset/train/shard-{000000..000000}.tar
-    val_urls: data/webdataset/val/shard-{000000..000000}.tar
+    train_urls: data/webdataset/train/shard-{000000..000999}.tar
+    val_urls: data/webdataset/val/shard-{000000..000999}.tar
     stats_path: data/webdataset/stats.json
   split: train
   val_split: val
-  image_size: 64
-  T_obs: 2
-  T_action: 4
+  image_size: 224
+  T_obs: 4
+  T_action: 16
   state_dim: 8
   action_dim: 7
-  num_workers: 0
-  prefetch_factor: 2
+  num_workers: 8
+  prefetch_factor: 4
   augment:
-    enabled: false
+    enabled: true
+    random_resized_crop: true
+    color_jitter: true
   normalization:
     stats_path: data/webdataset/stats.json
 
 model:
   baseline: sliding_window
   vision_encoder: resnet18
-  pretrained_vision: false
-  d_model: 64
-  n_layers: 1
-  n_heads: 2
+  pretrained_vision: true
+  d_model: 256
+  n_layers: 4
+  n_heads: 4
   dropout: 0.1
   use_memory: false
-  state_hidden_dim: 32
-  action_hidden_dim: 64
+  state_hidden_dim: 128
+  action_hidden_dim: 256
 
 training:
-  batch_size: 2
-  epochs: 1
-  max_steps_per_epoch: 8
+  batch_size: 64
+  epochs: 20
+  max_steps_per_epoch: null
   lr: 1.0e-4
   weight_decay: 1.0e-4
   grad_clip_norm: 1.0
-  amp: false
+  amp: true
   amp_dtype: bfloat16
-  channels_last: false
+  channels_last: true
   compile: false
   compile_mode: reduce-overhead
   temporal_smoothness_weight: 0.0
-  log_every: 1
-  checkpoint_dir: checkpoints/webdataset_smoke
+  log_every: 50
+  checkpoint_dir: checkpoints/runpod_webdataset
+  resume: null
 
 evaluation:
-  batch_size: 2
+  batch_size: 64
   results_path: results/baselines.csv
