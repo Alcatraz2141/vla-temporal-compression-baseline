@@ -58,6 +58,15 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             T_obs = 1
         elif model_cfg.get("baseline", "sliding_window") == "larger_window":
             T_obs *= 2
+        num_workers = int(data_cfg.get("num_workers", 4))
+        if isinstance(urls, list):
+            capped_workers = min(num_workers, max(len(urls), 1))
+            if capped_workers != num_workers:
+                print(
+                    f"Capping WebDataset workers from {num_workers} to {capped_workers} for {len(urls)} local shard(s).",
+                    flush=True,
+                )
+            num_workers = capped_workers
         return build_streaming_dataset(
             urls=urls,
             image_size=int(data_cfg.get("image_size", 224)),
@@ -67,7 +76,7 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             shuffle=shuffle,
             augment=bool(augment_cfg.get("enabled", False)) and split == data_cfg.get("split", "train"),
             stats_path=data_cfg.get("normalization", {}).get("stats_path") or urls_cfg.get("stats_path"),
-            num_workers=int(data_cfg.get("num_workers", 4)),
+            num_workers=num_workers,
             prefetch_factor=int(data_cfg.get("prefetch_factor", 4)),
         )
 
