@@ -3,11 +3,39 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from braceexpand import braceexpand
 import torch
 from torch.utils.data import DataLoader
 
 from datasets.streaming_vla_dataset import build_streaming_dataset
 from datasets.vla_dataset import VLADataset, seed_worker, vla_collate_fn
+
+
+def _is_remote_url(url: str) -> bool:
+    return "://" in url or url.startswith("pipe:") or url.startswith("hf://")
+
+
+def _expand_local_shards(urls: str | list[str]) -> str | list[str]:
+    if isinstance(urls, list):
+        expanded = []
+        for url in urls:
+            item = _expand_local_shards(url)
+            expanded.extend(item if isinstance(item, list) else [item])
+        return expanded
+    if _is_remote_url(urls):
+        return urls
+    candidates = list(braceexpand(urls)) if "{" in urls and "}" in urls else [urls]
+    if len(candidates) == 1 and any(ch in candidates[0] for ch in "*?[]"):
+        candidates = [str(path) for path in sorted(Path().glob(candidates[0]))]
+    existing = [path for path in candidates if Path(path).exists()]
+    if not existing:
+        raise FileNotFoundError(
+            f"No WebDataset shards matched {urls!r}. Check data.webdataset URLs or download/export shards first."
+        )
+    missing = len(candidates) - len(existing)
+    if missing > 0:
+        print(f"Using {len(existing)} existing shard(s); skipped {missing} missing shard path(s) from {urls!r}.", flush=True)
+    return existing
 
 
 def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataLoader:
@@ -24,6 +52,7 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
         if not urls:
             root = Path(urls_cfg.get("root", "data/webdataset"))
             urls = str(root / split / "shard-{000000..999999}.tar")
+        urls = _expand_local_shards(urls)
         T_obs = int(data_cfg["T_obs"])
         if model_cfg.get("baseline", "sliding_window") == "no_temporal":
             T_obs = 1
