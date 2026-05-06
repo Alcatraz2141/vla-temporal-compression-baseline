@@ -157,3 +157,5 @@ For larger RunPod runs, WebDataset sweeps, and simulator rollout wiring, see:
 ```text
 docs/runpod_experiments.md
 ```
+
+This includes the optional SmolVLA/LeRobot external baseline path.

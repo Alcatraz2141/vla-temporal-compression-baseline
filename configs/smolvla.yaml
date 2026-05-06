@@ -1,0 +1,31 @@
+seed: 42
+
+lerobot_export:
+  input_root: data/processed
+  output_root: data/lerobot
+  train_split: train
+  val_split: val
+  fps: 10
+  image_key: observation.images.front
+  state_key: observation.state
+  action_key: action
+  robot_type: franka_panda_openx
+  use_videos: true
+  private: true
+  train_repo_id: null
+  val_repo_id: null
+
+smolvla:
+  base_model: lerobot/smolvla_base
+  train_dataset_repo_id: null
+  val_dataset_repo_id: null
+  output_dir: outputs/train/smolvla_openx
+  job_name: smolvla_openx
+  policy_repo_id: null
+  device: cuda
+  dtype: bfloat16
+  batch_size: 16
+  steps: 20000
+  wandb: false
+  max_eval_samples: 1024
+  results_path: results/baselines.csv

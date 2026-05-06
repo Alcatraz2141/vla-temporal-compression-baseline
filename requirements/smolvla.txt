@@ -1,0 +1,4 @@
+lerobot[smolvla]==0.5.1
+opencv-python
+pyyaml
+tqdm

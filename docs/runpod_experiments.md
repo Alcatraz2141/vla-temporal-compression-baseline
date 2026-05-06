@@ -72,6 +72,67 @@ This trains and evaluates:
 temporal embeddings, causal Transformer layers, and chunked continuous action prediction. It is intended for
 fair comparison inside this repo, not as an exact reproduction of Google's full RT-1 recipe.
 
+## SmolVLA External Baseline
+
+SmolVLA is handled as an external LeRobot baseline because it uses the LeRobot dataset/training stack rather
+than this repo's PyTorch `training/train.py` loop. This preserves the existing baselines while adding the
+pretrained open-source VLA baseline requested in the roadmap.
+
+Install SmolVLA in a separate environment. Do not install LeRobot into the main baseline `.venv`: current
+LeRobot releases pin older Torch / Hugging Face dependency ranges than this repo's PyTorch baseline stack.
+
+```bash
+uv venv .venv-smolvla --python 3.11
+source .venv-smolvla/bin/activate
+uv pip install -r requirements/smolvla.txt
+```
+
+Export processed episodes to LeRobot format:
+
+```bash
+python scripts/export_lerobot.py \
+  --config configs/smolvla.yaml \
+  --train-repo-id YOUR_HF_USERNAME/vla-franka-lerobot-train \
+  --val-repo-id YOUR_HF_USERNAME/vla-franka-lerobot-val \
+  --overwrite
+```
+
+Push during export by adding `--push`, or upload/push with LeRobot tools after inspecting the local dataset.
+
+Run zero-shot SmolVLA offline action prediction on the validation LeRobot dataset:
+
+```bash
+python scripts/smolvla_baseline.py eval --config configs/smolvla.yaml
+```
+
+Fine-tune SmolVLA:
+
+```bash
+python scripts/smolvla_baseline.py train --config configs/smolvla.yaml
+```
+
+Evaluate a fine-tuned checkpoint:
+
+```bash
+python scripts/smolvla_baseline.py eval \
+  --config configs/smolvla.yaml \
+  --policy-path outputs/train/smolvla_openx/checkpoints/last/pretrained_model
+```
+
+Before running, set these fields in `configs/smolvla.yaml`:
+
+```yaml
+lerobot_export:
+  train_repo_id: YOUR_HF_USERNAME/vla-franka-lerobot-train
+  val_repo_id: YOUR_HF_USERNAME/vla-franka-lerobot-val
+smolvla:
+  train_dataset_repo_id: YOUR_HF_USERNAME/vla-franka-lerobot-train
+  val_dataset_repo_id: YOUR_HF_USERNAME/vla-franka-lerobot-val
+```
+
+The SmolVLA offline metric is MSE/MAE against validation actions. It is useful as a roadmap-aligned pretrained
+VLA baseline, but true task Success Rate still requires a robot or simulator rollout benchmark.
+
 Metrics append to `results/baselines.csv`.
 
 ## GPU Utilization Knobs
