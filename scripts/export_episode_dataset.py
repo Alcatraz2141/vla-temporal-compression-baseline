@@ -28,6 +28,18 @@ def episode_dirs(root: Path) -> list[Path]:
     return dirs
 
 
+def episode_length(src: Path) -> int:
+    try:
+        import numpy as np
+
+        actions_len = len(np.load(src / "actions.npy", mmap_mode="r"))
+        states_len = len(np.load(src / "states.npy", mmap_mode="r"))
+    except Exception:
+        return 0
+    images_len = len(list((src / "images").glob("*")))
+    return min(actions_len, states_len, images_len)
+
+
 def link_or_copy(src: Path, dst: Path, copy: bool) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     if dst.exists() or dst.is_symlink():
@@ -73,8 +85,13 @@ def main() -> None:
         raise FileNotFoundError(f"No episode_* folders found under {args.input_root}")
 
     manifest: list[dict[str, Any]] = []
-    for idx, src in enumerate(tqdm(src_episodes, desc="export episodes")):
-        episode_id = f"episode_{idx:06d}"
+    skipped = 0
+    for src in tqdm(src_episodes, desc="export episodes"):
+        length = episode_length(src)
+        if length < 2:
+            skipped += 1
+            continue
+        episode_id = f"episode_{len(manifest):06d}"
         dst = episodes_out / episode_id
         dst.mkdir(parents=True, exist_ok=True)
         link_or_copy(src / "images", dst / "images", args.copy)
@@ -85,7 +102,7 @@ def main() -> None:
         metadata.setdefault("episode_id", episode_id)
         with (dst / "metadata.json").open("w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
-        manifest.append({"episode_id": episode_id, "path": str(dst), "metadata": metadata})
+        manifest.append({"episode_id": episode_id, "path": str(dst), "length": length, "metadata": metadata})
 
     rng = random.Random(args.seed)
     episode_ids = [item["episode_id"] for item in manifest]
@@ -105,7 +122,10 @@ def main() -> None:
     with (args.output_root / "manifest.jsonl").open("w", encoding="utf-8") as f:
         for item in manifest:
             f.write(json.dumps(item) + "\n")
-    print(f"Wrote {len(train_ids)} train, {len(val_ids)} val, {len(test_ids)} test episodes under {args.output_root}")
+    print(
+        f"Wrote {len(train_ids)} train, {len(val_ids)} val, {len(test_ids)} test episodes under {args.output_root}; "
+        f"skipped {skipped} too-short/invalid episodes"
+    )
 
 
 if __name__ == "__main__":

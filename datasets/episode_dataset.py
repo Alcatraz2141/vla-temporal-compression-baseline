@@ -70,11 +70,24 @@ class EpisodeWindowDataset(Dataset):
         self.samples_per_epoch = samples_per_epoch
         self.eval_windows_per_episode = max(int(eval_windows_per_episode), 1)
         split_data = _load_json(self.root / "splits" / f"{split}.json")
-        self.records = [EpisodeRecord(eid, self.root / "episodes" / eid) for eid in split_data["episodes"]]
+        self.records = [
+            EpisodeRecord(eid, self.root / "episodes" / eid)
+            for eid in split_data["episodes"]
+            if self._is_valid_episode(self.root / "episodes" / eid)
+        ]
         if not self.records:
             raise FileNotFoundError(f"No episodes listed for split={split} under {self.root}/splits")
         self.stats = _load_json(Path(stats_path)) if stats_path and Path(stats_path).exists() else {}
         self.transform = self._make_transform(image_size, augment)
+
+    def _is_valid_episode(self, path: Path) -> bool:
+        try:
+            actions = np.load(path / "actions.npy", mmap_mode="r")
+            states = np.load(path / "states.npy", mmap_mode="r")
+            image_count = len(list((path / "images").glob("*")))
+            return min(len(actions), len(states), image_count) >= 2
+        except Exception:
+            return False
 
     def _make_transform(self, image_size: int, augment: bool) -> transforms.Compose:
         ops: list[Any] = [transforms.ToPILImage()]
