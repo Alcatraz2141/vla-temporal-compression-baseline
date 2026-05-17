@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from datasets.episode_dataset import EpisodeWindowDataset, episode_collate_fn
+from datasets.episode_shard_dataset import EpisodeShardWindowDataset
 from datasets.streaming_vla_dataset import build_streaming_dataset
 from datasets.vla_dataset import VLADataset, seed_worker, vla_collate_fn
 
@@ -47,10 +48,11 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
     batch_size = train_cfg.get("batch_size", 32) if split == data_cfg.get("split", "train") else eval_cfg.get("batch_size", 32)
     augment_cfg = data_cfg.get("augment", {})
     source = data_cfg.get("source", "local")
-    if source == "episode":
+    if source in {"episode", "episode_shards"}:
         episode_cfg = data_cfg.get("episode", {})
         memory_cfg = config.get("memory", {})
-        dataset = EpisodeWindowDataset(
+        dataset_cls = EpisodeShardWindowDataset if source == "episode_shards" else EpisodeWindowDataset
+        dataset = dataset_cls(
             root=Path(episode_cfg.get("root", "data/episodes")),
             split=split,
             K_recent=int(data_cfg.get("K_recent", data_cfg.get("T_obs", 4))),

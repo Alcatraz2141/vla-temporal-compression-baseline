@@ -8,3 +8,5 @@ timestamp,baseline,checkpoint,seed,mse,mae,pred_temporal_smoothness,success_rate
 2026-05-05T10:12:42.515598+00:00,bc_resnet50,checkpoints/webdataset_smoke/bc_resnet50/best.pt,42,6.678335353202626,4.478915300466082,0.013899691227993687,nan,nan
 2026-05-12T18:10:23.611596+00:00,sliding_window,checkpoints/milestone_smoke/sliding_window/best.pt,42,0.3967647850513458,1.1219369769096375,0.038464684039354324,nan,nan
 2026-05-12T18:10:50.073823+00:00,event_gated_memory,checkpoints/milestone_smoke/event_gated_memory/best.pt,42,0.3091646730899811,0.980499267578125,0.021339348517358303,nan,nan
+2026-05-17T19:28:24.234218+00:00,sliding_window,checkpoints/milestone_sharded_smoke/sliding_window/best.pt,42,0.3967647850513458,1.1219369769096375,0.038464684039354324,nan,nan
+2026-05-17T19:28:47.621899+00:00,event_gated_memory,checkpoints/milestone_sharded_smoke/event_gated_memory/best.pt,42,0.3091646730899811,0.980499267578125,0.021339348517358303,nan,nan

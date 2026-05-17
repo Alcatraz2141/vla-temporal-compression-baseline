@@ -1,6 +1,6 @@
 # Milestone: Episode-Level Long-Horizon Memory Benchmark
 
-This milestone keeps the existing local/WebDataset download and Hugging Face upload path intact, but adds an episode-level data path for long-horizon memory experiments.
+This milestone keeps the existing local/WebDataset download and Hugging Face upload path intact, but adds episode-level data paths for long-horizon memory experiments.
 
 ## Why Episode-Level Data
 
@@ -25,6 +25,43 @@ uv run python scripts/export_episode_dataset.py \
   --overwrite
 ```
 
+## Preferred RunPod/HF Format: Episode Shards
+
+For anything beyond local debugging, use episode-level tar shards. This avoids uploading thousands of loose image files while still preserving full episodes for memory construction.
+
+```bash
+uv run python scripts/export_episode_shards.py \
+  --input-root data/processed \
+  --output-root data/episode_shards_500 \
+  --max-episodes 500 \
+  --episodes-per-shard 64 \
+  --overwrite
+```
+
+Upload only shard files plus split metadata:
+
+```bash
+HF_HUB_ENABLE_HF_TRANSFER=1 uv run hf upload-large-folder \
+  Alcatraz1412/vla-franka-subset \
+  data/episode_shards_500 \
+  --repo-type dataset \
+  --include "shards/*.tar" \
+  --include "splits/*.json" \
+  --include "manifest.jsonl" \
+  --num-workers 1
+```
+
+Download on RunPod:
+
+```bash
+uv run hf download Alcatraz1412/vla-franka-subset \
+  --repo-type dataset \
+  --local-dir data/episode_shards_500 \
+  --include "shards/*.tar" \
+  --include "splits/*.json" \
+  --include "manifest.jsonl"
+```
+
 ## Run Sliding Window
 
 ```bash
@@ -40,6 +77,16 @@ uv run python evaluation/eval.py --config configs/milestone_event_memory.yaml
 ```
 
 Both evaluations append to `results/baselines.csv`.
+
+## Run Sharded Dataset
+
+```bash
+uv run python training/train.py --config configs/milestone_sharded_sliding.yaml
+uv run python evaluation/eval.py --config configs/milestone_sharded_sliding.yaml
+
+uv run python training/train.py --config configs/milestone_sharded_event_memory.yaml
+uv run python evaluation/eval.py --config configs/milestone_sharded_event_memory.yaml
+```
 
 ## Current Baselines
 
