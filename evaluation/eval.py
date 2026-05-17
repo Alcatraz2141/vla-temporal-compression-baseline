@@ -20,6 +20,27 @@ from utils.metrics import masked_mse, temporal_smoothness
 from utils.seed import resolve_device, set_seed
 
 
+def _move_tensor_batch(batch: dict[str, object], device: torch.device) -> dict[str, object]:
+    return {key: value.to(device, non_blocking=True) if torch.is_tensor(value) else value for key, value in batch.items()}
+
+
+def _model_forward_and_target(
+    model: torch.nn.Module,
+    batch: dict[str, object],
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    batch = _move_tensor_batch(batch, device)
+    if "recent_obs" in batch:
+        model_name = model.__class__.__name__
+        if model_name == "EventGatedMemoryVLA":
+            pred = model(**batch)
+        else:
+            pred = model(images=batch["recent_obs"], states=batch["recent_states"])
+        return pred, batch["target_actions"], batch["target_mask"]
+    pred = model(images=batch["images"], states=batch["states"])
+    return pred, batch["actions"], batch["mask"]
+
+
 def _safe_len(loader: torch.utils.data.DataLoader) -> int:
     try:
         return len(loader)
@@ -35,9 +56,7 @@ def evaluate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device
     total_smoothness = 0.0
     batches = 0
     for batch in tqdm(loader, desc="eval", leave=False):
-        actions = batch["actions"].to(device)
-        mask = batch["mask"].to(device)
-        pred = model(images=batch["images"].to(device, non_blocking=True), states=batch["states"].to(device, non_blocking=True))
+        pred, actions, mask = _model_forward_and_target(model, batch, device)
         mse = masked_mse(pred, actions, mask)
         mae = (pred - actions).abs()
         mae = (mae * mask.to(mae.dtype).unsqueeze(-1)).sum() / mask.to(mae.dtype).sum().clamp_min(1.0)
@@ -81,7 +100,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate a trained VLA baseline checkpoint.")
     parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
     parser.add_argument("--checkpoint", type=Path, default=None)
-    parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "rt1_style", "octo"], default=None)
+    parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "rt1_style", "octo", "event_gated_memory"], default=None)
     args = parser.parse_args()
 
     cfg = load_config(args.config)

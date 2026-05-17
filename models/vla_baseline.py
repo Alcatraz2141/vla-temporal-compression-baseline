@@ -201,6 +201,161 @@ class RT1StyleBaseline(nn.Module):
         return self.action_head(pooled).view(bsz, self.T_action, self.action_dim)
 
 
+class EventGatedMemoryVLA(nn.Module):
+    """Long-horizon policy with cheap event-gated summaries over older context."""
+
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int,
+        T_action: int,
+        d_model: int = 256,
+        n_layers: int = 4,
+        n_heads: int = 4,
+        dropout: float = 0.1,
+        pretrained_vision: bool = True,
+        chunk_size: int = 8,
+        max_memory_tokens: int = 8,
+        query_type: str = "concat",
+        action_hidden_dim: int = 256,
+    ) -> None:
+        super().__init__()
+        if query_type not in {"concat", "cross_attention"}:
+            raise ValueError("query_type must be 'concat' or 'cross_attention'.")
+        self.T_action = T_action
+        self.action_dim = action_dim
+        self.chunk_size = int(chunk_size)
+        self.max_memory_tokens = int(max_memory_tokens)
+        self.query_type = query_type
+
+        self.vision, vision_dim = _build_resnet18(pretrained_vision)
+        self.vision_proj = nn.Linear(vision_dim, d_model)
+        self.action_encoder = nn.Sequential(nn.Linear(action_dim, d_model), nn.GELU(), nn.Linear(d_model, d_model))
+        self.state_encoder = nn.Sequential(nn.Linear(state_dim, d_model), nn.GELU(), nn.Linear(d_model, d_model))
+        self.step_fusion = nn.Sequential(
+            nn.Linear(d_model * 3, d_model),
+            nn.GELU(),
+            nn.Linear(d_model, d_model),
+        )
+        self.pool_query = nn.Parameter(torch.randn(d_model) * 0.02)
+        self.gate = nn.Sequential(
+            nn.Linear(d_model * 3 + 1, d_model),
+            nn.GELU(),
+            nn.Linear(d_model, 1),
+        )
+        layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=n_heads,
+            dim_feedforward=d_model * 4,
+            dropout=dropout,
+            batch_first=True,
+            activation="gelu",
+        )
+        self.transformer = nn.TransformerEncoder(layer, num_layers=n_layers)
+        self.memory_attention = nn.MultiheadAttention(d_model, n_heads, dropout=dropout, batch_first=True)
+        self.action_head = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Linear(d_model, action_hidden_dim),
+            nn.GELU(),
+            nn.Linear(action_hidden_dim, T_action * action_dim),
+        )
+
+    def _encode_steps(self, obs: torch.Tensor, actions: torch.Tensor, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        bsz, timesteps, channels, height, width = obs.shape
+        flat_obs = obs.view(bsz * timesteps, channels, height, width)
+        if flat_obs.is_cuda:
+            flat_obs = flat_obs.contiguous(memory_format=torch.channels_last)
+        visual = self.vision_proj(self.vision(flat_obs)).view(bsz, timesteps, -1)
+        action = self.action_encoder(actions)
+        state = self.state_encoder(states)
+        step = self.step_fusion(torch.cat([visual, action, state], dim=-1))
+        return step, visual, action, state
+
+    def _chunk_memory(
+        self,
+        tokens: torch.Tensor,
+        visual: torch.Tensor,
+        action: torch.Tensor,
+        state: torch.Tensor,
+        mask: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        bsz, timesteps, dim = tokens.shape
+        chunk_count = max((timesteps + self.chunk_size - 1) // self.chunk_size, 1)
+        padded_steps = chunk_count * self.chunk_size
+        pad = padded_steps - timesteps
+        if pad:
+            tokens = torch.cat([tokens, tokens.new_zeros(bsz, pad, dim)], dim=1)
+            visual = torch.cat([visual, visual.new_zeros(bsz, pad, dim)], dim=1)
+            action = torch.cat([action, action.new_zeros(bsz, pad, dim)], dim=1)
+            state = torch.cat([state, state.new_zeros(bsz, pad, dim)], dim=1)
+            mask = torch.cat([mask, torch.zeros(bsz, pad, dtype=torch.bool, device=mask.device)], dim=1)
+
+        view_shape = (bsz, chunk_count, self.chunk_size, dim)
+        chunk_tokens = tokens.view(view_shape)
+        chunk_visual = visual.view(view_shape)
+        chunk_action = action.view(view_shape)
+        chunk_state = state.view(view_shape)
+        chunk_mask = mask.view(bsz, chunk_count, self.chunk_size)
+
+        attn_logits = torch.einsum("bcsd,d->bcs", chunk_tokens, self.pool_query)
+        attn_logits = attn_logits.masked_fill(~chunk_mask, -1e4)
+        attn = torch.softmax(attn_logits, dim=-1) * chunk_mask.to(tokens.dtype)
+        attn = attn / attn.sum(dim=-1, keepdim=True).clamp_min(1e-6)
+        summaries = torch.einsum("bcs,bcsd->bcd", attn, chunk_tokens)
+
+        valid_counts = chunk_mask.sum(dim=-1).clamp_min(1).to(tokens.dtype).unsqueeze(-1)
+        delta_visual = chunk_visual.diff(dim=2).abs().sum(dim=2) / valid_counts
+        delta_action = chunk_action.diff(dim=2).abs().sum(dim=2) / valid_counts
+        delta_state = chunk_state.diff(dim=2).abs().sum(dim=2) / valid_counts
+        age = torch.linspace(1.0, 0.0, chunk_count, device=tokens.device).view(1, chunk_count, 1).expand(bsz, -1, -1)
+        gate_input = torch.cat([delta_visual, delta_action, delta_state, age], dim=-1)
+        gate_score = torch.sigmoid(self.gate(gate_input))
+        memory_tokens = summaries * gate_score
+        memory_mask = chunk_mask.any(dim=-1)
+        if memory_tokens.size(1) > self.max_memory_tokens:
+            memory_tokens = memory_tokens[:, -self.max_memory_tokens :]
+            memory_mask = memory_mask[:, -self.max_memory_tokens :]
+        return memory_tokens, memory_mask
+
+    def forward(
+        self,
+        recent_obs: torch.Tensor,
+        recent_actions: torch.Tensor,
+        recent_states: torch.Tensor,
+        older_obs: torch.Tensor,
+        older_actions: torch.Tensor,
+        older_states: torch.Tensor,
+        recent_mask: torch.Tensor | None = None,
+        older_mask: torch.Tensor | None = None,
+        **_: Any,
+    ) -> torch.Tensor:
+        recent_tokens, _, _, _ = self._encode_steps(recent_obs, recent_actions, recent_states)
+        older_tokens, older_visual, older_action, older_state = self._encode_steps(older_obs, older_actions, older_states)
+        if recent_mask is None:
+            recent_mask = torch.ones(recent_tokens.shape[:2], dtype=torch.bool, device=recent_tokens.device)
+        if older_mask is None:
+            older_mask = torch.ones(older_tokens.shape[:2], dtype=torch.bool, device=older_tokens.device)
+
+        memory_tokens, memory_mask = self._chunk_memory(older_tokens, older_visual, older_action, older_state, older_mask)
+        empty_memory = ~memory_mask.any(dim=1)
+        if empty_memory.any():
+            memory_mask = memory_mask.clone()
+            memory_tokens = memory_tokens.clone()
+            memory_mask[empty_memory, 0] = True
+            memory_tokens[empty_memory, 0] = 0
+        if self.query_type == "cross_attention":
+            recent_encoded = self.transformer(recent_tokens, src_key_padding_mask=~recent_mask)
+            query = recent_encoded[:, -1:].contiguous()
+            attended, _ = self.memory_attention(query, memory_tokens, memory_tokens, key_padding_mask=~memory_mask)
+            pooled = query.squeeze(1) + attended.squeeze(1)
+        else:
+            tokens = torch.cat([memory_tokens, recent_tokens], dim=1)
+            mask = torch.cat([memory_mask, recent_mask], dim=1)
+            encoded = self.transformer(tokens, src_key_padding_mask=~mask)
+            pooled = encoded[:, -1]
+        return self.action_head(pooled).view(recent_obs.size(0), self.T_action, self.action_dim)
+
+
 class OctoBaseline(nn.Module):
     """Adapter placeholder for evaluating an open-source Octo checkpoint.
 
@@ -224,15 +379,18 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
     model_cfg = config["model"]
     data_cfg = config["data"]
     baseline = model_cfg.get("baseline", "sliding_window")
-    T_obs = 1 if baseline == "no_temporal" else int(data_cfg["T_obs"])
+    T_obs = int(data_cfg.get("K_recent", data_cfg.get("T_obs", 4))) if data_cfg.get("source") == "episode" else int(data_cfg["T_obs"])
+    if baseline == "no_temporal":
+        T_obs = 1
     if baseline == "larger_window":
         T_obs = max(T_obs, int(data_cfg["T_obs"]) * 2)
+    T_action = int(data_cfg.get("H_action", data_cfg.get("T_action", 16)))
 
     if baseline == "bc_resnet50":
         return BehaviorCloningAgent(
             state_dim=state_dim,
             action_dim=action_dim,
-            T_action=int(data_cfg["T_action"]),
+            T_action=T_action,
             pretrained_vision=bool(model_cfg.get("pretrained_vision", True)),
             hidden_dim=int(model_cfg.get("action_hidden_dim", 256)),
         )
@@ -243,12 +401,28 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
             state_dim=state_dim,
             action_dim=action_dim,
             T_obs=T_obs,
-            T_action=int(data_cfg["T_action"]),
+            T_action=T_action,
             d_model=int(model_cfg.get("d_model", 256)),
             n_layers=int(model_cfg.get("n_layers", 4)),
             n_heads=int(model_cfg.get("n_heads", 4)),
             dropout=float(model_cfg.get("dropout", 0.1)),
             pretrained_vision=bool(model_cfg.get("pretrained_vision", True)),
+            action_hidden_dim=int(model_cfg.get("action_hidden_dim", 256)),
+        )
+    if baseline == "event_gated_memory":
+        memory_cfg = config.get("memory", {})
+        return EventGatedMemoryVLA(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            T_action=T_action,
+            d_model=int(model_cfg.get("d_model", 256)),
+            n_layers=int(model_cfg.get("n_layers", 4)),
+            n_heads=int(model_cfg.get("n_heads", 4)),
+            dropout=float(model_cfg.get("dropout", 0.1)),
+            pretrained_vision=bool(model_cfg.get("pretrained_vision", True)),
+            chunk_size=int(memory_cfg.get("chunk_size", 8)),
+            max_memory_tokens=int(memory_cfg.get("max_memory_tokens", 8)),
+            query_type=memory_cfg.get("query_type", "concat"),
             action_hidden_dim=int(model_cfg.get("action_hidden_dim", 256)),
         )
     if baseline not in {"sliding_window", "no_temporal", "larger_window"}:
@@ -257,7 +431,7 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
         state_dim=state_dim,
         action_dim=action_dim,
         T_obs=T_obs,
-        T_action=int(data_cfg["T_action"]),
+        T_action=T_action,
         d_model=int(model_cfg.get("d_model", 256)),
         n_layers=int(model_cfg.get("n_layers", 4)),
         n_heads=int(model_cfg.get("n_heads", 4)),

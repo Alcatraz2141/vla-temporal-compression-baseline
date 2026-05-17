@@ -49,9 +49,37 @@ def infer_dims(loader: torch.utils.data.DataLoader, config: dict[str, Any]) -> t
             raise ValueError("Streaming WebDataset training requires data.state_dim and data.action_dim in the config.")
         return int(config["data"]["state_dim"]), int(config["data"]["action_dim"])
     sample = loader.dataset[0]
+    if "recent_states" in sample:
+        state_dim = int(config["data"].get("state_dim") or sample["recent_states"].shape[-1])
+        action_dim = int(config["data"].get("action_dim") or sample["target_actions"].shape[-1])
+        return state_dim, action_dim
     state_dim = int(config["data"].get("state_dim") or sample["states"].shape[-1])
     action_dim = int(config["data"].get("action_dim") or sample["actions"].shape[-1])
     return state_dim, action_dim
+
+
+def _move_tensor_batch(batch: dict[str, Any], device: torch.device) -> dict[str, Any]:
+    return {key: value.to(device, non_blocking=True) if torch.is_tensor(value) else value for key, value in batch.items()}
+
+
+def _model_forward_and_target(
+    model: torch.nn.Module,
+    batch: dict[str, Any],
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    batch = _move_tensor_batch(batch, device)
+    if "recent_obs" in batch:
+        if hasattr(model, "_orig_mod"):
+            baseline = getattr(model._orig_mod, "__class__").__name__
+        else:
+            baseline = getattr(model, "__class__").__name__
+        if baseline == "EventGatedMemoryVLA":
+            pred = model(**batch)
+        else:
+            pred = model(images=batch["recent_obs"], states=batch["recent_states"])
+        return pred, batch["target_actions"], batch["target_mask"]
+    pred = model(images=batch["images"], states=batch["states"])
+    return pred, batch["actions"], batch["mask"]
 
 
 def _move_batch(batch: dict[str, Any], device: torch.device, channels_last: bool) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -79,10 +107,8 @@ def run_epoch(
     for step, batch in enumerate(tqdm(loader, desc="train", leave=False), start=1):
         if max_steps is not None and step > int(max_steps):
             break
-        images, states, actions, mask = _move_batch(batch, device, channels_last)
-
         with autocast_context(device, cfg):
-            pred = model(images=images, states=states)
+            pred, actions, mask = _model_forward_and_target(model, batch, device)
             loss = masked_mse(pred, actions, mask)
             if smooth_weight > 0:
                 loss = loss + smooth_weight * temporal_smoothness(pred)
@@ -108,8 +134,7 @@ def validate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device
     batches = 0
     channels_last = False
     for batch in tqdm(loader, desc="val", leave=False):
-        images, states, actions, mask = _move_batch(batch, device, channels_last)
-        pred = model(images=images, states=states)
+        pred, actions, mask = _model_forward_and_target(model, batch, device)
         loss = masked_mse(pred, actions, mask)
         total += float(loss.cpu())
         batches += 1
@@ -119,7 +144,7 @@ def validate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the PyTorch VLA baseline.")
     parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
-    parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "rt1_style", "octo"], default=None)
+    parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "rt1_style", "octo", "event_gated_memory"], default=None)
     args = parser.parse_args()
 
     cfg = load_config(args.config)

@@ -1,0 +1,62 @@
+seed: 42
+device: auto
+
+data:
+  source: episode
+  episode:
+    root: data/episodes_smoke
+    samples_per_epoch: 32
+    eval_windows_per_episode: 4
+    max_older_steps: 32
+  split: train
+  val_split: val
+  image_size: 96
+  T_obs: 4
+  T_action: 8
+  K_recent: 4
+  H_action: 8
+  state_dim: null
+  action_dim: null
+  num_workers: 0
+  prefetch_factor: 2
+  augment:
+    enabled: false
+  normalization:
+    stats_path: data/episodes_smoke/stats.json
+
+model:
+  baseline: event_gated_memory
+  vision_encoder: resnet18
+  pretrained_vision: false
+  d_model: 64
+  n_layers: 1
+  n_heads: 4
+  dropout: 0.1
+  state_hidden_dim: 64
+  action_hidden_dim: 128
+
+memory:
+  chunk_size: 4
+  max_memory_tokens: 8
+  gate_type: event
+  query_type: concat
+
+training:
+  batch_size: 2
+  epochs: 1
+  max_steps_per_epoch: 8
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  grad_clip_norm: 1.0
+  amp: false
+  amp_dtype: bfloat16
+  channels_last: false
+  compile: false
+  temporal_smoothness_weight: 0.0
+  log_every: 4
+  checkpoint_dir: checkpoints/milestone_smoke
+  resume: null
+
+evaluation:
+  batch_size: 2
+  results_path: results/baselines.csv

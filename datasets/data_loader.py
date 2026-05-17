@@ -7,6 +7,7 @@ from braceexpand import braceexpand
 import torch
 from torch.utils.data import DataLoader
 
+from datasets.episode_dataset import EpisodeWindowDataset, episode_collate_fn
 from datasets.streaming_vla_dataset import build_streaming_dataset
 from datasets.vla_dataset import VLADataset, seed_worker, vla_collate_fn
 
@@ -46,6 +47,38 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
     batch_size = train_cfg.get("batch_size", 32) if split == data_cfg.get("split", "train") else eval_cfg.get("batch_size", 32)
     augment_cfg = data_cfg.get("augment", {})
     source = data_cfg.get("source", "local")
+    if source == "episode":
+        episode_cfg = data_cfg.get("episode", {})
+        memory_cfg = config.get("memory", {})
+        dataset = EpisodeWindowDataset(
+            root=Path(episode_cfg.get("root", "data/episodes")),
+            split=split,
+            K_recent=int(data_cfg.get("K_recent", data_cfg.get("T_obs", 4))),
+            H_action=int(data_cfg.get("H_action", data_cfg.get("T_action", 16))),
+            image_size=int(data_cfg.get("image_size", 224)),
+            max_older_steps=int(episode_cfg.get("max_older_steps", int(memory_cfg.get("chunk_size", 8)) * int(memory_cfg.get("max_memory_tokens", 8)))),
+            seed=int(config.get("seed", 42)),
+            augment=bool(augment_cfg.get("enabled", False)) and split == data_cfg.get("split", "train"),
+            stats_path=data_cfg.get("normalization", {}).get("stats_path"),
+            samples_per_epoch=episode_cfg.get("samples_per_epoch") if split == data_cfg.get("split", "train") else None,
+            eval_windows_per_episode=int(episode_cfg.get("eval_windows_per_episode", 1)),
+        )
+        generator = torch.Generator()
+        generator.manual_seed(int(config.get("seed", 42)))
+        num_workers = int(data_cfg.get("num_workers", 2))
+        kwargs: dict[str, Any] = {
+            "batch_size": int(batch_size),
+            "shuffle": False,
+            "num_workers": num_workers,
+            "pin_memory": torch.cuda.is_available(),
+            "persistent_workers": num_workers > 0,
+            "collate_fn": episode_collate_fn,
+            "worker_init_fn": seed_worker,
+            "generator": generator,
+        }
+        if num_workers > 0:
+            kwargs["prefetch_factor"] = int(data_cfg.get("prefetch_factor", 4))
+        return DataLoader(dataset, **kwargs)
     if source == "webdataset":
         urls_cfg = data_cfg.get("webdataset", {})
         urls = urls_cfg.get(f"{split}_urls") or urls_cfg.get("urls")
