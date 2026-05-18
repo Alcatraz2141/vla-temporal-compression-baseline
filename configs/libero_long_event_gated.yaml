@@ -1,0 +1,63 @@
+dataset: libero_long
+seed: 42
+device: auto
+
+data:
+  source: libero_long
+  libero_long:
+    root: data/libero_long
+    hdf5_glob: "**/*.hdf5"
+    split_dir: data/libero_long/splits
+    samples_per_epoch: null
+    eval_windows_per_episode: 4
+    max_older_steps: 64
+  split: train
+  val_split: val
+  image_size: 224
+  T_obs: 8
+  T_action: 4
+  K_recent: 8
+  H_action: 4
+  state_dim: null
+  action_dim: null
+  num_workers: 4
+  prefetch_factor: 2
+  augment:
+    enabled: true
+
+model:
+  baseline: event_gated_memory
+  vision_encoder: resnet18
+  pretrained_vision: true
+  d_model: 256
+  n_layers: 4
+  n_heads: 4
+  dropout: 0.1
+  state_hidden_dim: 128
+  action_hidden_dim: 256
+
+memory:
+  chunk_size: 4
+  max_memory_tokens: 16
+  gate_type: event
+  query_type: cross_attention
+
+training:
+  batch_size: 16
+  epochs: 10
+  max_steps_per_epoch: null
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  grad_clip_norm: 1.0
+  amp: true
+  amp_dtype: bfloat16
+  channels_last: true
+  compile: false
+  temporal_smoothness_weight: 0.0
+  log_every: 50
+  checkpoint_dir: checkpoints/libero_long
+  resume: null
+
+evaluation:
+  batch_size: 16
+  results_path: results/baselines.csv

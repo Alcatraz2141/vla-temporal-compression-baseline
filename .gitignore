@@ -13,7 +13,9 @@ wheels/
 
 # Local robot data and model artifacts
 data/raw/
+data/raw_diverse/
 data/processed/
+data/processed_diverse/
 data/webdataset/
 data/episodes*/
 data/episode_shards*/

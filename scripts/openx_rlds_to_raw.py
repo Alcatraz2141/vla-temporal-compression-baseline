@@ -341,6 +341,16 @@ def main() -> None:
         for p in sorted(args.output_root.glob("episode_*")):
             if p.is_dir():
                 shutil.rmtree(p)
+        start_index = 0
+    else:
+        existing = []
+        for p in args.output_root.glob("episode_*"):
+            if p.is_dir():
+                try:
+                    existing.append(int(p.name.split("_")[-1]))
+                except ValueError:
+                    pass
+        start_index = max(existing, default=-1) + 1
 
     print(f"Loading builder {args.dataset!r} (split={args.split!r}) …", flush=True)
     try:
@@ -364,7 +374,7 @@ def main() -> None:
         download=args.download,
     )
     written = 0
-    episode_index = 0
+    episode_index = start_index
     for episode in ds:
         steps = _iter_episode_steps(episode)
         if _write_episode(args.output_root, episode_index, steps, args.dataset, args.assume_rgb):

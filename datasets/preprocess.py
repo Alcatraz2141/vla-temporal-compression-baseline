@@ -67,6 +67,13 @@ def _write_stats(actions_list: list[np.ndarray], states_list: list[np.ndarray], 
         json.dump(stats, f, indent=2)
 
 
+def _matches_keywords(metadata: dict[str, Any], episode_dir: Path, keywords: tuple[str, ...]) -> bool:
+    if not keywords:
+        return True
+    text = " ".join(str(v).lower() for v in metadata.values()) + " " + episode_dir.name.lower()
+    return any(keyword in text for keyword in keywords)
+
+
 def preprocess_local(
     input_root: Path,
     output_root: Path,
@@ -74,6 +81,7 @@ def preprocess_local(
     image_size: int,
     val_fraction: float,
     stats_path: Path,
+    filter_keywords: tuple[str, ...] | None,
 ) -> None:
     output_root.mkdir(parents=True, exist_ok=True)
     actions_list: list[np.ndarray] = []
@@ -81,11 +89,15 @@ def preprocess_local(
     candidates = []
     for episode_dir in _episode_dirs(input_root):
         metadata = _read_metadata(episode_dir)
-        if _is_franka_or_panda(metadata, episode_dir):
+        if filter_keywords is None:
+            keep = _is_franka_or_panda(metadata, episode_dir)
+        else:
+            keep = _matches_keywords(metadata, episode_dir, filter_keywords)
+        if keep:
             candidates.append(episode_dir)
     selected = candidates[:max_episodes]
     if not selected:
-        raise FileNotFoundError(f"No Franka/Panda-like episodes found under {input_root}")
+        raise FileNotFoundError(f"No matching episodes found under {input_root}")
 
     val_count = max(1, int(len(selected) * val_fraction)) if len(selected) > 1 else 0
     for idx, src in enumerate(tqdm(selected, desc="preprocess")):
@@ -114,6 +126,15 @@ def main() -> None:
     parser.add_argument("--image-size", type=int, default=224)
     parser.add_argument("--val-fraction", type=float, default=0.1)
     parser.add_argument("--stats-path", type=Path, default=Path("data/processed/stats.json"))
+    parser.add_argument(
+        "--filter-keywords",
+        nargs="*",
+        default=None,
+        help=(
+            "Metadata/path keywords to keep. Omit for the legacy Franka/Panda filter. "
+            "Pass --filter-keywords with no values to keep all episodes."
+        ),
+    )
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -122,7 +143,16 @@ def main() -> None:
     if args.format == "tfrecord":
         preprocess_tfrecords(args.input_root, args.output_root)
     else:
-        preprocess_local(args.input_root, args.output_root, args.max_episodes, args.image_size, args.val_fraction, args.stats_path)
+        keywords = None if args.filter_keywords is None else tuple(keyword.lower() for keyword in args.filter_keywords)
+        preprocess_local(
+            args.input_root,
+            args.output_root,
+            args.max_episodes,
+            args.image_size,
+            args.val_fraction,
+            args.stats_path,
+            keywords,
+        )
 
 
 if __name__ == "__main__":

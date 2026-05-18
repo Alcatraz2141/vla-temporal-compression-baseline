@@ -216,16 +216,20 @@ class EventGatedMemoryVLA(nn.Module):
         pretrained_vision: bool = True,
         chunk_size: int = 8,
         max_memory_tokens: int = 8,
+        gate_type: str = "event",
         query_type: str = "concat",
         action_hidden_dim: int = 256,
     ) -> None:
         super().__init__()
+        if gate_type not in {"event", "age_based"}:
+            raise ValueError("gate_type must be 'event' or 'age_based'.")
         if query_type not in {"concat", "cross_attention"}:
             raise ValueError("query_type must be 'concat' or 'cross_attention'.")
         self.T_action = T_action
         self.action_dim = action_dim
         self.chunk_size = int(chunk_size)
         self.max_memory_tokens = int(max_memory_tokens)
+        self.gate_type = gate_type
         self.query_type = query_type
 
         self.vision, vision_dim = _build_resnet18(pretrained_vision)
@@ -307,9 +311,12 @@ class EventGatedMemoryVLA(nn.Module):
         delta_visual = chunk_visual.diff(dim=2).abs().sum(dim=2) / valid_counts
         delta_action = chunk_action.diff(dim=2).abs().sum(dim=2) / valid_counts
         delta_state = chunk_state.diff(dim=2).abs().sum(dim=2) / valid_counts
-        age = torch.linspace(1.0, 0.0, chunk_count, device=tokens.device).view(1, chunk_count, 1).expand(bsz, -1, -1)
-        gate_input = torch.cat([delta_visual, delta_action, delta_state, age], dim=-1)
-        gate_score = torch.sigmoid(self.gate(gate_input))
+        age = torch.linspace(0.0, 1.0, chunk_count, device=tokens.device).view(1, chunk_count, 1).expand(bsz, -1, -1)
+        if self.gate_type == "age_based":
+            gate_score = age.clamp_min(1.0 / max(chunk_count, 1))
+        else:
+            gate_input = torch.cat([delta_visual, delta_action, delta_state, age], dim=-1)
+            gate_score = torch.sigmoid(self.gate(gate_input))
         memory_tokens = summaries * gate_score
         memory_mask = chunk_mask.any(dim=-1)
         if memory_tokens.size(1) > self.max_memory_tokens:
@@ -422,6 +429,7 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
             pretrained_vision=bool(model_cfg.get("pretrained_vision", True)),
             chunk_size=int(memory_cfg.get("chunk_size", 8)),
             max_memory_tokens=int(memory_cfg.get("max_memory_tokens", 8)),
+            gate_type=memory_cfg.get("gate_type", "event"),
             query_type=memory_cfg.get("query_type", "concat"),
             action_hidden_dim=int(model_cfg.get("action_hidden_dim", 256)),
         )
