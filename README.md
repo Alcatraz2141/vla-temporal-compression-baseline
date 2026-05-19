@@ -129,6 +129,31 @@ uv run python training/train.py --config configs/smoke.yaml
 uv run python evaluation/eval.py --config configs/smoke.yaml
 ```
 
+Unified episode smoke test:
+
+```bash
+uv run python scripts/smoke_test.py --sources fractal
+```
+
+After LIBERO HDF5 demos are under `data/libero_long`, inspect and smoke-test them:
+
+```bash
+HF_HUB_ENABLE_HF_TRANSFER=1 uv run hf download yifengzhu-hf/LIBERO-datasets \
+  --repo-type dataset \
+  --local-dir data/libero_long \
+  --include "libero_10/*.hdf5" \
+  --max-workers 2
+
+uv run python scripts/inspect_libero.py --data-root data/libero_long
+uv run python scripts/smoke_test.py --sources libero_long
+```
+
+Compact milestone configs also work through the root wrapper:
+
+```bash
+uv run python train.py --config configs/libero_long_sliding_window.yaml
+```
+
 Evaluation appends fixed-seed metrics to `results/baselines.csv`. Success rate is recorded as `NaN` unless connected to an actual rollout environment.
 
 ## Memory Hook

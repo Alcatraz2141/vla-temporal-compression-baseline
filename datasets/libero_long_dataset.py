@@ -63,7 +63,12 @@ class LiberoLongDataset(Dataset):
     """LIBERO-Long HDF5 episode sampler with in-dataloader window construction."""
 
     image_key = "agentview_rgb"
-    state_keys = ("robot0_eef_pos", "robot0_eef_quat", "robot0_gripper_qpos")
+    state_key_groups = (
+        ("robot0_eef_pos", "robot0_eef_quat", "robot0_gripper_qpos"),
+        ("ee_pos", "ee_ori", "gripper_states"),
+        ("ee_states", "gripper_states"),
+        ("joint_states", "gripper_states"),
+    )
 
     def __init__(
         self,
@@ -150,10 +155,19 @@ class LiberoLongDataset(Dataset):
         try:
             obs = demo["obs"]
             lengths = [len(obs[self.image_key]), len(demo["actions"])]
-            lengths.extend(len(obs[key]) for key in self.state_keys)
+            lengths.extend(len(obs[key]) for key in self._state_keys(obs))
             return min(lengths)
         except Exception:
             return 0
+
+    def _state_keys(self, obs: Any) -> tuple[str, ...]:
+        for keys in self.state_key_groups:
+            if all(key in obs for key in keys):
+                return keys
+        fallback = tuple(key for key in ("ee_pos", "ee_ori", "ee_states", "gripper_states", "joint_states") if key in obs)
+        if fallback:
+            return fallback
+        raise KeyError("No supported LIBERO proprio keys found.")
 
     def _ensure_splits(self, records: list[LiberoEpisodeRecord]) -> None:
         train_path = self.split_dir / "libero_long_train.txt"
@@ -228,7 +242,7 @@ class LiberoLongDataset(Dataset):
             demo = h5[record.demo_key]
             obs = demo["obs"]
             images = np.asarray(obs[self.image_key])
-            states = np.concatenate([np.asarray(obs[key]) for key in self.state_keys], axis=-1)
+            states = np.concatenate([np.asarray(obs[key]) for key in self._state_keys(obs)], axis=-1)
             actions = np.asarray(demo["actions"])
             language = self._language(h5, demo, record)
         length = min(len(images), len(states), len(actions))

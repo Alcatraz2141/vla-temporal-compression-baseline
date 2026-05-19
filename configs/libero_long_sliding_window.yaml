@@ -3,17 +3,17 @@ seed: 42
 device: auto
 
 data:
-  source: libero_long
-  libero_long:
+  source: unified_episode
+  dataset: libero_long
+  episode_loader:
     root: data/libero_long
+    split_dir: splits
     hdf5_glob: "**/*.hdf5"
-    split_dir: data/libero_long/splits
     samples_per_epoch: null
     eval_windows_per_episode: 4
-    max_older_steps: 64
   split: train
   val_split: val
-  image_size: 224
+  image_size: 128
   T_obs: 8
   T_action: 4
   K_recent: 8
@@ -41,13 +41,19 @@ memory:
   chunk_size: 4
   max_memory_tokens: 16
   gate_type: event
-  query_type: cross_attention
+  query_type: concat
 
 training:
   batch_size: 32
-  epochs: 10
-  max_steps_per_epoch: null
+  epochs: 1
+  max_steps_per_epoch: 50000
   lr: 1.0e-4
+  optimizer: adamw
+  lr_schedule: cosine
+  warmup_steps: 1000
+  total_steps: 50000
+  eval_every: 5000
+  save_every: 10000
   weight_decay: 1.0e-4
   grad_clip_norm: 1.0
   amp: true
@@ -55,7 +61,7 @@ training:
   channels_last: true
   compile: false
   temporal_smoothness_weight: 0.0
-  log_every: 50
+  log_every: 500
   checkpoint_dir: checkpoints/libero_long
   resume: null
 
