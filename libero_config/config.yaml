@@ -1,0 +1,5 @@
+assets: /workspace/repos/LIBERO/libero/libero/assets
+bddl_files: /workspace/repos/LIBERO/libero/libero/bddl_files
+benchmark_root: /workspace/repos/LIBERO/libero/libero
+datasets: /workspace/vla-temporal-compression-baseline-data/libero_sim_datasets
+init_states: /workspace/repos/LIBERO/libero/libero/init_files

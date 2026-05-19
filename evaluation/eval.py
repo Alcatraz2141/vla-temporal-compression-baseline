@@ -101,20 +101,26 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
     parser.add_argument("--checkpoint", type=Path, default=None)
     parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "rt1_style", "octo", "event_gated_memory"], default=None)
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--checkpoint-dir", type=Path, default=None)
     args = parser.parse_args()
 
     cfg = load_config(args.config)
     if args.baseline is not None:
         cfg["model"]["baseline"] = args.baseline
+    if args.seed is not None:
+        cfg["seed"] = args.seed
+    if args.checkpoint_dir is not None:
+        cfg["training"]["checkpoint_dir"] = str(args.checkpoint_dir)
     set_seed(int(cfg.get("seed", 42)))
     device = resolve_device(cfg.get("device", "auto"))
-    default_variant_checkpoint = (
-        Path(cfg["training"].get("checkpoint_dir", "checkpoints")) / cfg["model"].get("baseline", "sliding_window") / "best.pt"
-    )
+    run_name = cfg["model"].get("run_name", cfg["model"].get("baseline", "sliding_window"))
+    default_variant_checkpoint = Path(cfg["training"].get("checkpoint_dir", "checkpoints")) / run_name / "best.pt"
     checkpoint_path = args.checkpoint or (default_variant_checkpoint if default_variant_checkpoint.exists() else Path(cfg["evaluation"].get("checkpoint", "checkpoints/best.pt")))
     checkpoint = torch.load(checkpoint_path, map_location=device)
     ckpt_cfg = checkpoint.get("config", cfg)
     ckpt_cfg["model"]["baseline"] = cfg["model"].get("baseline", ckpt_cfg["model"].get("baseline", "sliding_window"))
+    ckpt_cfg["model"]["run_name"] = cfg["model"].get("run_name", ckpt_cfg["model"].get("run_name", ckpt_cfg["model"]["baseline"]))
 
     loader = build_dataloader(ckpt_cfg, ckpt_cfg["data"].get("val_split", "val"), shuffle=False)
     model = build_model(ckpt_cfg, int(checkpoint["state_dim"]), int(checkpoint["action_dim"])).to(device)
@@ -122,7 +128,7 @@ def main() -> None:
     metrics = evaluate(model, loader, device)
     row = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "baseline": ckpt_cfg["model"].get("baseline", "sliding_window"),
+        "baseline": ckpt_cfg["model"].get("run_name", ckpt_cfg["model"].get("baseline", "sliding_window")),
         "checkpoint": str(checkpoint_path),
         "seed": ckpt_cfg.get("seed", 42),
         "mse": metrics["mse"],

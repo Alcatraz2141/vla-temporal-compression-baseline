@@ -145,11 +145,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Train the PyTorch VLA baseline.")
     parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
     parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "rt1_style", "octo", "event_gated_memory"], default=None)
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--checkpoint-dir", type=Path, default=None)
     args = parser.parse_args()
 
     cfg = load_config(args.config)
     if args.baseline is not None:
         cfg["model"]["baseline"] = args.baseline
+    if args.seed is not None:
+        cfg["seed"] = args.seed
+    if args.checkpoint_dir is not None:
+        cfg["training"]["checkpoint_dir"] = str(args.checkpoint_dir)
     set_seed(int(cfg.get("seed", 42)))
     device = resolve_device(cfg.get("device", "auto"))
 
@@ -166,7 +172,8 @@ def main() -> None:
     )
     scaler = torch.amp.GradScaler("cuda", enabled=bool(cfg["training"].get("amp", False)) and device.type == "cuda")
 
-    ckpt_dir = Path(cfg["training"].get("checkpoint_dir", "checkpoints")) / cfg["model"].get("baseline", "sliding_window")
+    run_name = cfg["model"].get("run_name", cfg["model"].get("baseline", "sliding_window"))
+    ckpt_dir = Path(cfg["training"].get("checkpoint_dir", "checkpoints")) / run_name
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     best_val = float("inf")
     start_epoch = 1

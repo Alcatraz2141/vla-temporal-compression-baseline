@@ -45,7 +45,7 @@ memory:
 
 training:
   batch_size: 32
-  epochs: 1
+  epochs: 10
   max_steps_per_epoch: 50000
   lr: 1.0e-4
   optimizer: adamw
