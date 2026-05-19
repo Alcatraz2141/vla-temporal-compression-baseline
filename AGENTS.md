@@ -677,6 +677,249 @@ uv run python train.py --config configs/ablation_query_concat.yaml
 uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
 ```
 
+## Three-Day Execution Plan
+
+Use this plan when the goal is to produce first milestone results quickly. The target is not to finish the whole research project. The target is a credible first result table:
+
+```text
+sliding_window
+event_gated_memory
+age_gated_memory
+event_gated_concat_query
+```
+
+All runs should use the same LIBERO-Long data split, same `K_recent`, same `H_action`, and fixed seed `42`.
+
+### Day 1: Make The Pipeline Reliable
+
+Goal:
+
+```text
+LIBERO data downloaded
+LIBERO inspection works
+smoke test passes
+sliding_window starts training
+event_gated_memory starts training
+evaluation writes CSV rows
+```
+
+Commands:
+
+```bash
+cd /root/vla-temporal-compression-baseline
+uv sync
+uv add h5py hf-transfer
+export HF_HUB_ENABLE_HF_TRANSFER=1
+
+HF_HUB_ENABLE_HF_TRANSFER=1 uv run hf download yifengzhu-hf/LIBERO-datasets \
+  --repo-type dataset \
+  --local-dir data/libero_long \
+  --include "libero_10/*.hdf5" \
+  --max-workers 2
+
+uv run python scripts/inspect_libero.py --data-root data/libero_long
+uv run python scripts/smoke_test.py --sources libero_long
+```
+
+If inspection or smoke test fails, stop and fix the data or shape issue before training.
+
+Then run the first two models:
+
+```bash
+uv run python train.py --config configs/libero_long_sliding_window.yaml
+uv run python evaluation/eval.py --config configs/libero_long_sliding_window.yaml
+
+uv run python train.py --config configs/libero_long_event_gated.yaml
+uv run python evaluation/eval.py --config configs/libero_long_event_gated.yaml
+```
+
+Check:
+
+```bash
+cat results/baselines.csv
+```
+
+By the end of Day 1, there should be at least one completed result row for `sliding_window` and one for `event_gated_memory`.
+
+### Day 2: Run The Baseline Table
+
+Goal:
+
+```text
+complete the four-row offline LIBERO-Long baseline/ablation table
+```
+
+Run:
+
+```bash
+uv run python train.py --config configs/libero_long_sliding_window.yaml
+uv run python evaluation/eval.py --config configs/libero_long_sliding_window.yaml
+
+uv run python train.py --config configs/libero_long_event_gated.yaml
+uv run python evaluation/eval.py --config configs/libero_long_event_gated.yaml
+
+uv run python train.py --config configs/ablation_gate_age.yaml
+uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml
+
+uv run python train.py --config configs/ablation_query_concat.yaml
+uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
+```
+
+The result table should have this shape:
+
+```text
+model                  gate       query             MSE     MAE     notes
+sliding_window         none       none              ...
+event_gated_memory     event      cross_attention   ...
+age_gated_memory       age_based  cross_attention   ...
+event_gated_concat     event      concat            ...
+```
+
+Do not add SmolVLA, Octo, RB-VLA, simulator rollouts, or large Open X pretraining during this three-day run unless the four-row table is already complete.
+
+### Day 3: Interpret And Decide Whether To Pivot
+
+Goal:
+
+```text
+decide whether the memory idea is working, weak, or needs a pivot
+prepare a clean table and short written interpretation
+```
+
+Good signs:
+
+```text
+training loss decreases
+validation loss is finite
+event_gated MSE < sliding_window MSE
+event_gated MAE < sliding_window MAE
+event_gated beats age_gated
+cross_attention beats concat
+```
+
+Strong result:
+
+```text
+event_gated improves MSE by roughly 5-10% or more
+```
+
+Weak but usable result:
+
+```text
+event_gated improves by 1-3%, or matches sliding_window but ablations show useful trends
+```
+
+Bad result:
+
+```text
+event_gated is much worse than sliding_window or unstable
+```
+
+If event-gated memory beats sliding window, the story is:
+
+```text
+Long-horizon memory improves offline action prediction on LIBERO-Long.
+Event-aware hierarchical compression is a promising direction.
+```
+
+If event-gated memory is similar to sliding window, the story is:
+
+```text
+Offline action prediction may be too local, or the current memory module is not selective enough.
+The benchmark and pipeline are ready, but stronger memory/task design is needed.
+```
+
+If event-gated memory is worse, check:
+
+```text
+training loss decreases
+eval MSE is finite
+state/action dims are correct
+both models use the same split
+event model is not undertrained relative to sliding_window
+AMP is not causing instability
+```
+
+Possible pivot if event gating fails:
+
+```text
+Use age-gated hierarchical memory as the first stable memory baseline.
+Treat learned/event gating as future work.
+```
+
+### Allowed Three-Day Iterations
+
+Change only one thing at a time.
+
+If GPU utilization is low, try:
+
+```yaml
+training:
+  batch_size: 32
+data:
+  num_workers: 8
+  prefetch_factor: 4
+```
+
+If VRAM allows, try:
+
+```yaml
+training:
+  batch_size: 64
+```
+
+If training is too slow, first run shorter jobs:
+
+```yaml
+training:
+  epochs: 1
+  max_steps_per_epoch: 5000
+```
+
+Then scale back up after the path works.
+
+If loss becomes NaN, try:
+
+```yaml
+training:
+  lr: 5.0e-5
+  amp: false
+```
+
+If event memory underperforms, try only one memory change:
+
+```yaml
+memory:
+  max_memory_tokens: 8
+```
+
+or:
+
+```yaml
+memory:
+  max_memory_tokens: 32
+```
+
+Do not run broad sweeps during the three-day milestone.
+
+### Minimum Success By Sunday
+
+Minimum deliverables:
+
+```text
+[ ] LIBERO inspection passed
+[ ] LIBERO smoke test passed
+[ ] sliding_window train/eval completed
+[ ] event_gated_memory train/eval completed
+[ ] age_gate ablation completed
+[ ] concat_query ablation completed
+[ ] results/baselines.csv exists
+[ ] one clean result table created
+[ ] short interpretation written
+```
+
+This is enough for a serious first milestone. Simulator success-rate rollouts, RB-VLA, and broader ablations come after this.
+
 ## What Counts As A Paper Baseline Right Now
 
 Acceptable first offline baseline table:
