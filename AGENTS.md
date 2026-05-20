@@ -961,3 +961,209 @@ Once the above runs are stable:
 8. Produce publication-ready plots and tables.
 
 Do not start these until the sliding-window vs event-gated table is reproducible.
+
+## Current Online Rollout State
+
+The LIBERO online rollout stack is intentionally isolated from the main project environment because LIBERO/robosuite dependencies conflict with the main training stack.
+
+Current isolated rollout environment:
+
+```text
+rollout venv: /workspace/libero_rollout_envs/.venv
+LIBERO source: /workspace/libero_rollout_envs/LIBERO
+LIBERO config: libero_config/config.yaml
+LIBERO data: /workspace/vla-temporal-compression-baseline-data/libero_long
+repo symlink: data/libero_long -> /workspace/vla-temporal-compression-baseline-data/libero_long
+```
+
+Use the wrapper instead of activating the rollout venv manually:
+
+```bash
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_sliding_window.yaml \
+  checkpoints/libero_long_sliding_window_50ep/sliding_window/best.pt \
+  --tasks 5 \
+  --episodes-per-task 1 \
+  --max-steps 300 \
+  --video-dir results/rollout_videos_sliding_window_50ep \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_sliding_window_50ep.csv
+```
+
+Rollout environment notes:
+
+- `libero_rollout_env/bootstrap.sh` sets `UV_CACHE_DIR=/workspace/uv-cache` to avoid filling `/root`.
+- The bootstrap path uses `hf download`, not deprecated `huggingface-cli download`.
+- The rollout env has `future` installed because older LIBERO/robosuite imports need it.
+- Headless rendering uses `MUJOCO_GL=egl` and `PYOPENGL_PLATFORM=egl`.
+- `evaluation/libero_rollout.py` patches LIBERO init-state loading with `torch.load(..., weights_only=False)` because PyTorch 2.6+ defaults to restricted loading.
+- Video logging is supported with `--video-dir`, `--video-every`, and `--video-fps`.
+
+Verified simulator wiring:
+
+- Official `OffScreenRenderEnv` reset and zero-action stepping work.
+- A LIBERO HDF5 demonstration replay on task `5` (`STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy`) succeeded with reward `1` at step `222`.
+- Demo replay video path: `results/rollout_videos_full/demo_replay/task05_demo0_replay.mp4`.
+- Initial simulator image and HDF5 image are close enough to confirm task/action/env wiring is basically correct.
+
+Current online rollout caveat:
+
+- Seed-42 offline checkpoints from the earlier setup produced `0/10` successes on `libero_10` first-init rollouts.
+- Corrected one-epoch sliding-window diagnostic checkpoints also produced `0/1` success on task `5`.
+- Do not interpret these as final online baseline numbers yet. They were diagnostics to find training/rollout mismatches.
+
+## Current Fixed Training Semantics
+
+The unified episode loader was corrected to match online rollout semantics.
+
+For timestep `t`:
+
+```text
+recent_obs      includes the current observation at t
+recent_actions  contains previous executed actions only
+target_actions  starts at action[t]
+```
+
+This matters because the previous loader predicted `action[t]` from observations only up to `t-1`, while online rollout predicts from the current simulator observation. The previous action-history path also leaked target/current actions into `recent_actions`; that is now fixed.
+
+Other current training/eval fixes:
+
+- `training/train.py` and `evaluation/eval.py` pass `recent_actions` into non-memory sliding-window models when enabled.
+- `models/vla_baseline.py` supports optional `use_action_history`.
+- `models/vla_baseline.py` supports optional deterministic language/task conditioning through hashed language IDs.
+- `utils/language.py` contains the deterministic language hashing helper.
+- `evaluation/libero_rollout.py` clips actions by default and discretizes the gripper action to `-1/+1` by default.
+- `evaluation/libero_rollout.py` replans every simulator step by default with `--execute-horizon 1`.
+
+The current `configs/libero_long_sliding_window.yaml` is the corrected sliding-window config and includes:
+
+```yaml
+model:
+  use_action_history: true
+  use_language: true
+  language_vocab_size: 1024
+
+training:
+  gripper_loss_weight: 5.0
+
+data:
+  episode_loader:
+    samples_per_epoch: 50000
+```
+
+Do not compare the old pre-fix offline MSE directly against new fixed-loader MSE. The old action-history setup had target leakage and a train/rollout temporal mismatch.
+
+## Current 50-Epoch Phase-1 Run
+
+The current isolated test is to train the corrected sliding-window baseline longer and change nothing else.
+
+Important current run status as of 2026-05-20:
+
+```text
+run directory: checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window
+active config: logs/libero_long_sliding_window_10ep_fixed_resume_best_to50.yaml
+log: logs/sliding_window_10ep_fixed_resume_best_to50.log
+10-epoch completed log: logs/sliding_window_10ep_fixed.log
+training stopped cleanly enough for resume after epoch 12
+best checkpoint so far: best.pt from epoch 12, val_mse 0.009648240703557218
+latest checkpoint: last.pt from epoch 12, val_mse 0.009648240703557218
+```
+
+The 50-epoch continuation was intentionally resumed from the intact `best.pt`, not `last.pt`,
+because a short dry-run accidentally advanced `last.pt` earlier without improving `best.pt`.
+That dry-run did not overwrite `best.pt`.
+
+To stop safely after an epoch boundary, wait until the log prints an epoch summary and `last.pt`
+updates, then interrupt the training process group:
+
+```bash
+pgrep -af 'sliding_window_10ep_fixed_resume_best_to50|train.py --config'
+kill -INT -<process_group_id>
+```
+
+The 2026-05-20 run was stopped after epoch 12. A normal interrupt did not stop the detached
+process, so it was terminated after `last.pt` and `best.pt` had both been written for epoch 12.
+Re-check with `pgrep` before killing any future session.
+
+To resume later from the latest epoch checkpoint, use:
+
+```bash
+uv run python train.py \
+  --config logs/libero_long_sliding_window_10ep_fixed_resume_best_to50.yaml
+```
+
+To resume from the best-performing checkpoint instead, point the resume field in the generated config to:
+
+```text
+checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window/best.pt
+```
+
+After training or stopping, evaluate and run the visual task-5 rollout:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_sliding_window.yaml \
+  --checkpoint checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window/best.pt
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_sliding_window.yaml \
+  checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window/best.pt \
+  --tasks 5 \
+  --episodes-per-task 1 \
+  --max-steps 300 \
+  --video-dir results/rollout_videos_sliding_window_50ep_fixed \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_sliding_window_50ep_fixed.csv
+```
+
+Decision rule for this phase:
+
+```text
+If success rate improves from 0% to even roughly 10-20%, keep scaling the corrected baseline.
+If 50 epochs still gives roughly 0% success, then discuss architecture/data/rollout changes.
+```
+
+## RunPod Artifact Backup
+
+Before terminating a non-persistent pod, save the artifacts that cannot be redownloaded:
+
+```bash
+bash scripts/backup_run_artifacts.sh /workspace/run_backups
+```
+
+This packages:
+
+```text
+checkpoints/
+logs/
+results/
+configs/
+splits/
+AGENTS.md
+experimentation.md
+libero_rollout_env/
+libero_config/
+utils/language.py
+```
+
+The backup includes videos under `results/rollout_videos*`. It intentionally excludes
+`data/libero_long` because LIBERO should be redownloaded from the official Hugging Face repo.
+If needed, upload the tarball to a private Hugging Face dataset:
+
+```bash
+uv run hf repo create Alcatraz1412/vla-run-backups --repo-type dataset --private
+uv run hf upload Alcatraz1412/vla-run-backups /workspace/run_backups --repo-type dataset
+```
+
+Current uploaded backup:
+
+```text
+local tarball: /workspace/run_backups/vla_run_artifacts_20260520_190421.tar.gz
+Hugging Face dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/8ffb6186966ce8bc0644607653145e7caad3b20b
+```
+
+GitHub should receive code, configs, and documentation only. Do not commit checkpoints, logs,
+videos, or LIBERO data.

@@ -22,6 +22,9 @@ data/episodes*/
 data/episode_shards*/
 checkpoints/
 data/libero_long/
+logs/
+results/rollout_videos*/
+results/libero_rollouts_*.csv
 
 
 # Local caches

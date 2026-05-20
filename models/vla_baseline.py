@@ -75,11 +75,16 @@ class BaselineVLA(nn.Module):
         use_memory: bool = False,
         state_hidden_dim: int = 128,
         action_hidden_dim: int = 256,
+        use_action_history: bool = False,
+        use_language: bool = False,
+        language_vocab_size: int = 1024,
     ) -> None:
         super().__init__()
         self.T_obs = T_obs
         self.T_action = T_action
         self.action_dim = action_dim
+        self.use_action_history = use_action_history
+        self.use_language = use_language
         if vision_encoder != "resnet18":
             raise ValueError("BaselineVLA currently supports vision_encoder=resnet18.")
         self.vision, vision_dim = _build_resnet18(pretrained_vision)
@@ -89,7 +94,12 @@ class BaselineVLA(nn.Module):
             nn.ReLU(),
             nn.Linear(state_hidden_dim, d_model),
         )
-        self.fusion = nn.Linear(d_model * 2, d_model)
+        if self.use_action_history:
+            self.action_encoder = nn.Sequential(nn.Linear(action_dim, d_model), nn.GELU(), nn.Linear(d_model, d_model))
+        else:
+            self.action_encoder = None
+        self.language_embedding = nn.Embedding(language_vocab_size, d_model) if self.use_language else None
+        self.fusion = nn.Linear(d_model * (3 if self.use_action_history else 2), d_model)
         self.pos_embedding = nn.Parameter(torch.zeros(1, T_obs, d_model))
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model,
@@ -112,6 +122,8 @@ class BaselineVLA(nn.Module):
         self,
         images: torch.Tensor,
         states: torch.Tensor,
+        actions: torch.Tensor | None = None,
+        language_ids: torch.Tensor | None = None,
         past_memory: dict[str, torch.Tensor] | None = None,
     ) -> torch.Tensor:
         bsz, timesteps, channels, height, width = images.shape
@@ -120,7 +132,16 @@ class BaselineVLA(nn.Module):
             flat_images = flat_images.contiguous(memory_format=torch.channels_last)
         vision_tokens = self.vision_proj(self.vision(flat_images)).view(bsz, timesteps, -1)
         state_tokens = self.state_encoder(states)
-        tokens = self.fusion(torch.cat([vision_tokens, state_tokens], dim=-1))
+        pieces = [vision_tokens, state_tokens]
+        if self.use_action_history:
+            if actions is None:
+                actions = torch.zeros(bsz, timesteps, self.action_dim, dtype=states.dtype, device=states.device)
+            pieces.append(self.action_encoder(actions))
+        tokens = self.fusion(torch.cat(pieces, dim=-1))
+        if self.language_embedding is not None:
+            if language_ids is None:
+                language_ids = torch.zeros(bsz, dtype=torch.long, device=states.device)
+            tokens = tokens + self.language_embedding(language_ids).unsqueeze(1)
         tokens = tokens + self.pos_embedding[:, :timesteps]
         tokens = self.transformer(tokens)
         if self.memory is not None:
@@ -449,4 +470,7 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
         use_memory=bool(model_cfg.get("use_memory", False)),
         state_hidden_dim=int(model_cfg.get("state_hidden_dim", 128)),
         action_hidden_dim=int(model_cfg.get("action_hidden_dim", 256)),
+        use_action_history=bool(model_cfg.get("use_action_history", False)),
+        use_language=bool(model_cfg.get("use_language", False)),
+        language_vocab_size=int(model_cfg.get("language_vocab_size", 1024)),
     )

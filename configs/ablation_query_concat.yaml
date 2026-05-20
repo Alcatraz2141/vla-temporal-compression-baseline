@@ -9,7 +9,7 @@ data:
     root: data/libero_long
     split_dir: splits
     hdf5_glob: "**/*.hdf5"
-    samples_per_epoch: null
+    samples_per_epoch: 50000
     eval_windows_per_episode: 4
   split: train
   val_split: val
@@ -61,6 +61,7 @@ training:
   channels_last: true
   compile: false
   temporal_smoothness_weight: 0.0
+  gripper_loss_weight: 5.0
   log_every: 500
   checkpoint_dir: checkpoints/libero_long
   resume: null

@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 from datasets.data_loader import build_dataloader
 from models.vla_baseline import build_model
 from utils.config import load_config
+from utils.language import language_ids
 from utils.metrics import masked_mse, temporal_smoothness
 from utils.seed import resolve_device, set_seed
 
@@ -74,12 +75,35 @@ def _model_forward_and_target(
         else:
             baseline = getattr(model, "__class__").__name__
         if baseline == "EventGatedMemoryVLA":
+            if bool(getattr(model, "use_language", False)) and "language" in batch:
+                vocab_size = int(getattr(model, "language_embedding").num_embeddings)
+                batch["language_ids"] = language_ids(batch["language"], vocab_size, device)
             pred = model(**batch)
         else:
-            pred = model(images=batch["recent_obs"], states=batch["recent_states"])
+            kwargs = {}
+            if bool(getattr(model, "use_language", False)) and "language" in batch:
+                vocab_size = int(getattr(model, "language_embedding").num_embeddings)
+                kwargs["language_ids"] = language_ids(batch["language"], vocab_size, device)
+            pred = model(
+                images=batch["recent_obs"],
+                states=batch["recent_states"],
+                actions=batch["recent_actions"],
+                **kwargs,
+            )
         return pred, batch["target_actions"], batch["target_mask"]
     pred = model(images=batch["images"], states=batch["states"])
     return pred, batch["actions"], batch["mask"]
+
+
+def action_loss(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor, cfg: dict[str, Any]) -> torch.Tensor:
+    loss = (pred - target).pow(2)
+    weights = torch.ones(pred.size(-1), dtype=loss.dtype, device=loss.device)
+    gripper_weight = float(cfg["training"].get("gripper_loss_weight", 1.0))
+    if pred.size(-1) >= 7 and gripper_weight != 1.0:
+        weights[-1] = gripper_weight
+    loss = loss * weights.view(1, 1, -1)
+    mask_f = mask.to(loss.dtype).unsqueeze(-1)
+    return (loss * mask_f).sum() / (mask_f * weights.view(1, 1, -1)).sum().clamp_min(1.0)
 
 
 def _move_batch(batch: dict[str, Any], device: torch.device, channels_last: bool) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -109,7 +133,7 @@ def run_epoch(
             break
         with autocast_context(device, cfg):
             pred, actions, mask = _model_forward_and_target(model, batch, device)
-            loss = masked_mse(pred, actions, mask)
+            loss = action_loss(pred, actions, mask, cfg)
             if smooth_weight > 0:
                 loss = loss + smooth_weight * temporal_smoothness(pred)
 
@@ -135,7 +159,7 @@ def validate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device
     channels_last = False
     for batch in tqdm(loader, desc="val", leave=False):
         pred, actions, mask = _model_forward_and_target(model, batch, device)
-        loss = masked_mse(pred, actions, mask)
+        loss = action_loss(pred, actions, mask, {"training": {"gripper_loss_weight": 1.0}})
         total += float(loss.cpu())
         batches += 1
     return total / max(batches or _safe_len(loader), 1)
@@ -147,6 +171,8 @@ def main() -> None:
     parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "rt1_style", "octo", "event_gated_memory"], default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--checkpoint-dir", type=Path, default=None)
+    parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--max-steps-per-epoch", type=int, default=None)
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -156,6 +182,10 @@ def main() -> None:
         cfg["seed"] = args.seed
     if args.checkpoint_dir is not None:
         cfg["training"]["checkpoint_dir"] = str(args.checkpoint_dir)
+    if args.epochs is not None:
+        cfg["training"]["epochs"] = args.epochs
+    if args.max_steps_per_epoch is not None:
+        cfg["training"]["max_steps_per_epoch"] = args.max_steps_per_epoch
     set_seed(int(cfg.get("seed", 42)))
     device = resolve_device(cfg.get("device", "auto"))
 

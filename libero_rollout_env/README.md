@@ -18,6 +18,17 @@ bash libero_rollout_env/bootstrap.sh
 
 Everything goes on `/workspace` (persistent volume) so you don't lose it on pod restarts.
 
+If the pod does not have a persistent `/workspace` volume, back up run artifacts before
+terminating the pod:
+
+```bash
+bash scripts/backup_run_artifacts.sh /workspace/run_backups
+```
+
+Upload the produced tarball to a private Hugging Face dataset or another external store.
+Do not back up `data/libero_long` by default; it is large and should be downloaded again
+from `yifengzhu-hf/LIBERO-datasets`.
+
 ## Running Rollouts
 
 ```bash
@@ -42,6 +53,28 @@ EPISODES_PER_TASK=20 MAX_STEPS=300 bash libero_rollout_env/run_all_rollouts.sh
 | LIBERO source | `/workspace/libero_rollout_envs/LIBERO` |
 | LIBERO data | `/workspace/vla-temporal-compression-baseline-data/libero_long` |
 | Results CSV | `results/libero_rollouts.csv` |
+
+## Recreate On A Fresh RunPod
+
+```bash
+cd /root/vla-temporal-compression-baseline
+uv sync
+export HF_HUB_ENABLE_HF_TRANSFER=1
+
+bash libero_rollout_env/bootstrap.sh
+
+HF_HUB_ENABLE_HF_TRANSFER=1 uv run hf download yifengzhu-hf/LIBERO-datasets \
+  --repo-type dataset \
+  --local-dir data/libero_long \
+  --include "libero_10/*.hdf5" \
+  --max-workers 2
+
+uv run python scripts/inspect_libero.py --data-root data/libero_long
+uv run python scripts/smoke_test.py --sources libero_long
+```
+
+If restoring a previous run, unpack the backup tarball from the repo root before running
+eval or rollout.
 
 ## Pinned Dependencies (known-working, from experimentation.md)
 

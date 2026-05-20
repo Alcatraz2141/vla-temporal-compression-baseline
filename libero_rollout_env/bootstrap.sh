@@ -22,12 +22,14 @@ ENVS_DIR="${WORKSPACE}/libero_rollout_envs"
 VENV_DIR="${ENVS_DIR}/.venv"
 LIBERO_SRC="${ENVS_DIR}/LIBERO"
 DATA_DIR="${WORKSPACE}/vla-temporal-compression-baseline-data"
+export UV_CACHE_DIR="${WORKSPACE}/uv-cache"
+mkdir -p "${UV_CACHE_DIR}"
 
 echo "=== [1/7] System packages for headless rendering ==="
 apt-get update -qq
 apt-get install -y -qq --no-install-recommends \
     libegl1 libgl1 libosmesa6 libosmesa6-dev \
-    libglew-dev patchelf > /dev/null 2>&1
+    libglew-dev patchelf cmake > /dev/null 2>&1
 echo "    done."
 
 echo "=== [2/7] Install uv if missing ==="
@@ -76,6 +78,7 @@ pip_install \
     "tqdm>=4.67.3" \
     "opencv-python>=4.10.0" \
     "pyopengl>=3.1.7" \
+    "future>=1.0.0" \
     "hydra-core>=1.2.0" \
     "einops>=0.4.1" \
     "cloudpickle>=2.1.0" \
@@ -109,7 +112,7 @@ ln -sfn "${DATA_DIR}/libero_long" "${REPO_ROOT}/data/libero_long"
 if [ ! -f "${DATA_DIR}/libero_long/libero_10/.download_done" ]; then
     echo "    Downloading LIBERO-Long HDF5 files..."
     cd "${REPO_ROOT}"
-    HF_HUB_ENABLE_HF_TRANSFER=1 uv run huggingface-cli download yifengzhu-hf/LIBERO-datasets \
+    HF_HUB_ENABLE_HF_TRANSFER=1 uv run hf download yifengzhu-hf/LIBERO-datasets \
         --repo-type dataset \
         --local-dir "${DATA_DIR}/libero_long" \
         --include "libero_10/*.hdf5" \

@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 from datasets.data_loader import build_dataloader
 from models.vla_baseline import build_model
 from utils.config import load_config
+from utils.language import language_ids
 from utils.metrics import masked_mse, temporal_smoothness
 from utils.seed import resolve_device, set_seed
 
@@ -33,9 +34,21 @@ def _model_forward_and_target(
     if "recent_obs" in batch:
         model_name = model.__class__.__name__
         if model_name == "EventGatedMemoryVLA":
+            if bool(getattr(model, "use_language", False)) and "language" in batch:
+                vocab_size = int(getattr(model, "language_embedding").num_embeddings)
+                batch["language_ids"] = language_ids(batch["language"], vocab_size, device)
             pred = model(**batch)
         else:
-            pred = model(images=batch["recent_obs"], states=batch["recent_states"])
+            kwargs = {}
+            if bool(getattr(model, "use_language", False)) and "language" in batch:
+                vocab_size = int(getattr(model, "language_embedding").num_embeddings)
+                kwargs["language_ids"] = language_ids(batch["language"], vocab_size, device)
+            pred = model(
+                images=batch["recent_obs"],
+                states=batch["recent_states"],
+                actions=batch["recent_actions"],
+                **kwargs,
+            )
         return pred, batch["target_actions"], batch["target_mask"]
     pred = model(images=batch["images"], states=batch["states"])
     return pred, batch["actions"], batch["mask"]

@@ -266,7 +266,7 @@ class EpisodeDataset(Dataset):
             eval_anchor = idx % self.eval_windows_per_episode
         episode = self._load_episode(record)
         length = min(len(episode["images"]), len(episode["actions"]), len(episode["states"]))
-        min_t = self.K_recent
+        min_t = 0
         max_t = length - self.H_action
         if max_t < min_t:
             raise ValueError(f"Episode too short after loading: {record.episode_id}")
@@ -275,19 +275,26 @@ class EpisodeDataset(Dataset):
         else:
             t = min_t + round((max_t - min_t) * eval_anchor / max(self.eval_windows_per_episode - 1, 1))
 
-        recent_idx, recent_mask = _pad_left(np.arange(t - self.K_recent, t), self.K_recent)
-        older_raw = np.arange(0, max(0, t - self.K_recent))
+        recent_idx, recent_mask = _pad_left(np.arange(max(0, t - self.K_recent + 1), t + 1), self.K_recent)
+        older_raw = np.arange(0, max(0, t - self.K_recent + 1))
         if len(older_raw) > self.max_older_steps:
             older_raw = np.linspace(older_raw[0], older_raw[-1], self.max_older_steps).round().astype(np.int64)
         older_idx, older_mask = _pad_left(older_raw, self.max_older_steps)
         target_idx, target_mask = _take_or_pad(np.arange(t, t + self.H_action), self.H_action, length - 1)
+        prev_actions = np.zeros_like(episode["actions"], dtype=np.float32)
+        if length > 1:
+            prev_actions[1:length] = np.asarray(episode["actions"][: length - 1], dtype=np.float32)
+        recent_actions = np.asarray(prev_actions[recent_idx], dtype=np.float32)
+        older_actions = np.asarray(prev_actions[older_idx], dtype=np.float32)
+        recent_actions[~recent_mask] = 0.0
+        older_actions[~older_mask] = 0.0
 
         return {
             "recent_obs": torch.stack([self._image(episode["images"][i]) for i in recent_idx]),
-            "recent_actions": torch.from_numpy(np.asarray(episode["actions"][recent_idx], dtype=np.float32)),
+            "recent_actions": torch.from_numpy(recent_actions),
             "recent_states": torch.from_numpy(np.asarray(episode["states"][recent_idx], dtype=np.float32)),
             "older_obs": torch.stack([self._image(episode["images"][i]) for i in older_idx]),
-            "older_actions": torch.from_numpy(np.asarray(episode["actions"][older_idx], dtype=np.float32)),
+            "older_actions": torch.from_numpy(older_actions),
             "older_states": torch.from_numpy(np.asarray(episode["states"][older_idx], dtype=np.float32)),
             "target_actions": torch.from_numpy(np.asarray(episode["actions"][target_idx], dtype=np.float32)),
             "language": episode["language"],
@@ -331,7 +338,7 @@ class EpisodeDataset(Dataset):
                 if key in source:
                     value = source[key]
                     return value.decode("utf-8") if isinstance(value, bytes) else str(value)
-        return record.path.stem
+        return record.path.stem.removesuffix("_demo")
 
     def _image(self, image: Path | np.ndarray) -> torch.Tensor:
         if isinstance(image, Path):

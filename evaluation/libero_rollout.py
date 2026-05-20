@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 
 from models.vla_baseline import EventGatedMemoryVLA, build_model
 from utils.config import load_config
+from utils.language import language_ids
 from utils.seed import resolve_device, set_seed
 
 
@@ -129,8 +130,14 @@ def predict_chunk(
     history: OnlineHistory,
     device: torch.device,
     clip_action: bool,
+    discrete_gripper: bool,
+    language: str | None = None,
 ) -> np.ndarray:
     recent_images, recent_states, recent_actions, recent_mask = history.recent()
+    kwargs: dict[str, Any] = {}
+    if bool(getattr(model, "use_language", False)):
+        vocab_size = int(getattr(model, "language_embedding").num_embeddings)
+        kwargs["language_ids"] = language_ids([language or ""], vocab_size, device)
     if isinstance(model, EventGatedMemoryVLA):
         older_images, older_states, older_actions, older_mask = history.older()
         pred = model(
@@ -142,12 +149,20 @@ def predict_chunk(
             older_states=vector_tensor(older_states, device),
             recent_mask=mask_tensor(recent_mask, device),
             older_mask=mask_tensor(older_mask, device),
+            **kwargs,
         )
     else:
-        pred = model(images=image_tensor(recent_images, device), states=vector_tensor(recent_states, device))
+        pred = model(
+            images=image_tensor(recent_images, device),
+            states=vector_tensor(recent_states, device),
+            actions=vector_tensor(recent_actions, device),
+            **kwargs,
+        )
     actions = pred.squeeze(0).detach().cpu().numpy().astype(np.float32)
     if clip_action:
         actions = np.clip(actions, -1.0, 1.0)
+    if discrete_gripper and actions.shape[-1] >= 7:
+        actions[:, -1] = np.where(actions[:, -1] >= 0.0, 1.0, -1.0)
     return actions
 
 
@@ -159,6 +174,15 @@ def append_csv(path: Path, row: dict[str, Any]) -> None:
         if not exists:
             writer.writeheader()
         writer.writerow(row)
+
+
+def write_video(path: Path, frames: list[np.ndarray], fps: int) -> None:
+    if not frames:
+        return
+    import imageio.v2 as imageio
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    imageio.mimsave(path, frames, fps=fps)
 
 
 def load_policy(config_path: Path, checkpoint_path: Path, device: torch.device) -> tuple[torch.nn.Module, dict[str, Any], int, int]:
@@ -192,6 +216,11 @@ def main() -> None:
     parser.add_argument("--camera-key", default="agentview_image")
     parser.add_argument("--results-path", type=Path, default=Path("results/libero_rollouts.csv"))
     parser.add_argument("--clip-action", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--discrete-gripper", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--execute-horizon", type=int, default=1, help="Number of predicted chunk actions to execute before replanning.")
+    parser.add_argument("--video-dir", type=Path, default=None, help="Optional directory for rollout MP4 videos.")
+    parser.add_argument("--video-fps", type=int, default=20)
+    parser.add_argument("--video-every", type=int, default=1, help="Record every N simulator steps when --video-dir is set.")
     args = parser.parse_args()
 
     os.environ.setdefault("MUJOCO_GL", "egl")
@@ -231,16 +260,37 @@ def main() -> None:
                 success = False
                 total_reward = 0.0
                 steps = 0
+                frames: list[np.ndarray] = []
+                if args.video_dir is not None:
+                    frames.append(obs_to_image(obs, args.camera_key))
                 while steps < args.max_steps and not success:
-                    action_chunk = predict_chunk(model, history, device, args.clip_action)
-                    for action in action_chunk:
+                    action_chunk = predict_chunk(
+                        model,
+                        history,
+                        device,
+                        args.clip_action,
+                        args.discrete_gripper,
+                        language=task.name,
+                    )
+                    for action in action_chunk[: max(int(args.execute_horizon), 1)]:
                         obs, reward, done, _info = env.step(action)
                         total_reward += float(reward)
                         steps += 1
                         success = success or bool(reward > 0.0)
+                        if args.video_dir is not None and steps % max(args.video_every, 1) == 0:
+                            frames.append(obs_to_image(obs, args.camera_key))
                         history.append(obs_to_image(obs, args.camera_key), obs_to_state(obs), action)
                         if success or done or steps >= args.max_steps:
                             break
+                video_path = ""
+                if args.video_dir is not None:
+                    safe_task = task.name.replace("/", "_")
+                    video_path = str(
+                        args.video_dir
+                        / run_name
+                        / f"seed{args.seed}_task{task_id:02d}_episode{episode_idx}_{safe_task}.mp4"
+                    )
+                    write_video(Path(video_path), frames, args.video_fps)
                 row = {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "suite": args.suite,
@@ -254,6 +304,7 @@ def main() -> None:
                     "total_reward": total_reward,
                     "steps": steps,
                     "max_steps": args.max_steps,
+                    "video_path": video_path,
                 }
                 append_csv(args.results_path, row)
                 print(row)
