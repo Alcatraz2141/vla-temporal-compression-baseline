@@ -27,3 +27,4 @@ data/libero_long/
 # Local caches
 .pytest_cache/
 .ruff_cache/
+.claude/

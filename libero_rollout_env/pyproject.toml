@@ -1,0 +1,37 @@
+[project]
+name = "libero-rollout-env"
+version = "0.1.0"
+description = "Isolated environment for LIBERO simulator rollouts — pins match the known-working setup"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    # --- Core (pinned to known-working versions) ---
+    "torch>=2.6.0,<2.7",
+    "torchvision>=0.21.0,<0.22",
+    "numpy==1.26.4",
+    "mujoco==3.8.1",
+    "robosuite==1.4.0",
+    "bddl==1.0.1",
+    "gym==0.25.2",
+    "robomimic==0.2.0",
+    # --- Standard ---
+    "h5py>=3.14.0",
+    "pyyaml>=6.0.3",
+    "tqdm>=4.67.3",
+    "opencv-python>=4.10.0",
+    "pyopengl>=3.1.7",
+    # --- LIBERO transitive deps (setup.py declares none) ---
+    "hydra-core>=1.2.0",
+    "einops>=0.4.1",
+    "cloudpickle>=2.1.0",
+    "easydict>=1.9",
+    "matplotlib>=3.5.3",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu124", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cu124", marker = "sys_platform == 'linux'" }]
