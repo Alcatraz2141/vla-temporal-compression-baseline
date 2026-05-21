@@ -28,3 +28,4 @@ timestamp,baseline,checkpoint,seed,mse,mae,pred_temporal_smoothness,success_rate
 2026-05-19T17:37:00.731606+00:00,event_gated_memory,checkpoints/libero_long_seed44/event_gated_memory/best.pt,44,0.3560707824570792,0.9266813482557025,0.006631747952529362,nan,nan
 2026-05-19T17:38:49.706788+00:00,age_gated_memory,checkpoints/libero_long_seed44/age_gated_memory/best.pt,44,0.35703172854014803,0.9416718993868146,0.008903099955724818,nan,nan
 2026-05-19T17:40:36.023128+00:00,event_gated_concat_query,checkpoints/libero_long_seed44/event_gated_concat_query/best.pt,44,0.3300046111856188,0.901446955544608,0.008972472311662776,nan,nan
+2026-05-21T12:56:40.630447+00:00,sliding_window,checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window/best.pt,42,0.059324943327478,0.2940476749624525,0.0038323509423727436,nan,nan

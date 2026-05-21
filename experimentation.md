@@ -767,3 +767,188 @@ has learned coarse movement toward the object, but not robust grasp timing, plac
 This is a policy-quality/closed-loop robustness issue, not currently a known simulator wiring issue,
 because expert HDF5 action replay succeeds on task 5.
 ```
+
+## Phase 1 Completion: Corrected Sliding Window To 50 Epochs
+
+Date completed: 2026-05-21
+
+The corrected sliding-window continuation finished the planned 50 epochs.
+
+Training command actually used:
+
+```bash
+uv run python train.py \
+  --config logs/libero_long_sliding_window_10ep_fixed_resume_best_to50.yaml
+```
+
+Checkpoint summary:
+
+```text
+checkpoint dir: checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window
+best.pt epoch: 18
+best.pt val_mse: 0.008474992022716574
+last.pt epoch: 50
+last.pt val_mse: 0.015304431917944126
+epoch 50 train_mse: 0.005943
+epoch 50 val_mse: 0.015304
+```
+
+Training interpretation:
+
+```text
+Training MSE continued to decrease through epoch 50, but validation was best at epoch 18.
+The 50-epoch continuation therefore overfit after the early best checkpoint.
+Use best.pt for all comparisons and rollout diagnostics.
+```
+
+Offline evaluation command:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_sliding_window.yaml \
+  --checkpoint checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window/best.pt
+```
+
+Offline result:
+
+```text
+timestamp: 2026-05-21T12:56:40.630447+00:00
+baseline: sliding_window
+seed: 42
+mse: 0.059324943327478
+mae: 0.2940476749624525
+pred_temporal_smoothness: 0.0038323509423727436
+success_rate: NaN
+rollout_consistency: NaN
+results file: results/baselines.csv
+```
+
+Task-5 rollout command:
+
+```bash
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_sliding_window.yaml \
+  checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window/best.pt \
+  --tasks 5 \
+  --episodes-per-task 1 \
+  --max-steps 300 \
+  --video-dir results/rollout_videos_sliding_window_50ep_fixed \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_sliding_window_50ep_fixed.csv
+```
+
+Task-5 rollout result:
+
+```text
+timestamp: 2026-05-21T13:05:51.591084+00:00
+success: 0
+success_rate: 0.0
+total_reward: 0.0
+steps: 300 / 300
+csv: results/libero_rollouts_sliding_window_50ep_fixed.csv
+video: results/rollout_videos_sliding_window_50ep_fixed/sliding_window/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+```
+
+Rollout environment recovery:
+
+```text
+On the restored pod, /workspace/libero_rollout_envs/.venv was missing.
+The first rollout command failed with:
+ERROR: Rollout venv not found at /workspace/libero_rollout_envs/.venv
+Running `bash libero_rollout_env/bootstrap.sh` recreated the isolated rollout environment,
+cloned LIBERO, installed the dependency stack, and wrote libero_config/config.yaml.
+```
+
+Current signal:
+
+```text
+The corrected sliding-window model is a useful baseline, but longer training alone did not solve
+online LIBERO success. Offline action prediction improved relative to the earlier corrected
+10-epoch eval, but the task-5 closed-loop rollout still failed. This justifies running the
+event-gated memory model next under the same corrected setup, but if event memory also fails
+online, focus should shift to train/simulator alignment, action treatment, and closed-loop
+robustness rather than just more epochs.
+```
+
+## Next Runs: Event Memory And Ablations
+
+Run these in order on the next pod after restoring artifacts and redownloading LIBERO data.
+
+Setup:
+
+```bash
+cd /root/vla-temporal-compression-baseline
+uv sync
+uv add h5py hf-transfer
+export HF_HUB_ENABLE_HF_TRANSFER=1
+
+# Restore previous artifacts if starting from a clean pod.
+uv run hf download Alcatraz1412/vla-run-backups \
+  --repo-type dataset \
+  --local-dir /workspace/run_backups
+
+# Extract the latest tarball into the repo root.
+tar -xzf /workspace/run_backups/vla_run_artifacts_YYYYMMDD_HHMMSS.tar.gz \
+  -C /root/vla-temporal-compression-baseline
+
+# LIBERO data is intentionally not backed up; redownload from official HF.
+HF_HUB_ENABLE_HF_TRANSFER=1 uv run hf download yifengzhu-hf/LIBERO-datasets \
+  --repo-type dataset \
+  --local-dir data/libero_long \
+  --include "libero_10/*.hdf5" \
+  --max-workers 2
+
+uv run python scripts/inspect_libero.py --data-root data/libero_long
+uv run python scripts/smoke_test.py --sources libero_long
+
+# Needed only if /workspace/libero_rollout_envs/.venv is missing.
+bash libero_rollout_env/bootstrap.sh
+```
+
+Event-gated memory:
+
+```bash
+uv run python train.py --config configs/libero_long_event_gated.yaml
+uv run python evaluation/eval.py --config configs/libero_long_event_gated.yaml
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_event_gated.yaml \
+  checkpoints/libero_long/event_gated_memory/best.pt \
+  --tasks 5 \
+  --episodes-per-task 1 \
+  --max-steps 300 \
+  --video-dir results/rollout_videos_event_gated_memory \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_event_gated_memory.csv
+```
+
+Age-gated ablation:
+
+```bash
+uv run python train.py --config configs/ablation_gate_age.yaml
+uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml
+```
+
+Concat-query ablation:
+
+```bash
+uv run python train.py --config configs/ablation_query_concat.yaml
+uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
+```
+
+After those runs, back up artifacts before stopping the pod:
+
+```bash
+bash scripts/backup_run_artifacts.sh /workspace/run_backups
+uv run hf upload Alcatraz1412/vla-run-backups /workspace/run_backups --repo-type dataset
+```
+
+Current backup uploaded after the completed sliding-window run:
+
+```text
+local tarball: /workspace/run_backups/vla_run_artifacts_20260521_132531.tar.gz
+size: 318M
+Hugging Face dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/759e608dd8c4ebbe6e8511770980c965b8575db3
+```

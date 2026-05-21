@@ -184,3 +184,85 @@ docs/runpod_experiments.md
 ```
 
 This includes the optional SmolVLA/LeRobot external baseline path.
+
+## Current LIBERO Handoff
+
+Latest completed run: corrected sliding-window LIBERO-Long continuation to 50 epochs, completed
+2026-05-21.
+
+Summary:
+
+```text
+checkpoint dir: checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window
+best.pt: epoch 18, val_mse 0.008474992022716574
+last.pt: epoch 50, val_mse 0.015304431917944126
+offline eval best.pt MSE: 0.059324943327478
+offline eval best.pt MAE: 0.2940476749624525
+task-5 rollout success: 0/1
+task-5 rollout csv: results/libero_rollouts_sliding_window_50ep_fixed.csv
+task-5 rollout video: results/rollout_videos_sliding_window_50ep_fixed/sliding_window/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+```
+
+Use `best.pt`, not `last.pt`, for comparisons. The run overfit after epoch 18.
+
+Fresh RunPod restore checklist:
+
+```bash
+cd /root/vla-temporal-compression-baseline
+uv sync
+uv add h5py hf-transfer
+export HF_HUB_ENABLE_HF_TRANSFER=1
+
+uv run hf download Alcatraz1412/vla-run-backups \
+  --repo-type dataset \
+  --local-dir /workspace/run_backups
+
+tar -xzf /workspace/run_backups/vla_run_artifacts_YYYYMMDD_HHMMSS.tar.gz \
+  -C /root/vla-temporal-compression-baseline
+
+HF_HUB_ENABLE_HF_TRANSFER=1 uv run hf download yifengzhu-hf/LIBERO-datasets \
+  --repo-type dataset \
+  --local-dir data/libero_long \
+  --include "libero_10/*.hdf5" \
+  --max-workers 2
+
+uv run python scripts/inspect_libero.py --data-root data/libero_long
+uv run python scripts/smoke_test.py --sources libero_long
+bash libero_rollout_env/bootstrap.sh
+```
+
+Next intended commands:
+
+```bash
+# Event-gated memory
+uv run python train.py --config configs/libero_long_event_gated.yaml
+uv run python evaluation/eval.py --config configs/libero_long_event_gated.yaml
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_event_gated.yaml \
+  checkpoints/libero_long/event_gated_memory/best.pt \
+  --tasks 5 --episodes-per-task 1 --max-steps 300 \
+  --video-dir results/rollout_videos_event_gated_memory \
+  --video-every 1 --video-fps 20 \
+  --results-path results/libero_rollouts_event_gated_memory.csv
+
+# Ablations
+uv run python train.py --config configs/ablation_gate_age.yaml
+uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml
+
+uv run python train.py --config configs/ablation_query_concat.yaml
+uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
+```
+
+Before stopping a non-persistent pod:
+
+```bash
+bash scripts/backup_run_artifacts.sh /workspace/run_backups
+uv run hf upload Alcatraz1412/vla-run-backups /workspace/run_backups --repo-type dataset
+```
+
+Latest uploaded artifact backup:
+
+```text
+/workspace/run_backups/vla_run_artifacts_20260521_132531.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/759e608dd8c4ebbe6e8511770980c965b8575db3
+```
