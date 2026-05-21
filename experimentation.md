@@ -944,11 +944,133 @@ bash scripts/backup_run_artifacts.sh /workspace/run_backups
 uv run hf upload Alcatraz1412/vla-run-backups /workspace/run_backups --repo-type dataset
 ```
 
-Current backup uploaded after the completed sliding-window run:
+Current backup uploaded after stopping the event-gated continuation at epoch 18:
 
 ```text
-local tarball: /workspace/run_backups/vla_run_artifacts_20260521_132531.tar.gz
-size: 318M
+local tarball: /workspace/run_backups/vla_run_artifacts_20260521_183307.tar.gz
+size: 644M
 Hugging Face dataset: Alcatraz1412/vla-run-backups
-HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/759e608dd8c4ebbe6e8511770980c965b8575db3
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/223967d2ad4fdacd502e714b0c2951a626909e03
+```
+
+## 2026-05-21 Event-Gated Memory Resume Toward 50 Epochs
+
+Purpose:
+
+```text
+Make the event_gated_memory comparison fairer against the corrected sliding-window run by
+continuing beyond the original 10-epoch gated config toward 50 epochs.
+```
+
+Resume config added:
+
+```text
+configs/libero_long_event_gated_resume_last_to50.yaml
+```
+
+Key settings:
+
+```text
+baseline: event_gated_memory
+gate_type: event
+query_type: cross_attention
+batch_size: 32
+epochs: 50
+resume: checkpoints/libero_long/event_gated_memory/last.pt
+checkpoint_dir: checkpoints/libero_long
+run_name: event_gated_memory
+```
+
+Run command used:
+
+```bash
+nohup uv run python train.py \
+  --config configs/libero_long_event_gated_resume_last_to50.yaml \
+  > logs/event_gated_memory_resume_last_to50_20260521_171647.log 2>&1 &
+```
+
+A second duplicate command was accidentally launched:
+
+```text
+logs/event_gated_memory_resume_last_to50_20260521_181700.log
+```
+
+That duplicate failed immediately with CUDA OOM while the first run was active. Only one real
+training process group continued.
+
+Training was stopped intentionally after epoch 18 because the pod had no persistent volume and
+needed to be terminated. Stop point:
+
+```text
+clean stop/checkpoint boundary: epoch 18
+last.pt mtime: 2026-05-21 18:30:54 UTC
+last.pt epoch: 18
+last.pt val_mse: 0.012434127707300442
+best.pt epoch: 6
+best.pt val_mse: 0.00937148479611746
+best_val: 0.00937148479611746
+```
+
+Epoch summaries from the resume:
+
+```text
+epoch=11 train_mse=0.015746 val_mse=0.012057
+epoch=12 train_mse=0.015205 val_mse=0.010483
+epoch=13 train_mse=0.014663 val_mse=0.010579
+epoch=14 train_mse=0.013609 val_mse=0.010123
+epoch=15 train_mse=0.013034 val_mse=0.010789
+epoch=16 train_mse=0.012281 val_mse=0.012046
+epoch=17 train_mse=0.011766 val_mse=0.012270
+epoch=18 train_mse=0.011674 val_mse=0.012434
+```
+
+Interpretation:
+
+```text
+Training MSE is still decreasing, but validation has not improved beyond the original epoch-6
+best checkpoint. Continue to 50 epochs before judging the fair comparison. If best.pt remains
+epoch 6 after epoch 50, report that event-gated memory overfit early under this setup.
+```
+
+Continue on next pod:
+
+```bash
+cd /root/vla-temporal-compression-baseline
+uv run python train.py --config configs/libero_long_event_gated_resume_last_to50.yaml
+```
+
+Expected behavior:
+
+```text
+The loader should restore checkpoints/libero_long/event_gated_memory/last.pt and continue from
+epoch 19 through epoch 50. Keep using best.pt for eval/rollout unless last.pt later beats it.
+```
+
+Post-completion commands:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_event_gated_resume_last_to50.yaml \
+  --checkpoint checkpoints/libero_long/event_gated_memory/best.pt
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_event_gated_resume_last_to50.yaml \
+  checkpoints/libero_long/event_gated_memory/best.pt \
+  --tasks 5 \
+  --episodes-per-task 1 \
+  --max-steps 300 \
+  --video-dir results/rollout_videos_event_gated_memory_50ep \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_event_gated_memory_50ep.csv
+```
+
+Then run the ablations only after the event-gated 50-epoch continuation is complete:
+
+```bash
+uv run python train.py --config configs/ablation_gate_age.yaml
+uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml
+
+uv run python train.py --config configs/ablation_query_concat.yaml
+uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
 ```

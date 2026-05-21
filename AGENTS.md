@@ -1300,11 +1300,83 @@ bash scripts/backup_run_artifacts.sh /workspace/run_backups
 uv run hf upload Alcatraz1412/vla-run-backups /workspace/run_backups --repo-type dataset
 ```
 
-Latest 2026-05-21 uploaded backup:
+Latest 2026-05-21 uploaded backup after stopping event-gated at epoch 18:
 
 ```text
-local tarball: /workspace/run_backups/vla_run_artifacts_20260521_132531.tar.gz
-size: 318M
+local tarball: /workspace/run_backups/vla_run_artifacts_20260521_183307.tar.gz
+size: 644M
 Hugging Face dataset: Alcatraz1412/vla-run-backups
-HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/759e608dd8c4ebbe6e8511770980c965b8575db3
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/223967d2ad4fdacd502e714b0c2951a626909e03
+```
+
+## Current Event-Gated 50-Epoch Resume State
+
+The event-gated memory model was first run for the original 10-epoch config, then resumed toward
+50 epochs for a fairer comparison against the corrected 50-epoch sliding-window phase.
+
+Important status as of 2026-05-21:
+
+```text
+resume config: configs/libero_long_event_gated_resume_last_to50.yaml
+checkpoint dir: checkpoints/libero_long/event_gated_memory
+main resume log: logs/event_gated_memory_resume_last_to50_20260521_171647.log
+duplicate failed log: logs/event_gated_memory_resume_last_to50_20260521_181700.log
+stopped cleanly after: epoch 18
+last.pt: epoch 18, val_mse 0.012434127707300442
+best.pt: epoch 6, val_mse 0.00937148479611746
+best_val carried by checkpoint: 0.00937148479611746
+stop time/checkpoint mtime: 2026-05-21 18:30:54 UTC
+```
+
+The duplicate launch at `2026-05-21_181700` failed immediately with CUDA OOM because the real
+training job was already using the GPU. It did not produce a separate checkpoint.
+
+Do not compare this event-gated run as a finished 50-epoch result yet. It has only reached epoch
+18 of the planned 50-epoch continuation. The validation score has not beaten the epoch-6 best
+checkpoint so far.
+
+To continue the event-gated 50-epoch run on a fresh pod after restoring artifacts:
+
+```bash
+cd /root/vla-temporal-compression-baseline
+uv run python train.py --config configs/libero_long_event_gated_resume_last_to50.yaml
+```
+
+This config resumes from:
+
+```text
+checkpoints/libero_long/event_gated_memory/last.pt
+```
+
+Because `last.pt` is epoch 18, training should continue from epoch 19 and run until epoch 50.
+After completion, evaluate both the best checkpoint and run the task-5 rollout:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_event_gated_resume_last_to50.yaml \
+  --checkpoint checkpoints/libero_long/event_gated_memory/best.pt
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_event_gated_resume_last_to50.yaml \
+  checkpoints/libero_long/event_gated_memory/best.pt \
+  --tasks 5 \
+  --episodes-per-task 1 \
+  --max-steps 300 \
+  --video-dir results/rollout_videos_event_gated_memory_50ep \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_event_gated_memory_50ep.csv
+```
+
+Completed 10-epoch event-gated diagnostics before the resume:
+
+```text
+offline eval checkpoint: checkpoints/libero_long/event_gated_memory/best.pt
+offline eval timestamp: 2026-05-21T16:58:10.539844+00:00
+offline eval MSE: 0.06560039360608373
+offline eval MAE: 0.32510020051683697
+task-5 rollout timestamp: 2026-05-21T16:59:43.676875+00:00
+task-5 rollout success: 0/1
+task-5 rollout csv: results/libero_rollouts_event_gated_memory.csv
+task-5 rollout video: results/rollout_videos_event_gated_memory/event_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
 ```

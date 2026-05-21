@@ -263,6 +263,44 @@ uv run hf upload Alcatraz1412/vla-run-backups /workspace/run_backups --repo-type
 Latest uploaded artifact backup:
 
 ```text
-/workspace/run_backups/vla_run_artifacts_20260521_132531.tar.gz
-https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/759e608dd8c4ebbe6e8511770980c965b8575db3
+/workspace/run_backups/vla_run_artifacts_20260521_183307.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/223967d2ad4fdacd502e714b0c2951a626909e03
+```
+
+## Current Event-Gated Resume Handoff
+
+The event-gated memory run was resumed from the original 10-epoch checkpoint toward 50 epochs
+and then stopped cleanly after epoch 18 before terminating a non-persistent pod.
+
+Current state:
+
+```text
+resume config: configs/libero_long_event_gated_resume_last_to50.yaml
+checkpoint dir: checkpoints/libero_long/event_gated_memory
+last.pt: epoch 18, val_mse 0.012434127707300442
+best.pt: epoch 6, val_mse 0.00937148479611746
+main log: logs/event_gated_memory_resume_last_to50_20260521_171647.log
+```
+
+Resume on a fresh pod after restoring the latest artifact backup:
+
+```bash
+cd /root/vla-temporal-compression-baseline
+uv run python train.py --config configs/libero_long_event_gated_resume_last_to50.yaml
+```
+
+After it reaches epoch 50:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_event_gated_resume_last_to50.yaml \
+  --checkpoint checkpoints/libero_long/event_gated_memory/best.pt
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_event_gated_resume_last_to50.yaml \
+  checkpoints/libero_long/event_gated_memory/best.pt \
+  --tasks 5 --episodes-per-task 1 --max-steps 300 \
+  --video-dir results/rollout_videos_event_gated_memory_50ep \
+  --video-every 1 --video-fps 20 \
+  --results-path results/libero_rollouts_event_gated_memory_50ep.csv
 ```

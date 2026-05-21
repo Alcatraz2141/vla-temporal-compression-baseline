@@ -76,6 +76,25 @@ uv run python scripts/smoke_test.py --sources libero_long
 If restoring a previous run, unpack the backup tarball from the repo root before running
 eval or rollout.
 
+Current event-gated 50-epoch continuation should use this rollout command after training
+finishes:
+
+```bash
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_event_gated_resume_last_to50.yaml \
+  checkpoints/libero_long/event_gated_memory/best.pt \
+  --tasks 5 \
+  --episodes-per-task 1 \
+  --max-steps 300 \
+  --video-dir results/rollout_videos_event_gated_memory_50ep \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_event_gated_memory_50ep.csv
+```
+
+As of 2026-05-21, the event-gated continuation was stopped at epoch 18. The best checkpoint
+remained epoch 6, so use `best.pt` for rollout unless a later resumed epoch improves validation.
+
 ## Pinned Dependencies (known-working, from experimentation.md)
 
 | Package | Version | Why pinned |
