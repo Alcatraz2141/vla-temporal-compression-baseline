@@ -1074,3 +1074,67 @@ uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml
 uv run python train.py --config configs/ablation_query_concat.yaml
 uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
 ```
+
+## 2026-05-22 Event-Gated 50-Epoch Completion
+
+The event-gated continuation from epoch 18 to epoch 50 was completed on the A100 SXM pod.
+
+Run metadata:
+
+```text
+config: configs/libero_long_event_gated_resume_last_to50.yaml
+checkpoint dir: checkpoints/libero_long/event_gated_memory
+training log: logs/event_gated_memory_resume_last_to50_20260521_171647.log
+gpu monitor log: logs/event_gated_memory_resume_last_to50_gpu_monitor.log
+best.pt: epoch 46, val_mse 0.008947615628130734
+last.pt: epoch 50, val_mse 0.010168199252802879
+artifact backup dataset: Alcatraz1412/vla-run-backups
+restore rule: use the newest /workspace/run_backups/vla_run_artifacts_*.tar.gz
+```
+
+A100 throughput settings used for this completion:
+
+```text
+training.batch_size: 64
+evaluation.batch_size: 64
+data.num_workers: 8
+data.prefetch_factor: 4
+```
+
+Interpretation:
+
+```text
+The event-gated run improved beyond the earlier epoch-6 checkpoint and achieved its best
+validation MSE at epoch 46. The final epoch-50 checkpoint is worse than best.pt, so comparisons
+should use best.pt.
+```
+
+The run has not yet had the post-50-epoch offline evaluation command or online task-5 rollout
+run after completion. Do those first on the next pod:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_event_gated_resume_last_to50.yaml \
+  --checkpoint checkpoints/libero_long/event_gated_memory/best.pt
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_event_gated_resume_last_to50.yaml \
+  checkpoints/libero_long/event_gated_memory/best.pt \
+  --tasks 5 \
+  --episodes-per-task 1 \
+  --max-steps 300 \
+  --video-dir results/rollout_videos_event_gated_memory_50ep \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_event_gated_memory_50ep.csv
+```
+
+After that, continue with the planned ablations:
+
+```bash
+uv run python train.py --config configs/ablation_gate_age.yaml
+uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml
+
+uv run python train.py --config configs/ablation_query_concat.yaml
+uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
+```

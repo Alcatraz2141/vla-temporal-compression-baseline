@@ -20,8 +20,8 @@ data:
   H_action: 4
   state_dim: null
   action_dim: null
-  num_workers: 4
-  prefetch_factor: 2
+  num_workers: 8
+  prefetch_factor: 4
   augment:
     enabled: true
 
@@ -44,7 +44,7 @@ memory:
   query_type: cross_attention
 
 training:
-  batch_size: 32
+  batch_size: 64
   epochs: 50
   max_steps_per_epoch: 50000
   lr: 1.0e-4
@@ -67,5 +67,5 @@ training:
   resume: checkpoints/libero_long/event_gated_memory/last.pt
 
 evaluation:
-  batch_size: 32
+  batch_size: 64
   results_path: results/baselines.csv

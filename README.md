@@ -267,7 +267,7 @@ Latest uploaded artifact backup:
 https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/223967d2ad4fdacd502e714b0c2951a626909e03
 ```
 
-## Current Event-Gated Resume Handoff
+## Superseded Event-Gated Resume Handoff
 
 The event-gated memory run was resumed from the original 10-epoch checkpoint toward 50 epochs
 and then stopped cleanly after epoch 18 before terminating a non-persistent pod.
@@ -303,4 +303,75 @@ bash libero_rollout_env/run_rollout.sh \
   --video-dir results/rollout_videos_event_gated_memory_50ep \
   --video-every 1 --video-fps 20 \
   --results-path results/libero_rollouts_event_gated_memory_50ep.csv
+```
+
+## Current Event-Gated Completion Handoff
+
+The event-gated 50-epoch continuation completed on 2026-05-22.
+
+```text
+config: configs/libero_long_event_gated_resume_last_to50.yaml
+checkpoint dir: checkpoints/libero_long/event_gated_memory
+log: logs/event_gated_memory_resume_last_to50_20260521_171647.log
+gpu monitor: logs/event_gated_memory_resume_last_to50_gpu_monitor.log
+best.pt: epoch 46, val_mse 0.008947615628130734
+last.pt: epoch 50, val_mse 0.010168199252802879
+artifact backup dataset: Alcatraz1412/vla-run-backups
+restore rule: use the newest /workspace/run_backups/vla_run_artifacts_*.tar.gz
+```
+
+Use `best.pt` for evaluation and rollout. The A100 run used batch size `64`,
+`num_workers: 8`, and `prefetch_factor: 4`.
+
+Restore the latest artifacts on a fresh pod:
+
+```bash
+cd /root/vla-temporal-compression-baseline
+uv sync
+uv add h5py hf-transfer
+export HF_HUB_ENABLE_HF_TRANSFER=1
+
+uv run hf download Alcatraz1412/vla-run-backups \
+  --repo-type dataset \
+  --local-dir /workspace/run_backups
+
+LATEST_BACKUP="$(ls -t /workspace/run_backups/vla_run_artifacts_*.tar.gz | head -1)"
+tar -xzf "$LATEST_BACKUP" \
+  -C /root/vla-temporal-compression-baseline
+
+HF_HUB_ENABLE_HF_TRANSFER=1 uv run hf download yifengzhu-hf/LIBERO-datasets \
+  --repo-type dataset \
+  --local-dir data/libero_long \
+  --include "libero_10/*.hdf5" \
+  --max-workers 2
+
+uv run python scripts/inspect_libero.py --data-root data/libero_long
+uv run python scripts/smoke_test.py --sources libero_long
+bash libero_rollout_env/bootstrap.sh
+```
+
+Run event-gated evaluation and the task-5 visual rollout before ablations:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_event_gated_resume_last_to50.yaml \
+  --checkpoint checkpoints/libero_long/event_gated_memory/best.pt
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_event_gated_resume_last_to50.yaml \
+  checkpoints/libero_long/event_gated_memory/best.pt \
+  --tasks 5 --episodes-per-task 1 --max-steps 300 \
+  --video-dir results/rollout_videos_event_gated_memory_50ep \
+  --video-every 1 --video-fps 20 \
+  --results-path results/libero_rollouts_event_gated_memory_50ep.csv
+```
+
+Then continue the milestone ablations:
+
+```bash
+uv run python train.py --config configs/ablation_gate_age.yaml
+uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml
+
+uv run python train.py --config configs/ablation_query_concat.yaml
+uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
 ```

@@ -92,8 +92,22 @@ bash libero_rollout_env/run_rollout.sh \
   --results-path results/libero_rollouts_event_gated_memory_50ep.csv
 ```
 
-As of 2026-05-21, the event-gated continuation was stopped at epoch 18. The best checkpoint
-remained epoch 6, so use `best.pt` for rollout unless a later resumed epoch improves validation.
+As of 2026-05-22, the event-gated continuation completed to epoch 50. Use:
+
+```text
+checkpoint: checkpoints/libero_long/event_gated_memory/best.pt
+best epoch: 46
+best val_mse: 0.008947615628130734
+config: configs/libero_long_event_gated_resume_last_to50.yaml
+```
+
+Run the offline eval before rollout if it has not been run after the epoch-50 completion:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_event_gated_resume_last_to50.yaml \
+  --checkpoint checkpoints/libero_long/event_gated_memory/best.pt
+```
 
 ## Pinned Dependencies (known-working, from experimentation.md)
 

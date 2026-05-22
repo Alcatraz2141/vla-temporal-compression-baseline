@@ -1309,12 +1309,12 @@ Hugging Face dataset: Alcatraz1412/vla-run-backups
 HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/223967d2ad4fdacd502e714b0c2951a626909e03
 ```
 
-## Current Event-Gated 50-Epoch Resume State
+## Superseded Event-Gated 50-Epoch Resume State
 
 The event-gated memory model was first run for the original 10-epoch config, then resumed toward
 50 epochs for a fairer comparison against the corrected 50-epoch sliding-window phase.
 
-Important status as of 2026-05-21:
+Superseded status as of 2026-05-21:
 
 ```text
 resume config: configs/libero_long_event_gated_resume_last_to50.yaml
@@ -1379,4 +1379,105 @@ task-5 rollout timestamp: 2026-05-21T16:59:43.676875+00:00
 task-5 rollout success: 0/1
 task-5 rollout csv: results/libero_rollouts_event_gated_memory.csv
 task-5 rollout video: results/rollout_videos_event_gated_memory/event_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+```
+
+## Current Event-Gated 50-Epoch Completion State
+
+The event-gated memory continuation completed on 2026-05-22 on the A100 SXM pod.
+
+Current authoritative status:
+
+```text
+resume config: configs/libero_long_event_gated_resume_last_to50.yaml
+checkpoint dir: checkpoints/libero_long/event_gated_memory
+training log: logs/event_gated_memory_resume_last_to50_20260521_171647.log
+gpu monitor log: logs/event_gated_memory_resume_last_to50_gpu_monitor.log
+best.pt: epoch 46, val_mse 0.008947615628130734
+last.pt: epoch 50, val_mse 0.010168199252802879
+best_val: 0.008947615628130734
+best.pt mtime: 2026-05-22 05:12:54 UTC
+last.pt mtime: 2026-05-22 05:32:07 UTC
+```
+
+The A100 continuation used:
+
+```yaml
+training:
+  batch_size: 64
+evaluation:
+  batch_size: 64
+data:
+  num_workers: 8
+  prefetch_factor: 4
+```
+
+Use `best.pt`, not `last.pt`, for offline eval, rollout, and paper-table comparisons. The run
+improved past the previous epoch-6 best and then degraded slightly by epoch 50.
+
+Latest artifact backups created before pod termination. On a fresh pod, restore the newest
+`vla_run_artifacts_*.tar.gz` from `/workspace/run_backups`.
+
+The uploaded Hugging Face dataset is `Alcatraz1412/vla-run-backups`. Restore the newest
+`vla_run_artifacts_*.tar.gz`; the 2026-05-22 backups are about 645M each.
+
+Fresh RunPod restore sequence:
+
+```bash
+cd /root/vla-temporal-compression-baseline
+uv sync
+uv add h5py hf-transfer
+export HF_HUB_ENABLE_HF_TRANSFER=1
+
+uv run hf download Alcatraz1412/vla-run-backups \
+  --repo-type dataset \
+  --local-dir /workspace/run_backups
+
+LATEST_BACKUP="$(ls -t /workspace/run_backups/vla_run_artifacts_*.tar.gz | head -1)"
+tar -xzf "$LATEST_BACKUP" \
+  -C /root/vla-temporal-compression-baseline
+
+HF_HUB_ENABLE_HF_TRANSFER=1 uv run hf download yifengzhu-hf/LIBERO-datasets \
+  --repo-type dataset \
+  --local-dir data/libero_long \
+  --include "libero_10/*.hdf5" \
+  --max-workers 2
+
+uv run python scripts/inspect_libero.py --data-root data/libero_long
+uv run python scripts/smoke_test.py --sources libero_long
+bash libero_rollout_env/bootstrap.sh
+```
+
+If a fresh pod has a dangling `data/libero_long` symlink, recreate its target under
+`/workspace/vla-temporal-compression-baseline-data/libero_long` before downloading LIBERO.
+If Hugging Face leaves stale LIBERO lock files, remove only
+`data/libero_long/.cache/huggingface/download/libero_10/*.lock` and matching incomplete files,
+then rerun the official LIBERO download.
+
+Immediate next commands before ablations:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_event_gated_resume_last_to50.yaml \
+  --checkpoint checkpoints/libero_long/event_gated_memory/best.pt
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_event_gated_resume_last_to50.yaml \
+  checkpoints/libero_long/event_gated_memory/best.pt \
+  --tasks 5 \
+  --episodes-per-task 1 \
+  --max-steps 300 \
+  --video-dir results/rollout_videos_event_gated_memory_50ep \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_event_gated_memory_50ep.csv
+```
+
+Then run the two planned ablations:
+
+```bash
+uv run python train.py --config configs/ablation_gate_age.yaml
+uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml
+
+uv run python train.py --config configs/ablation_query_concat.yaml
+uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
 ```
