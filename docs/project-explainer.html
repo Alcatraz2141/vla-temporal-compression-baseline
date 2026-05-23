@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VLA Temporal Compression &mdash; Project Deep Dive</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232734;
+    --border: #2e3345;
+    --text: #e2e4ea;
+    --text-dim: #8b90a0;
+    --accent: #f97316;
+    --accent2: #3b82f6;
+    --accent3: #10b981;
+    --accent4: #a78bfa;
+    --red: #ef4444;
+    --yellow: #eab308;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(15,17,23,.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex; align-items: center; gap: 2rem;
+    height: 56px; font-size: .85rem;
+  }
+  nav .logo { font-weight: 700; font-size: 1rem; color: var(--accent); white-space: nowrap; }
+  nav .links { display: flex; gap: .25rem; overflow-x: auto; }
+  nav .links a {
+    color: var(--text-dim); padding: .35rem .75rem;
+    border-radius: 6px; transition: .15s;
+    white-space: nowrap;
+  }
+  nav .links a:hover, nav .links a.active { color: #fff; background: var(--surface2); text-decoration: none; }
+
+  /* HERO */
+  .hero {
+    padding: 4rem 2rem 3rem;
+    max-width: 960px; margin: 0 auto;
+    text-align: center;
+  }
+  .hero h1 { font-size: 2.6rem; line-height: 1.15; font-weight: 800; margin-bottom: .5rem; }
+  .hero .highlight { color: var(--accent); }
+  .hero .subtitle { color: var(--text-dim); font-size: 1.1rem; max-width: 680px; margin: .75rem auto 2rem; }
+  .stats-row {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem;
+    max-width: 780px; margin: 0 auto;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1rem 1.5rem; min-width: 120px;
+    text-align: left;
+  }
+  .stat-card .label { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+  .stat-card .value { font-size: 1.5rem; font-weight: 700; margin-top: .2rem; }
+
+  /* SECTIONS */
+  section {
+    max-width: 960px; margin: 0 auto;
+    padding: 3rem 2rem;
+  }
+  section + section { border-top: 1px solid var(--border); }
+  .section-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); margin-bottom: .5rem; }
+  section h2 { font-size: 1.7rem; font-weight: 700; margin-bottom: 1rem; }
+  section h3 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 .5rem; color: var(--accent2); }
+  section p, section li { color: var(--text); font-size: .95rem; }
+  section p + p { margin-top: .75rem; }
+  ul, ol { padding-left: 1.25rem; margin: .5rem 0; }
+  li + li { margin-top: .35rem; }
+
+  /* CARDS & BOXES */
+  .info-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.25rem 1.5rem;
+    margin: 1rem 0;
+  }
+  .info-box.warn { border-color: var(--yellow); background: rgba(234,179,8,.06); }
+  .info-box.error { border-color: var(--red); background: rgba(239,68,68,.06); }
+  .info-box.success { border-color: var(--accent3); background: rgba(16,185,129,.06); }
+  .info-box .box-title { font-weight: 600; margin-bottom: .4rem; display: flex; align-items: center; gap: .5rem; }
+
+  /* DIAGRAMS */
+  .diagram-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+  .flow-row { display: flex; align-items: center; justify-content: center; gap: .75rem; flex-wrap: wrap; }
+  .flow-box {
+    border: 2px solid var(--border); border-radius: 10px;
+    padding: .75rem 1.1rem; text-align: center; min-width: 120px;
+    font-size: .85rem; font-weight: 600;
+    transition: .2s;
+  }
+  .flow-box:hover { transform: translateY(-2px); }
+  .flow-box.input { border-color: var(--accent2); background: rgba(59,130,246,.1); }
+  .flow-box.model { border-color: var(--accent); background: rgba(249,115,22,.1); }
+  .flow-box.output { border-color: var(--accent3); background: rgba(16,185,129,.1); }
+  .flow-box.memory { border-color: var(--accent4); background: rgba(167,139,250,.1); }
+  .flow-box small { display: block; font-weight: 400; color: var(--text-dim); font-size: .72rem; margin-top: 2px; }
+  .flow-arrow { color: var(--text-dim); font-size: 1.4rem; }
+
+  /* CODE BLOCKS */
+  .code-block {
+    background: #0d0f14; border: 1px solid var(--border);
+    border-radius: 8px; padding: 1rem 1.25rem;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: .8rem; line-height: 1.7;
+    overflow-x: auto; margin: 1rem 0;
+    color: #c9d1d9;
+  }
+  .code-block .comment { color: #6e7681; }
+  .code-block .keyword { color: #ff7b72; }
+  .code-block .string { color: #a5d6ff; }
+  .code-block .number { color: #79c0ff; }
+  .code-block .fn { color: #d2a8ff; }
+  .code-block .dim { color: var(--accent); }
+
+  /* TABLES */
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .88rem; }
+  th { text-align: left; padding: .6rem .75rem; border-bottom: 2px solid var(--border); color: var(--text-dim); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
+  td { padding: .55rem .75rem; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: var(--surface2); }
+
+  /* TABS */
+  .tabs { display: flex; gap: .25rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    padding: .5rem 1rem; font-size: .85rem; cursor: pointer;
+    background: none; border: none; color: var(--text-dim);
+    border-bottom: 2px solid transparent; transition: .15s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* TIMELINE */
+  .timeline { position: relative; padding-left: 2rem; margin: 1rem 0; }
+  .timeline::before { content: ''; position: absolute; left: .6rem; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .timeline-item { position: relative; margin-bottom: 1.25rem; }
+  .timeline-item::before {
+    content: ''; position: absolute; left: -1.65rem; top: .35rem;
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 2px solid var(--accent); background: var(--bg);
+  }
+  .timeline-item.done::before { background: var(--accent3); border-color: var(--accent3); }
+  .timeline-item.fail::before { background: var(--red); border-color: var(--red); }
+  .timeline-item .time-label { font-size: .72rem; color: var(--text-dim); }
+  .timeline-item .time-text { font-size: .9rem; }
+
+  /* COMPARE GRID */
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+  @media (max-width: 640px) { .compare-grid { grid-template-columns: 1fr; } }
+  .compare-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.25rem;
+  }
+  .compare-card h4 { font-size: .95rem; margin-bottom: .75rem; display: flex; align-items: center; gap: .5rem; }
+  .compare-card .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* TOOLTIP */
+  .tooltip-trigger {
+    border-bottom: 1px dashed var(--text-dim);
+    cursor: help; position: relative;
+  }
+  .tooltip-trigger:hover::after {
+    content: attr(data-tip);
+    position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%);
+    background: #2a2d3a; color: #fff; padding: .4rem .6rem;
+    border-radius: 6px; font-size: .75rem; white-space: nowrap;
+    z-index: 10; pointer-events: none;
+  }
+
+  /* ANALOGY CARDS */
+  .analogy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+  @media (max-width: 640px) { .analogy-grid { grid-template-columns: 1fr; } }
+  .analogy-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.25rem;
+  }
+  .analogy-card .llm-side { color: var(--accent2); font-size: .8rem; font-weight: 600; margin-bottom: .3rem; }
+  .analogy-card .vla-side { color: var(--accent); font-size: .8rem; font-weight: 600; margin-bottom: .3rem; }
+  .analogy-card p { font-size: .85rem; color: var(--text-dim); }
+
+  /* ACCORDION */
+  details { margin: .5rem 0; }
+  details summary {
+    cursor: pointer; padding: .6rem .75rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; font-weight: 600; font-size: .9rem;
+    list-style: none;
+  }
+  details summary::before { content: '+ '; color: var(--accent); }
+  details[open] summary::before { content: '- '; }
+  details[open] summary { border-radius: 8px 8px 0 0; }
+  details .detail-body {
+    background: var(--surface); border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 8px 8px; padding: 1rem;
+  }
+
+  /* TAG */
+  .tag {
+    display: inline-block; font-size: .7rem; padding: .15rem .5rem;
+    border-radius: 4px; font-weight: 600;
+  }
+  .tag.blue { background: rgba(59,130,246,.15); color: var(--accent2); }
+  .tag.orange { background: rgba(249,115,22,.15); color: var(--accent); }
+  .tag.green { background: rgba(16,185,129,.15); color: var(--accent3); }
+  .tag.red { background: rgba(239,68,68,.15); color: var(--red); }
+  .tag.purple { background: rgba(167,139,250,.15); color: var(--accent4); }
+
+  footer {
+    max-width: 960px; margin: 0 auto;
+    padding: 2rem; text-align: center;
+    color: var(--text-dim); font-size: .8rem;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">VLA Temporal Compression</div>
+  <div class="links">
+    <a href="#home" class="active">Home</a>
+    <a href="#llm-to-vla">LLM &rarr; VLA</a>
+    <a href="#pipeline">Pipeline</a>
+    <a href="#models">Models</a>
+    <a href="#data">Data</a>
+    <a href="#bugs">Bugs Found</a>
+    <a href="#results">Results</a>
+    <a href="#diagnosis">Diagnosis</a>
+    <a href="#fixes">What To Fix</a>
+  </div>
+</nav>
+
+<!-- ==================== HERO ==================== -->
+<div class="hero" id="home">
+  <h1>Teaching a robot to act<br/><span class="highlight">by remembering what matters.</span></h1>
+  <p class="subtitle">
+    Training a Vision-Language-Action model on LIBERO-Long manipulation tasks with event-gated temporal memory.
+    A deep dive into the architecture, data pipeline, bugs discovered, and why the policy still fails.
+  </p>
+  <div class="stats-row">
+    <div class="stat-card"><div class="label">Training Data</div><div class="value">240K</div></div>
+    <div class="stat-card"><div class="label">Episodes</div><div class="value">500</div></div>
+    <div class="stat-card"><div class="label">Task Steps</div><div class="value">~300</div></div>
+    <div class="stat-card"><div class="label">Action Dims</div><div class="value">7</div></div>
+    <div class="stat-card"><div class="label">Models</div><div class="value">4</div></div>
+    <div class="stat-card"><div class="label">Online Success</div><div class="value" style="color:var(--red)">0%</div></div>
+  </div>
+</div>
+
+<!-- ==================== LLM to VLA ==================== -->
+<section id="llm-to-vla">
+  <div class="section-label">If you know LLMs</div>
+  <h2>From text tokens to robot actions</h2>
+  <p>If you understand GPT-style transformers, you already understand 70% of this project. Here's the mapping:</p>
+
+  <div class="analogy-grid">
+    <div class="analogy-card">
+      <div class="llm-side">LLM: Token embeddings</div>
+      <div class="vla-side">VLA: Image features from ResNet18</div>
+      <p>Instead of looking up a word in a vocabulary table, each timestep's camera image is passed through a CNN (ResNet18) to produce a 512-dim feature vector, then projected to 256-dim.</p>
+    </div>
+    <div class="analogy-card">
+      <div class="llm-side">LLM: Positional encoding</div>
+      <div class="vla-side">VLA: Learned position embedding</div>
+      <p>Same idea. Each of the 8 recent timesteps gets a learned positional embedding added so the transformer knows temporal order.</p>
+    </div>
+    <div class="analogy-card">
+      <div class="llm-side">LLM: "Next token prediction"</div>
+      <div class="vla-side">VLA: "Next 4 actions prediction"</div>
+      <p>Instead of predicting the next word, the model predicts the next 4 action steps (each 7-dimensional: 3D position + 3D orientation + gripper open/close).</p>
+    </div>
+    <div class="analogy-card">
+      <div class="llm-side">LLM: Cross-entropy loss</div>
+      <div class="vla-side">VLA: MSE loss on continuous actions</div>
+      <p>No vocabulary to classify over. Actions are continuous floats, so we use mean squared error. The gripper dimension gets 5x weight because it's critical.</p>
+    </div>
+    <div class="analogy-card">
+      <div class="llm-side">LLM: Context window</div>
+      <div class="vla-side">VLA: Observation history (8 frames)</div>
+      <p>The model sees the last 8 camera frames. That's its "context window." Anything older is either discarded (sliding window) or compressed (event-gated memory).</p>
+    </div>
+    <div class="analogy-card">
+      <div class="llm-side">LLM: Prompt / system message</div>
+      <div class="vla-side">VLA: Language task instruction</div>
+      <p>"Pick up the book and place it in the caddy" is hashed to an embedding ID and added to every token. It's the "system prompt" telling the robot what task to do.</p>
+    </div>
+    <div class="analogy-card">
+      <div class="llm-side">LLM: Autoregressive inference</div>
+      <div class="vla-side">VLA: Closed-loop rollout</div>
+      <p>At test time, the model predicts 4 actions, executes 1, gets a new camera image, and predicts again. Like generating tokens one at a time, but each "token" moves a physical robot arm.</p>
+    </div>
+    <div class="analogy-card">
+      <div class="llm-side">LLM: Hallucination / drift</div>
+      <div class="vla-side">VLA: Compounding error</div>
+      <p>The killer problem. After 20 steps, the robot is in a state it never saw during training. Every subsequent prediction gets worse. This is why 0% online success with low offline error is possible.</p>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <div class="box-title">The key difference from LLMs</div>
+    <p>In an LLM, a bad token is just a bad token&mdash;the next prediction starts from the same clean context. In a robot, a bad action <strong>physically moves the arm</strong> to a new state. The next observation is now from a state the model never trained on. Errors compound geometrically. This is the fundamental challenge of behavioral cloning.</p>
+  </div>
+</section>
+
+<!-- ==================== PIPELINE ==================== -->
+<section id="pipeline">
+  <div class="section-label">End-to-end</div>
+  <h2>The full pipeline</h2>
+
+  <div class="diagram-container">
+    <div class="flow-row">
+      <div class="flow-box input">
+        HDF5 Files
+        <small>LIBERO demos</small>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box input">
+        Episode Loader
+        <small>episode_loader.py</small>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box model">
+        Model
+        <small>vla_baseline.py</small>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box output">
+        7D Actions
+        <small>pos + ori + grip</small>
+      </div>
+    </div>
+    <br/>
+    <div class="flow-row">
+      <div class="flow-box input">
+        Trained Model
+        <small>best.pt</small>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box model">
+        LIBERO Sim
+        <small>libero_rollout.py</small>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box output">
+        Videos + Success
+        <small>0% currently</small>
+      </div>
+    </div>
+  </div>
+
+  <h3>Training (Offline)</h3>
+  <p>Supervised learning on recorded expert demonstrations. The model sees (images, states, actions) tuples from HDF5 files and learns to predict the expert's actions via MSE loss. The robot never actually moves during training.</p>
+
+  <h3>Evaluation: Offline</h3>
+  <p>Feed held-out episodes through the model, measure MSE and MAE between predicted and expert actions. This tells you if the model learned the mapping, but NOT if it can actually complete tasks.</p>
+
+  <h3>Evaluation: Online (Rollout)</h3>
+  <p>Load the model into the LIBERO MuJoCo simulator. The model controls the robot for up to 300 steps. Success = task completed (book in caddy, etc). This is the real test and where everything fails.</p>
+</section>
+
+<!-- ==================== MODELS ==================== -->
+<section id="models">
+  <div class="section-label">Architecture</div>
+  <h2>The four model variants</h2>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab(event, 'tab-sliding')">Sliding Window</button>
+    <button class="tab-btn" onclick="showTab(event, 'tab-eventgated')">Event-Gated Memory</button>
+    <button class="tab-btn" onclick="showTab(event, 'tab-ablations')">Ablations</button>
+    <button class="tab-btn" onclick="showTab(event, 'tab-comparison')">Architecture Comparison</button>
+  </div>
+
+  <div class="tab-content active" id="tab-sliding">
+    <h3>BaselineVLA &mdash; Sliding Window <span class="tag blue">Baseline</span></h3>
+    <p>The control model. Sees only the last 8 timesteps and predicts the next 4 actions.</p>
+
+    <div class="diagram-container">
+      <div class="flow-row">
+        <div class="flow-box input">8 RGB Images<small>128&times;128&times;3</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box model">ResNet18<small>per-image</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box model">Projection<small>512 &rarr; 256</small></div>
+      </div>
+      <br/>
+      <div class="flow-row">
+        <div class="flow-box input">8 States<small>8D each</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box model">State MLP<small>8 &rarr; 128 &rarr; 256</small></div>
+      </div>
+      <br/>
+      <div class="flow-row">
+        <div class="flow-box input">8 Prev Actions<small>7D each</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box model">Action MLP<small>7 &rarr; 256 &rarr; 256</small></div>
+      </div>
+      <br/>
+      <div class="flow-row" style="margin-top:.5rem">
+        <div class="flow-arrow">&darr; concat per-timestep</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box model">Fusion Linear<small>768 &rarr; 256</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box model">+ PosEmbed + LangEmbed</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box model">Transformer<small>4 layers, 4 heads</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box output">Action Head<small>256 &rarr; 4&times;7 = 28</small></div>
+      </div>
+    </div>
+
+    <div class="code-block">
+<span class="comment"># Forward pass pseudocode</span>
+<span class="keyword">for</span> each of 8 timesteps:
+    vision_token = <span class="fn">project</span>(<span class="fn">resnet18</span>(image[t]))  <span class="comment"># [256]</span>
+    state_token  = <span class="fn">state_mlp</span>(state[t])              <span class="comment"># [256]</span>
+    action_token = <span class="fn">action_mlp</span>(prev_action[t])       <span class="comment"># [256]</span>
+    fused[t]     = <span class="fn">linear</span>(<span class="fn">cat</span>([vision, state, action])) <span class="comment"># [768]&rarr;[256]</span>
+
+tokens = fused + pos_embed + lang_embed  <span class="comment"># [8, 256]</span>
+encoded = <span class="fn">transformer</span>(tokens)              <span class="comment"># [8, 256]</span>
+pooled  = encoded[<span class="number">-1</span>]                       <span class="comment"># last timestep: [256]</span>
+output  = <span class="fn">action_head</span>(pooled)                <span class="comment"># [28] &rarr; reshape [4, 7]</span>
+    </div>
+    <p>The model takes the <strong>last token</strong> from the transformer output and maps it to 4 action steps. Each action is 7D: <code>[dx, dy, dz, dax, day, daz, gripper]</code>.</p>
+  </div>
+
+  <div class="tab-content" id="tab-eventgated">
+    <h3>EventGatedMemoryVLA <span class="tag orange">Core Contribution</span></h3>
+    <p>The research hypothesis: not all past observations are equally useful. Recent frames matter most, but <em>some</em> older frames (like when the gripper closed, or when an object moved) are important too. This model compresses older context through event-aware gating.</p>
+
+    <div class="diagram-container">
+      <div class="flow-row">
+        <div class="flow-box input">Older Context<small>up to 64 frames</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box model">Encode Steps<small>ResNet + MLPs</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box memory">Chunk into groups<small>8 steps each</small></div>
+      </div>
+      <br/>
+      <div class="flow-row">
+        <div class="flow-arrow" style="visibility:hidden">&rarr;</div>
+        <div class="flow-arrow">&darr;</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box memory">Attention Pool<small>learnable query</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box memory">Compute Deltas<small>visual + action + state</small></div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box memory">Gate Network<small>&sigma;(W&middot;[&Delta;v, &Delta;a, &Delta;s, age])</small></div>
+      </div>
+      <br/>
+      <div class="flow-row">
+        <div class="flow-arrow">&darr; top-8 by gate score</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box memory">Memory Tokens<small>8 compressed summaries</small></div>
+        <div class="flow-arrow">&larr;&rarr;</div>
+        <div class="flow-box model">Recent Encoder<small>8 recent frames</small></div>
+      </div>
+      <br/>
+      <div class="flow-row">
+        <div class="flow-arrow">&darr; cross-attention</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box output">Action Head<small>4 &times; 7D</small></div>
+      </div>
+    </div>
+
+    <h3>How the gate works</h3>
+    <p>For each chunk of 8 older timesteps:</p>
+    <ol>
+      <li><strong>Attention pooling:</strong> A learnable query vector attends over the chunk to produce a single summary token</li>
+      <li><strong>Delta computation:</strong> How much did vision/action/state features change <em>within</em> this chunk? High delta = something interesting happened</li>
+      <li><strong>Age:</strong> Linear 0&rarr;1 encoding of how old this chunk is</li>
+      <li><strong>Gate score:</strong> <code>sigmoid(MLP([delta_visual, delta_action, delta_state, age]))</code></li>
+      <li><strong>Top-K selection:</strong> Keep the 8 highest-scoring memory tokens</li>
+    </ol>
+
+    <div class="info-box">
+      <div class="box-title">The intuition</div>
+      <p>Imagine you're picking up a book. Most of the "reaching toward the book" frames are redundant&mdash;the arm is just moving slowly through space. But the frame where you actually <em>grasp</em> the book? That's a critical event. The gate should learn to score "high delta in gripper + position change" chunks higher than "arm slowly moving" chunks.</p>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-ablations">
+    <h3>Ablation Variants</h3>
+    <div class="compare-grid">
+      <div class="compare-card">
+        <h4><span class="dot" style="background:var(--accent4)"></span> Age-Gated Memory</h4>
+        <p>Same architecture but the gate ignores content deltas and just uses age:</p>
+        <div class="code-block">
+<span class="comment"># gate_type = "age_based"</span>
+gate_score = age.clamp_min(<span class="number">1</span>/chunk_count)
+<span class="comment"># Recent chunks always score higher</span>
+<span class="comment"># No learning, no event awareness</span>
+        </div>
+        <p>Tests whether the event-detection matters or if simple recency is enough.</p>
+      </div>
+      <div class="compare-card">
+        <h4><span class="dot" style="background:var(--accent2)"></span> Concat Query (vs Cross-Attention)</h4>
+        <p>Instead of the recent encoder cross-attending to memory tokens, just concatenate them:</p>
+        <div class="code-block">
+<span class="comment"># query_type = "concat"</span>
+tokens = <span class="fn">cat</span>([memory_tokens, recent_tokens])
+encoded = <span class="fn">transformer</span>(tokens)
+pooled = encoded[<span class="number">-1</span>]
+        </div>
+        <p>Tests whether the cross-attention mechanism adds value over simple concatenation.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-comparison">
+    <h3>Side-by-side architecture comparison</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Sliding Window</th>
+          <th>Event-Gated Memory</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Vision encoder</td><td>ResNet18 (pretrained)</td><td>ResNet18 (pretrained)</td></tr>
+        <tr><td>Input: recent</td><td>8 frames</td><td>8 frames</td></tr>
+        <tr><td>Input: older</td><td style="color:var(--red)">Discarded</td><td style="color:var(--accent3)">Up to 64 frames, compressed</td></tr>
+        <tr><td>Fusion</td><td>Linear(768 &rarr; 256)</td><td>Linear(768 &rarr; 256) per step</td></tr>
+        <tr><td>Memory</td><td>None</td><td>Chunk + gate + top-K</td></tr>
+        <tr><td>Transformer</td><td>4L/4H, 256D</td><td>4L/4H, 256D</td></tr>
+        <tr><td>Query mechanism</td><td>N/A</td><td>Cross-attention or concat</td></tr>
+        <tr><td>Action head</td><td>LN &rarr; 256 &rarr; 28</td><td>LN &rarr; 256 &rarr; 28</td></tr>
+        <tr><td>Parameters</td><td>~11M</td><td>~14.9M</td></tr>
+        <tr><td>Hypothesis</td><td>Recent context is enough</td><td>Selective older context helps</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== DATA ==================== -->
+<section id="data">
+  <div class="section-label">Data</div>
+  <h2>What the model sees and predicts</h2>
+
+  <h3>Input: one training sample</h3>
+  <div class="diagram-container">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+      <div>
+        <p style="font-weight:600; color:var(--accent2); margin-bottom:.5rem;">Images (recent_obs)</p>
+        <div class="code-block">
+shape: [<span class="dim">8</span>, <span class="number">3</span>, <span class="number">128</span>, <span class="number">128</span>]
+<span class="comment"># 8 consecutive camera frames</span>
+<span class="comment"># RGB, 128x128 pixels</span>
+<span class="comment"># Normalized to [0, 1]</span>
+<span class="comment"># From agentview_rgb in HDF5</span>
+        </div>
+      </div>
+      <div>
+        <p style="font-weight:600; color:var(--accent3); margin-bottom:.5rem;">States (recent_states)</p>
+        <div class="code-block">
+shape: [<span class="dim">8</span>, <span class="number">8</span>]
+<span class="comment"># 8 timesteps, 8 dims each:</span>
+<span class="comment"># [ee_x, ee_y, ee_z,       (3D position)</span>
+<span class="comment">#  ori_x, ori_y, ori_z,    (axis-angle)</span>
+<span class="comment">#  grip_left, grip_right]  (gripper)</span>
+        </div>
+      </div>
+      <div>
+        <p style="font-weight:600; color:var(--accent4); margin-bottom:.5rem;">Previous Actions (recent_actions)</p>
+        <div class="code-block">
+shape: [<span class="dim">8</span>, <span class="number">7</span>]
+<span class="comment"># Action history: prev_actions[t] = action[t-1]</span>
+<span class="comment"># First slot is zeros (no prior action)</span>
+<span class="comment"># 7D: [dx, dy, dz, dax, day, daz, gripper]</span>
+        </div>
+      </div>
+      <div>
+        <p style="font-weight:600; color:var(--accent); margin-bottom:.5rem;">Target Actions (to predict)</p>
+        <div class="code-block">
+shape: [<span class="dim">4</span>, <span class="number">7</span>]
+<span class="comment"># Next 4 actions the expert took</span>
+<span class="comment"># Same 7D format</span>
+<span class="comment"># This is what the model learns to output</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>The 7 action dimensions explained</h3>
+  <table>
+    <thead><tr><th>Dim</th><th>Name</th><th>Meaning</th><th>Scale</th><th>Issue</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>dx</td><td>End-effector position delta X</td><td>~0.01&ndash;0.05</td><td></td></tr>
+      <tr><td>1</td><td>dy</td><td>End-effector position delta Y</td><td>~0.01&ndash;0.05</td><td></td></tr>
+      <tr><td>2</td><td>dz</td><td>End-effector position delta Z</td><td>~0.01&ndash;0.05</td><td></td></tr>
+      <tr><td>3</td><td>dax</td><td>Orientation delta (axis-angle X)</td><td>~0.01&ndash;0.1</td><td></td></tr>
+      <tr><td>4</td><td>day</td><td>Orientation delta (axis-angle Y)</td><td>~0.01&ndash;0.1</td><td></td></tr>
+      <tr><td>5</td><td>daz</td><td>Orientation delta (axis-angle Z)</td><td>~0.01&ndash;0.1</td><td></td></tr>
+      <tr><td>6</td><td>gripper</td><td>Gripper command (-1=close, +1=open)</td><td>-1 or +1</td><td style="color:var(--red)">Treated as MSE regression</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info-box warn">
+    <div class="box-title">Scale mismatch problem</div>
+    <p>Position deltas are ~0.01&ndash;0.05, but gripper is always -1 or +1. The MSE loss treats all dimensions equally by default, so the gripper (which has 100x larger magnitude) dominates the loss. The 5x gripper weight makes this worse, not better&mdash;the model learns to predict gripper well but position/orientation poorly. The fix is per-dimension z-score normalization before training.</p>
+  </div>
+
+  <h3>Data sampling: how episodes become training windows</h3>
+  <div class="code-block">
+<span class="comment"># Episode with 300 timesteps</span>
+<span class="comment"># K_recent=8, H_action=4</span>
+
+t = <span class="fn">random</span>(0, 300 - 4)  <span class="comment"># pick a random timestep</span>
+
+recent_obs    = images[t-7 : t+1]     <span class="comment"># 8 frames ending at t (padded if t < 7)</span>
+recent_actions = prev_actions[t-7 : t+1]  <span class="comment"># 8 previous actions</span>
+target_actions = actions[t : t+4]      <span class="comment"># next 4 expert actions to predict</span>
+
+<span class="comment"># For event-gated model only:</span>
+older_obs     = images[0 : t-7]       <span class="comment"># everything before the recent window</span>
+<span class="comment"># subsampled to max 64 frames if longer</span>
+  </div>
+</section>
+
+<!-- ==================== BUGS ==================== -->
+<section id="bugs">
+  <div class="section-label">Debugging journey</div>
+  <h2>Six bugs that invalidated all results</h2>
+  <p>These bugs were discovered during the validation process. Each one would have produced misleading results if left unfixed.</p>
+
+  <div class="timeline">
+    <div class="timeline-item done">
+      <div class="time-label">Bug #1 &mdash; Severe</div>
+      <div class="time-text"><strong>Undertraining: 96.2% of data never seen</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">The config sampled only 1,952 windows per epoch out of ~50,000 possible. After 10 epochs, only 3.8% of available training windows were ever visited. The model had barely started learning.</p>
+    </div>
+    <div class="timeline-item done">
+      <div class="time-label">Bug #2 &mdash; Severe</div>
+      <div class="time-text"><strong>Temporal mismatch: never trained on timestep 0</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">Training sampled <code>t</code> from <code>[1, N-H]</code>, but rollout always starts at <code>t=0</code>. The model never learned what the initial scene looks like. Fixed to sample from <code>[0, N-H]</code>.</p>
+    </div>
+    <div class="timeline-item done">
+      <div class="time-label">Bug #3 &mdash; Severe</div>
+      <div class="time-text"><strong>Action history leakage: seeing the future</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">The "previous actions" input included the <em>current</em> target action. During training the model could peek at what it was supposed to predict. At rollout time this information doesn't exist, so predictions were random. Fixed: <code>prev_actions[t] = actions[t-1]</code>, first slot = zeros.</p>
+    </div>
+    <div class="timeline-item done">
+      <div class="time-label">Bug #4 &mdash; Moderate</div>
+      <div class="time-text"><strong>Language mismatch: task name != filename</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">Training used filenames with <code>_demo</code> suffix as task names. Rollout used clean names from the LIBERO API. Different hash = different embedding = the model thought it was a different task entirely.</p>
+    </div>
+    <div class="timeline-item done">
+      <div class="time-label">Bug #5 &mdash; Minor</div>
+      <div class="time-text"><strong>Stale action chunks: executing 4 steps before replanning</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">The rollout executed all 4 predicted actions before getting a new observation. On a 300-step task, that's only 75 replan points. Fixed to replan every step (execute_horizon=1).</p>
+    </div>
+    <div class="timeline-item done">
+      <div class="time-label">Bug #6 &mdash; Design flaw</div>
+      <div class="time-text"><strong>Gripper as continuous regression instead of binary classification</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">The gripper is always -1 (close) or +1 (open) in demos. Using MSE regression means the model can predict 0.3, which is neither open nor closed. Should be a separate binary cross-entropy head with threshold at 0.</p>
+    </div>
+  </div>
+
+  <div class="info-box success">
+    <div class="box-title">All six bugs were fixed</div>
+    <p>The corrected pipeline was validated: expert demo replay now succeeds in simulation, temporal alignment is correct, action history is properly shifted, language names match. But the policy still gets 0% task success because the bugs were necessary but not sufficient fixes.</p>
+  </div>
+</section>
+
+<!-- ==================== RESULTS ==================== -->
+<section id="results">
+  <div class="section-label">Results</div>
+  <h2>Where things stand</h2>
+
+  <h3>10-epoch results (before bug fixes, old pipeline)</h3>
+  <table>
+    <thead><tr><th>Model</th><th>Offline MSE &darr;</th><th>Offline MAE &darr;</th><th>Online Success</th></tr></thead>
+    <tbody>
+      <tr><td>Sliding Window</td><td>0.7020</td><td>1.2872</td><td>0%</td></tr>
+      <tr style="color:var(--accent3)"><td>Event-Gated Memory</td><td>0.3470</td><td>0.8869</td><td>0%</td></tr>
+      <tr><td>Age-Gated Memory</td><td>0.3627</td><td>0.9250</td><td>0%</td></tr>
+      <tr><td>Event-Gated + Concat</td><td>0.3393</td><td>0.8596</td><td>0%</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.85rem; color:var(--text-dim);">Memory variants beat sliding window by ~50% offline MSE, but all get 0% online success. These results used the buggy pipeline.</p>
+
+  <h3>50-epoch results (after bug fixes)</h3>
+  <table>
+    <thead><tr><th>Model</th><th>Epochs</th><th>Val MSE &darr;</th><th>Offline MSE &darr;</th><th>Offline MAE &darr;</th><th>Online Success</th></tr></thead>
+    <tbody>
+      <tr><td>Sliding Window</td><td>50 (best @ 18)</td><td>0.00847</td><td>0.0593</td><td>0.2940</td><td>0%</td></tr>
+      <tr><td>Event-Gated Memory</td><td>10 (best @ 6)</td><td>0.00937</td><td>0.0656</td><td>0.3251</td><td>0%</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info-box warn">
+    <div class="box-title">This comparison is not fair yet</div>
+    <p>Sliding window trained for 50 epochs, event-gated only 10. The event-gated run is being resumed toward 50 epochs. No conclusions can be drawn until both models train equally.</p>
+  </div>
+
+  <h3>The offline&ndash;online gap</h3>
+  <div class="compare-grid">
+    <div class="compare-card">
+      <h4><span class="dot" style="background:var(--accent3)"></span> Offline looks good</h4>
+      <ul style="font-size:.85rem;">
+        <li>MSE dropped from 0.70 to 0.059 (12x improvement)</li>
+        <li>Val MSE of 0.0085 is quite low</li>
+        <li>Model clearly learned the action distribution</li>
+      </ul>
+    </div>
+    <div class="compare-card">
+      <h4><span class="dot" style="background:var(--red)"></span> Online fails completely</h4>
+      <ul style="font-size:.85rem;">
+        <li>0/1 success on task 5 after 300 steps</li>
+        <li>Robot reaches toward objects (shows intent)</li>
+        <li>Never grasps or completes any manipulation</li>
+        <li>Compounding error is the fundamental problem</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== DIAGNOSIS ==================== -->
+<section id="diagnosis">
+  <div class="section-label">Root Cause Analysis</div>
+  <h2>Why 0% online success?</h2>
+  <p>Multiple factors contribute. Here they are ranked by likely impact:</p>
+
+  <details>
+    <summary><span class="tag red">Critical</span> Compounding error in behavioral cloning</summary>
+    <div class="detail-body">
+      <p>This is the fundamental limitation. BC learns <code>P(action | observation)</code> from expert data. But at test time, the robot's small errors push it into states never seen during training. Each subsequent prediction gets worse.</p>
+      <p style="margin-top:.5rem;"><strong>Scale of the problem:</strong> LIBERO-Long tasks require ~300 steps. Even with 99% per-step accuracy, the probability of a perfect trajectory is 0.99<sup>300</sup> = 5%. With realistic 95% accuracy: 0.95<sup>300</sup> &asymp; 0%.</p>
+      <p style="margin-top:.5rem;"><strong>What helps:</strong> DAgger (online correction data), diffusion policy, or action chunking with receding horizon (ACT).</p>
+    </div>
+  </details>
+
+  <details>
+    <summary><span class="tag red">Critical</span> No action normalization</summary>
+    <div class="detail-body">
+      <p>Position deltas (~0.01&ndash;0.05) and gripper (-1/+1) have wildly different scales. Without per-dimension z-score normalization, the loss and optimizer treat them identically.</p>
+      <div class="code-block">
+<span class="comment"># What should happen (doesn't exist yet):</span>
+mean, std = compute_dataset_stats()  <span class="comment"># per-dimension</span>
+normalized_action = (action - mean) / std  <span class="comment"># for training</span>
+raw_action = prediction * std + mean       <span class="comment"># at rollout</span>
+      </div>
+      <p>This is table-stakes for any manipulation paper. Its absence is a silent performance killer.</p>
+    </div>
+  </details>
+
+  <details>
+    <summary><span class="tag orange">High</span> Gripper treated as continuous regression</summary>
+    <div class="detail-body">
+      <p>The gripper is always exactly -1 (close) or +1 (open). Using MSE lets the model predict 0.3 or -0.5&mdash;values that map to neither a firm grasp nor a clean release. The discrete_gripper flag in rollout thresholds at 0, but by then the model has already been trained wrong.</p>
+      <p style="margin-top:.5rem;"><strong>Fix:</strong> Separate BCE head for gripper dimension. Predict a logit, threshold at 0 for hard -1/+1 at inference.</p>
+    </div>
+  </details>
+
+  <details>
+    <summary><span class="tag orange">High</span> ResNet18 from scratch = poor visual features</summary>
+    <div class="detail-body">
+      <p>Although <code>pretrained_vision: true</code> is set, the ResNet18 is fine-tuned during training with the same learning rate as everything else. With only 50K windows, the visual encoder overfits to the training demos without learning generalizable visual features.</p>
+      <p style="margin-top:.5rem;">Papers like R3M and MVP show that frozen pretrained encoders (even simple ImageNet ViT-B) dramatically improve sample efficiency on LIBERO.</p>
+    </div>
+  </details>
+
+  <details>
+    <summary><span class="tag blue">Medium</span> Task horizon is extremely long</summary>
+    <div class="detail-body">
+      <p>LIBERO-Long tasks require 200&ndash;300 steps. This is one of the hardest benchmarks for BC. ACT and Diffusion Policy papers typically evaluate on tasks with 50&ndash;100 step horizons. Going straight to LIBERO-Long without validating on shorter tasks (LIBERO-Spatial, LIBERO-Object) means you can't tell if the model fundamentally can't do BC or just can't handle long horizons.</p>
+    </div>
+  </details>
+
+  <details>
+    <summary><span class="tag blue">Medium</span> State representation mismatch (potential)</summary>
+    <div class="detail-body">
+      <p>Training reads states from HDF5: <code>ee_pos + ee_ori + gripper_states</code>. Rollout constructs states from sim: <code>robot0_eef_pos + quat_to_axis_angle(robot0_eef_quat) + gripper_qpos</code>. If the orientation representations differ (Euler vs axis-angle vs quaternion), the state distribution shifts enough to degrade closed-loop performance even if magnitudes look similar.</p>
+    </div>
+  </details>
+
+  <details>
+    <summary><span class="tag purple">Low</span> Model capacity</summary>
+    <div class="detail-body">
+      <p>A 4-layer, 4-head, 256-dim transformer on top of ResNet18 is small. ACT uses a CVAE + larger transformer. Diffusion Policy uses a UNet denoiser. But model capacity shouldn't be the first thing to fix&mdash;the data/normalization issues are more impactful.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ==================== FIXES ==================== -->
+<section id="fixes">
+  <div class="section-label">Path Forward</div>
+  <h2>What to fix, in priority order</h2>
+
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="time-label">Step 0 &mdash; In progress</div>
+      <div class="time-text"><strong>Train event-gated to 50 epochs (fair comparison)</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">Can't conclude anything until both models trained equally. Already running.</p>
+    </div>
+    <div class="timeline-item">
+      <div class="time-label">Step 1 &mdash; Quick validation</div>
+      <div class="time-text"><strong>Test on shorter tasks (LIBERO-Spatial/Object)</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">30-minute diagnostic. If BC works on 50-step tasks, the problem is horizon length specifically. If it fails there too, something more fundamental is wrong.</p>
+    </div>
+    <div class="timeline-item">
+      <div class="time-label">Step 2 &mdash; Essential fix</div>
+      <div class="time-text"><strong>Add per-dimension action normalization</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">Compute mean/std over training set. Z-score normalize inputs, denormalize predictions. 30 lines of code, potentially large impact.</p>
+    </div>
+    <div class="timeline-item">
+      <div class="time-label">Step 3 &mdash; Essential fix</div>
+      <div class="time-text"><strong>Separate BCE head for gripper</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">Replace MSE on dim 6 with binary cross-entropy. Predict logit, threshold at inference. Standard in ACT and most recent papers.</p>
+    </div>
+    <div class="timeline-item">
+      <div class="time-label">Step 4 &mdash; High impact</div>
+      <div class="time-text"><strong>Freeze the visual encoder</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">Use ImageNet-pretrained ResNet18 (or better, R3M/ViT) with weights frozen. Only train the transformer + action head. Faster training, better generalization.</p>
+    </div>
+    <div class="timeline-item">
+      <div class="time-label">Step 5 &mdash; The real paper</div>
+      <div class="time-text"><strong>Run sliding-window vs event-gated with all fixes</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">Same encoder, same normalization, same gripper head, same epochs. The only variable is the memory architecture. This is the paper's core comparison.</p>
+    </div>
+    <div class="timeline-item">
+      <div class="time-label">Step 6 &mdash; Ablations</div>
+      <div class="time-text"><strong>Gate ablations + visualization</strong></div>
+      <p style="font-size:.85rem; color:var(--text-dim); margin-top:.3rem;">Age-gated (no event detection), concat query (no cross-attention). Visualize which timesteps get high gate scores. This is what makes reviewers believe the method.</p>
+    </div>
+  </div>
+
+  <h3>Even if both models get 0% online success, the paper can still work</h3>
+  <div class="info-box">
+    <div class="box-title">Publishable without task success</div>
+    <p>An honest arxiv paper with:</p>
+    <ul>
+      <li>Rigorous offline metrics comparison (MSE, MAE, trajectory smoothness)</li>
+      <li>Qualitative rollout video comparison (does one reach further? grasp attempt?)</li>
+      <li>Gate activation visualizations (interpretable memory selection)</li>
+      <li>Honest analysis of the offline&ndash;online gap</li>
+      <li>The architecture as a promising direction needing stronger base policy</li>
+    </ul>
+    <p style="margin-top:.5rem;">For a first research project, this is genuinely valuable.</p>
+  </div>
+</section>
+
+<!-- ==================== FULL ARCHITECTURE ==================== -->
+<section id="full-arch">
+  <div class="section-label">Deep Dive</div>
+  <h2>Complete model forward pass</h2>
+
+  <h3>EventGatedMemoryVLA: step by step</h3>
+  <div class="code-block">
+<span class="keyword">def</span> <span class="fn">forward</span>(self, recent_obs, recent_actions, recent_states,
+                 older_obs, older_actions, older_states, ...):
+
+    <span class="comment"># STEP 1: Encode recent context (same as sliding window)</span>
+    recent_tokens = <span class="fn">_encode_steps</span>(recent_obs, recent_actions, recent_states)
+    <span class="comment"># recent_obs: [B, 8, 3, 128, 128] &rarr; ResNet18 &rarr; proj &rarr; [B, 8, 256]</span>
+    <span class="comment"># recent_actions: [B, 8, 7] &rarr; MLP &rarr; [B, 8, 256]</span>
+    <span class="comment"># recent_states: [B, 8, 8] &rarr; MLP &rarr; [B, 8, 256]</span>
+    <span class="comment"># cat &rarr; [B, 8, 768] &rarr; fusion MLP &rarr; [B, 8, 256]</span>
+
+    <span class="comment"># STEP 2: Encode older context</span>
+    older_tokens, older_vis, older_act, older_st = <span class="fn">_encode_steps</span>(
+        older_obs, older_actions, older_states)
+    <span class="comment"># older_obs: [B, 64, 3, 128, 128] &rarr; same pipeline &rarr; [B, 64, 256]</span>
+
+    <span class="comment"># STEP 3: Chunk older context into groups of 8</span>
+    <span class="comment"># [B, 64, 256] &rarr; [B, 8_chunks, 8_per_chunk, 256]</span>
+
+    <span class="comment"># STEP 4: Attention-pool each chunk to a single summary</span>
+    <span class="comment"># learnable query dot-product with chunk tokens</span>
+    <span class="comment"># softmax &rarr; weighted sum &rarr; [B, 8_chunks, 256]</span>
+
+    <span class="comment"># STEP 5: Compute event signals per chunk</span>
+    delta_visual  = mean_abs_diff(visual_features_in_chunk)   <span class="comment"># [B, 8, 256]</span>
+    delta_action  = mean_abs_diff(action_features_in_chunk)   <span class="comment"># [B, 8, 256]</span>
+    delta_state   = mean_abs_diff(state_features_in_chunk)    <span class="comment"># [B, 8, 256]</span>
+    age           = linspace(0, 1, 8_chunks)                  <span class="comment"># [B, 8, 1]</span>
+
+    <span class="comment"># STEP 6: Gate scoring</span>
+    gate_input = cat([delta_visual, delta_action, delta_state, age])  <span class="comment"># [B, 8, 769]</span>
+    gate_score = sigmoid(MLP(gate_input))                             <span class="comment"># [B, 8, 1]</span>
+    memory_tokens = summaries * gate_score                            <span class="comment"># [B, 8, 256]</span>
+
+    <span class="comment"># STEP 7: Cross-attention (query_type="cross_attention")</span>
+    recent_encoded = <span class="fn">transformer</span>(recent_tokens)  <span class="comment"># [B, 8, 256]</span>
+    query = recent_encoded[:, -1:]               <span class="comment"># last timestep: [B, 1, 256]</span>
+    attended = <span class="fn">cross_attn</span>(query, memory_tokens, memory_tokens)  <span class="comment"># [B, 1, 256]</span>
+    pooled = query + attended                    <span class="comment"># residual connection</span>
+
+    <span class="comment"># STEP 8: Predict actions</span>
+    output = <span class="fn">action_head</span>(pooled)  <span class="comment"># [B, 256] &rarr; [B, 28] &rarr; [B, 4, 7]</span>
+  </div>
+
+  <h3>Online rollout: what actually happens at test time</h3>
+  <div class="code-block">
+<span class="comment"># libero_rollout.py pseudocode</span>
+
+history = OnlineHistory(k_recent=<span class="number">8</span>, older_len=<span class="number">64</span>)
+
+<span class="keyword">for</span> step <span class="keyword">in</span> range(<span class="number">300</span>):
+    obs = env.get_observation()     <span class="comment"># camera image + robot state</span>
+    history.push(obs.image, obs.state, prev_action)
+
+    <span class="comment"># Build model input from history</span>
+    recent = history.recent()       <span class="comment"># last 8 frames</span>
+    older  = history.older()        <span class="comment"># 0..t-8, compressed to 64</span>
+
+    action_chunk = model(recent, older)  <span class="comment"># [4, 7]</span>
+    action = action_chunk[<span class="number">0</span>]             <span class="comment"># take first action only</span>
+
+    <span class="comment"># Post-process</span>
+    action = clip(action, -<span class="number">1</span>, <span class="number">1</span>)
+    action[<span class="number">6</span>] = <span class="number">1</span> <span class="keyword">if</span> action[<span class="number">6</span>] >= <span class="number">0</span> <span class="keyword">else</span> -<span class="number">1</span>  <span class="comment"># discrete gripper</span>
+
+    obs, reward, done, info = env.step(action)
+    <span class="keyword">if</span> reward > <span class="number">0</span>:
+        success = True
+        <span class="keyword">break</span>
+  </div>
+</section>
+
+<!-- ==================== CONFIG ==================== -->
+<section id="config">
+  <div class="section-label">Configuration</div>
+  <h2>Current training config explained</h2>
+
+  <div class="compare-grid">
+    <div class="compare-card">
+      <h4>Data</h4>
+      <table>
+        <tr><td>Image size</td><td>128 &times; 128</td></tr>
+        <tr><td>K_recent</td><td>8 frames</td></tr>
+        <tr><td>H_action</td><td>4 steps</td></tr>
+        <tr><td>Samples/epoch</td><td>50,000</td></tr>
+        <tr><td>Workers</td><td>4</td></tr>
+      </table>
+    </div>
+    <div class="compare-card">
+      <h4>Training</h4>
+      <table>
+        <tr><td>Batch size</td><td>32</td></tr>
+        <tr><td>LR</td><td>1e-4 (cosine)</td></tr>
+        <tr><td>Optimizer</td><td>AdamW</td></tr>
+        <tr><td>AMP</td><td>bfloat16</td></tr>
+        <tr><td>Grad clip</td><td>1.0</td></tr>
+        <tr><td>Gripper weight</td><td>5.0x</td></tr>
+      </table>
+    </div>
+    <div class="compare-card">
+      <h4>Model</h4>
+      <table>
+        <tr><td>Vision</td><td>ResNet18 (pretrained)</td></tr>
+        <tr><td>d_model</td><td>256</td></tr>
+        <tr><td>Layers</td><td>4</td></tr>
+        <tr><td>Heads</td><td>4</td></tr>
+        <tr><td>Dropout</td><td>0.1</td></tr>
+      </table>
+    </div>
+    <div class="compare-card">
+      <h4>Memory (event-gated only)</h4>
+      <table>
+        <tr><td>Chunk size</td><td>4 (config) / 8 (code default)</td></tr>
+        <tr><td>Max memory tokens</td><td>16 (config) / 8 (code default)</td></tr>
+        <tr><td>Gate type</td><td>event</td></tr>
+        <tr><td>Query type</td><td>cross_attention</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== GLOSSARY ==================== -->
+<section id="glossary">
+  <div class="section-label">Reference</div>
+  <h2>Glossary for LLM people</h2>
+  <table>
+    <thead><tr><th style="width:180px">Term</th><th>What it means</th></tr></thead>
+    <tbody>
+      <tr><td><strong>VLA</strong></td><td>Vision-Language-Action model. Takes images + language instruction, outputs robot actions. Like a multimodal LLM that outputs motor commands instead of text.</td></tr>
+      <tr><td><strong>BC</strong></td><td>Behavioral Cloning. Supervised learning on expert demonstrations. The simplest imitation learning approach. Analogous to training an LLM on a fixed corpus with no RLHF.</td></tr>
+      <tr><td><strong>LIBERO</strong></td><td>A benchmark suite of robot manipulation tasks in MuJoCo simulation. LIBERO-Long has 10 long-horizon tasks (~300 steps each).</td></tr>
+      <tr><td><strong>End-effector (EEF)</strong></td><td>The robot's "hand" &mdash; the gripper at the end of the arm. Actions control its position and orientation.</td></tr>
+      <tr><td><strong>Delta actions</strong></td><td>Instead of absolute positions, the model predicts <em>changes</em>: "move 0.02m right, 0.01m forward." Like velocity rather than position.</td></tr>
+      <tr><td><strong>Action chunking</strong></td><td>Predicting multiple future actions at once (we predict 4). Like generating 4 tokens in one forward pass.</td></tr>
+      <tr><td><strong>Rollout</strong></td><td>Running the trained model in the simulator in a closed loop. The model's outputs actually control the robot. This is the real evaluation.</td></tr>
+      <tr><td><strong>Compounding error</strong></td><td>Small mistakes accumulate because each bad action changes the robot's state. After 20 bad actions, the robot is somewhere it's never seen before.</td></tr>
+      <tr><td><strong>DAgger</strong></td><td>Dataset Aggregation. Run the model, when it makes mistakes, have the expert correct it, add corrections to training data. Fixes compounding error but requires online expert access.</td></tr>
+      <tr><td><strong>ACT</strong></td><td>Action Chunking with Transformers. A strong BC baseline that uses a CVAE + transformer for action chunking. Often gets 30-50% success on similar tasks.</td></tr>
+      <tr><td><strong>Diffusion Policy</strong></td><td>Generates actions by iterative denoising (like image diffusion models). Handles multimodal action distributions well. Current state-of-the-art for BC.</td></tr>
+      <tr><td><strong>R3M / MVP</strong></td><td>Pretrained visual representations for robotics. Like using a pretrained language model instead of training word embeddings from scratch.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  VLA Temporal Compression Baseline &mdash; Project Explainer &mdash; Generated 2026-05-22
+</footer>
+
+<script>
+function showTab(e, tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+
+// Smooth scroll for nav links
+document.querySelectorAll('nav a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.querySelectorAll('nav a').forEach(l => l.classList.remove('active'));
+      a.classList.add('active');
+    }
+  });
+});
+
+// Highlight active nav on scroll
+const sections = document.querySelectorAll('section[id], .hero[id]');
+const navLinks = document.querySelectorAll('nav .links a');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 120) current = s.id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+});
+</script>
+</body>
+</html>

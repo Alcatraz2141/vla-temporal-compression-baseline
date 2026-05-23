@@ -121,6 +121,7 @@ def run_epoch(
     scaler: torch.amp.GradScaler,
     device: torch.device,
     cfg: dict[str, Any],
+    scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
 ) -> float:
     model.train()
     total = 0.0
@@ -143,11 +144,14 @@ def run_epoch(
         torch.nn.utils.clip_grad_norm_(model.parameters(), float(cfg["training"].get("grad_clip_norm", 1.0)))
         scaler.step(optimizer)
         scaler.update()
+        if scheduler is not None:
+            scheduler.step()
         total += float(loss.detach().cpu())
         batches += 1
 
         if step % int(cfg["training"].get("log_every", 20)) == 0:
-            print(f"step={step} loss={total / step:.6f}")
+            lr_now = optimizer.param_groups[0]["lr"]
+            print(f"step={step} loss={total / step:.6f} lr={lr_now:.2e}")
     return total / max(batches or _safe_len(loader), 1)
 
 
@@ -202,6 +206,24 @@ def main() -> None:
     )
     scaler = torch.amp.GradScaler("cuda", enabled=bool(cfg["training"].get("amp", False)) and device.type == "cuda")
 
+    scheduler = None
+    lr_schedule = cfg["training"].get("lr_schedule", "constant")
+    if lr_schedule == "cosine":
+        steps_per_epoch = len(train_loader)
+        max_steps_ep = cfg["training"].get("max_steps_per_epoch")
+        if max_steps_ep is not None:
+            steps_per_epoch = min(steps_per_epoch, int(max_steps_ep))
+        total_steps = steps_per_epoch * int(cfg["training"].get("epochs", 5))
+        warmup_steps = int(cfg["training"].get("warmup_steps", 0))
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[
+                torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1e-2, total_iters=warmup_steps),
+                torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_steps - warmup_steps, eta_min=1e-6),
+            ],
+            milestones=[warmup_steps],
+        )
+
     run_name = cfg["model"].get("run_name", cfg["model"].get("baseline", "sliding_window"))
     ckpt_dir = Path(cfg["training"].get("checkpoint_dir", "checkpoints")) / run_name
     ckpt_dir.mkdir(parents=True, exist_ok=True)
@@ -216,11 +238,13 @@ def main() -> None:
             scaler.load_state_dict(checkpoint["scaler"])
         start_epoch = int(checkpoint.get("epoch", 0)) + 1
         best_val = float(checkpoint.get("best_val", checkpoint.get("val_mse", best_val)))
+        if scheduler is not None and "scheduler" in checkpoint:
+            scheduler.load_state_dict(checkpoint["scheduler"])
     if bool(cfg["training"].get("compile", False)) and hasattr(torch, "compile"):
         model = torch.compile(model, mode=cfg["training"].get("compile_mode", "reduce-overhead"))
 
     for epoch in range(start_epoch, int(cfg["training"].get("epochs", 5)) + 1):
-        train_loss = run_epoch(model, train_loader, optimizer, scaler, device, cfg)
+        train_loss = run_epoch(model, train_loader, optimizer, scaler, device, cfg, scheduler=scheduler)
         val_loss = validate(model, val_loader, device)
         print(f"epoch={epoch} train_mse={train_loss:.6f} val_mse={val_loss:.6f}")
         checkpoint = {
@@ -234,6 +258,8 @@ def main() -> None:
             "val_mse": val_loss,
             "best_val": min(best_val, val_loss),
         }
+        if scheduler is not None:
+            checkpoint["scheduler"] = scheduler.state_dict()
         torch.save(checkpoint, ckpt_dir / "last.pt")
         if val_loss < best_val:
             best_val = val_loss
