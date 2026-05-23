@@ -76,37 +76,37 @@ uv run python scripts/smoke_test.py --sources libero_long
 If restoring a previous run, unpack the backup tarball from the repo root before running
 eval or rollout.
 
-Current event-gated 50-epoch continuation should use this rollout command after training
-finishes:
+## Current Checkpoint And Rollout State
 
-```bash
-bash libero_rollout_env/run_rollout.sh \
-  configs/libero_long_event_gated_resume_last_to50.yaml \
-  checkpoints/libero_long/event_gated_memory/best.pt \
-  --tasks 5 \
-  --episodes-per-task 1 \
-  --max-steps 300 \
-  --video-dir results/rollout_videos_event_gated_memory_50ep \
-  --video-every 1 \
-  --video-fps 20 \
-  --results-path results/libero_rollouts_event_gated_memory_50ep.csv
-```
-
-As of 2026-05-22, the event-gated continuation completed to epoch 50. Use:
+As of 2026-05-23:
 
 ```text
-checkpoint: checkpoints/libero_long/event_gated_memory/best.pt
-best epoch: 46
-best val_mse: 0.008947615628130734
-config: configs/libero_long_event_gated_resume_last_to50.yaml
+sliding_window:
+  checkpoint: checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window/best.pt
+  best epoch: 18
+  best val_mse: 0.008474992022716574
+  task-5 rollout: 0/1
+
+event_gated_memory:
+  checkpoint: checkpoints/libero_long/event_gated_memory/best.pt
+  best epoch: 46
+  best val_mse: 0.008947615628130734
+  offline eval: MSE 0.06263986602425575, MAE 0.2735399380326271
+  task-5 rollout: 0/1
+  video: results/rollout_videos_event_gated_memory_50ep/event_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+
+age_gated_memory:
+  checkpoint: checkpoints/libero_long/age_gated_memory/best.pt
+  best epoch: 18
+  best val_mse: 0.011460925568826497
+  stopped at last.pt epoch 30 before pod termination
+  rollout: pending
 ```
 
-Run the offline eval before rollout if it has not been run after the epoch-50 completion:
+Run age-gated rollout after offline eval:
 
 ```bash
-uv run python evaluation/eval.py \
-  --config configs/libero_long_event_gated_resume_last_to50.yaml \
-  --checkpoint checkpoints/libero_long/event_gated_memory/best.pt
+bash libero_rollout_env/run_rollout.sh   configs/ablation_gate_age.yaml   checkpoints/libero_long/age_gated_memory/best.pt   --tasks 5   --episodes-per-task 1   --max-steps 300   --video-dir results/rollout_videos_age_gated_memory_50ep   --video-every 1   --video-fps 20   --results-path results/libero_rollouts_age_gated_memory_50ep.csv
 ```
 
 ## Pinned Dependencies (known-working, from experimentation.md)

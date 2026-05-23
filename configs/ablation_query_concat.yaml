@@ -20,8 +20,8 @@ data:
   H_action: 4
   state_dim: null
   action_dim: null
-  num_workers: 8
-  prefetch_factor: 4
+  num_workers: 4
+  prefetch_factor: 2
   augment:
     enabled: true
 
@@ -44,14 +44,14 @@ memory:
   query_type: concat
 
 training:
-  batch_size: 64
-  epochs: 50
+  batch_size: 32
+  epochs: 10
   max_steps_per_epoch: 50000
-  lr: 2.0e-4
+  lr: 1.0e-4
   optimizer: adamw
   lr_schedule: cosine
-  warmup_steps: 390
-  total_steps: 39000
+  warmup_steps: 1000
+  total_steps: 50000
   eval_every: 5000
   save_every: 10000
   weight_decay: 1.0e-4
@@ -67,5 +67,5 @@ training:
   resume: null
 
 evaluation:
-  batch_size: 64
+  batch_size: 32
   results_path: results/baselines.csv

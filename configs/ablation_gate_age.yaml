@@ -50,7 +50,7 @@ training:
   lr: 2.0e-4
   optimizer: adamw
   lr_schedule: cosine
-  warmup_steps: 390
+  warmup_steps: 1000
   total_steps: 39000
   eval_every: 5000
   save_every: 10000
@@ -64,7 +64,7 @@ training:
   gripper_loss_weight: 5.0
   log_every: 500
   checkpoint_dir: checkpoints/libero_long
-  resume: null
+  resume: checkpoints/libero_long/age_gated_memory/last.pt
 
 evaluation:
   batch_size: 64

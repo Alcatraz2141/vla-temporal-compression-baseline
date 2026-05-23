@@ -1138,3 +1138,60 @@ uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml
 uv run python train.py --config configs/ablation_query_concat.yaml
 uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
 ```
+
+
+## 2026-05-23 Event-Gated Eval, Rollout, and Age-Gated Stop
+
+What ran this session:
+
+```bash
+uv run python evaluation/eval.py   --config configs/libero_long_event_gated_resume_last_to50.yaml   --checkpoint checkpoints/libero_long/event_gated_memory/best.pt
+
+bash libero_rollout_env/run_rollout.sh   configs/libero_long_event_gated_resume_last_to50.yaml   checkpoints/libero_long/event_gated_memory/best.pt   --tasks 5 --episodes-per-task 1 --max-steps 300   --video-dir results/rollout_videos_event_gated_memory_50ep   --video-every 1 --video-fps 20   --results-path results/libero_rollouts_event_gated_memory_50ep.csv
+
+uv run python train.py --config configs/ablation_gate_age.yaml
+pkill -TERM -f 'train.py --config configs/ablation_gate_age.yaml'
+```
+
+Key metrics:
+
+```text
+event_gated_memory best.pt: epoch 46, val_mse 0.008947615628130734
+event_gated_memory offline eval: MSE 0.06263986602425575, MAE 0.2735399380326271
+event_gated_memory task-5 rollout: success 0/1, reward 0.0, steps 300/300
+video: results/rollout_videos_event_gated_memory_50ep/event_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+
+age_gated_memory stopped state:
+  best.pt: epoch 18, val_mse 0.011460925568826497
+  last.pt: epoch 30, val_mse 0.011736674699932337
+```
+
+Notable age-gated validation points:
+
+```text
+epoch=18 train_mse=0.011702 val_mse=0.011461  # best
+epoch=21 train_mse=0.009689 val_mse=0.011772
+epoch=29 train_mse=0.005175 val_mse=0.011634
+epoch=30 train_mse=0.004973 val_mse=0.011737  # stop point
+```
+
+Config changes:
+
+```text
+configs/ablation_gate_age.yaml and configs/ablation_query_concat.yaml were already modified for the 50-epoch/A100-style continuation settings: batch_size 64, num_workers 8, prefetch_factor 4, bfloat16 AMP, and checkpoint_dir checkpoints/libero_long.
+```
+
+Hardware and timing:
+
+```text
+GPU: RunPod A100-class pod for the 2026-05-23 continuation session.
+age_gated batch size: 64
+age_gated epoch time: roughly 8-9 minutes per epoch from the epoch-30 stop timing.
+```
+
+Issues:
+
+```text
+The pod was about to terminate, so the active age-gated run was stopped immediately with SIGTERM at epoch 30. No train/eval/rollout process remained afterward.
+The sandbox helper failed with a bwrap namespace error, so file/process commands used escalation.
+```

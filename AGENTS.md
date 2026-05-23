@@ -1481,3 +1481,81 @@ uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml
 uv run python train.py --config configs/ablation_query_concat.yaml
 uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
 ```
+
+
+## Current State as of 2026-05-23
+
+Models trained and best checkpoint state:
+
+```text
+sliding_window:
+  checkpoint: checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window/best.pt
+  best epoch: 18
+  best val_mse: 0.008474992022716574
+  last.pt: epoch 50, val_mse 0.015304431917944126
+
+event_gated_memory:
+  checkpoint: checkpoints/libero_long/event_gated_memory/best.pt
+  best epoch: 46
+  best val_mse: 0.008947615628130734
+  last.pt: epoch 50, val_mse 0.010168199252802879
+
+age_gated_memory:
+  checkpoint: checkpoints/libero_long/age_gated_memory/best.pt
+  best epoch: 18
+  best val_mse: 0.011460925568826497
+  last.pt: epoch 30, val_mse 0.011736674699932337
+  status: stopped early on 2026-05-23 because the pod was terminating
+
+event_gated_concat_query:
+  latest available checkpoint remains the earlier 10-epoch run
+  checkpoint: checkpoints/libero_long/event_gated_concat_query/best.pt
+  best 10-epoch offline table MSE: 0.3393707552126476
+```
+
+Offline evals completed:
+
+```text
+sliding_window best.pt: MSE 0.059324943327478, MAE 0.2940476749624525
+event_gated_memory 50-epoch best.pt: MSE 0.06263986602425575, MAE 0.2735399380326271
+age_gated_memory: not run after the 2026-05-23 epoch-30 stop
+event_gated_concat_query: not rerun in the 50-epoch continuation stage
+```
+
+Online rollouts completed:
+
+```text
+sliding_window task 5: success 0/1
+  csv: results/libero_rollouts_sliding_window_50ep_fixed.csv
+  video: results/rollout_videos_sliding_window_50ep_fixed/sliding_window/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+
+event_gated_memory task 5: success 0/1
+  csv: results/libero_rollouts_event_gated_memory_50ep.csv
+  video: results/rollout_videos_event_gated_memory_50ep/event_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+
+age_gated_memory: not run after the epoch-30 stop
+```
+
+Not done yet:
+
+- Finish or accept the stopped age-gated run. It stopped at epoch 30 with best epoch 18.
+- Run offline eval for age-gated best.pt.
+- Run task-5 rollout for age-gated best.pt.
+- Run the concat-query continuation/ablation and its eval/rollout if still needed.
+
+Immediate next commands:
+
+```bash
+uv run python evaluation/eval.py   --config configs/ablation_gate_age.yaml   --checkpoint checkpoints/libero_long/age_gated_memory/best.pt
+
+bash libero_rollout_env/run_rollout.sh   configs/ablation_gate_age.yaml   checkpoints/libero_long/age_gated_memory/best.pt   --tasks 5   --episodes-per-task 1   --max-steps 300   --video-dir results/rollout_videos_age_gated_memory_50ep   --video-every 1   --video-fps 20   --results-path results/libero_rollouts_age_gated_memory_50ep.csv
+
+uv run python train.py --config configs/ablation_query_concat.yaml
+uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
+```
+
+Issues this session:
+
+- The age-gated run was still active when the session had to end; it was stopped with SIGTERM before backup.
+- Age-gated validation did not improve after epoch 18 despite training loss decreasing, so use `best.pt`, not `last.pt`.
+- The sandbox wrapper failed with `bwrap: No permissions to create a new namespace`; read-only and administrative commands were run with escalation.
