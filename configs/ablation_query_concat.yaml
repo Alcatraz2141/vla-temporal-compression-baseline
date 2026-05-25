@@ -44,14 +44,14 @@ memory:
   query_type: concat
 
 training:
-  batch_size: 32
-  epochs: 10
+  batch_size: 64
+  epochs: 50
   max_steps_per_epoch: 50000
-  lr: 1.0e-4
+  lr: 2.0e-4
   optimizer: adamw
   lr_schedule: cosine
   warmup_steps: 1000
-  total_steps: 50000
+  total_steps: 39000
   eval_every: 5000
   save_every: 10000
   weight_decay: 1.0e-4
@@ -64,8 +64,8 @@ training:
   gripper_loss_weight: 5.0
   log_every: 500
   checkpoint_dir: checkpoints/libero_long
-  resume: null
+  resume: checkpoints/libero_long/event_gated_concat_query/last.pt
 
 evaluation:
-  batch_size: 32
+  batch_size: 64
   results_path: results/baselines.csv
