@@ -15,6 +15,7 @@ tar -czf "${OUT}" \
   splits \
   AGENTS.md \
   experimentation.md \
+  README.md \
   libero_rollout_env \
   libero_config \
   utils/language.py
