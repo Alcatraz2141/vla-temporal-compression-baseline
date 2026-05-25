@@ -187,7 +187,7 @@ This includes the optional SmolVLA/LeRobot external baseline path.
 
 ## Current LIBERO Handoff
 
-Latest authoritative state as of 2026-05-23:
+Latest authoritative state as of 2026-05-25:
 
 ```text
 sliding_window:
@@ -206,11 +206,10 @@ event_gated_memory:
   video: results/rollout_videos_event_gated_memory_50ep/event_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
 
 age_gated_memory:
-  stopped early on 2026-05-23
   best checkpoint: checkpoints/libero_long/age_gated_memory/best.pt
-  best epoch: 18
-  best val_mse: 0.011460925568826497
-  last checkpoint: epoch 30, val_mse 0.011736674699932337
+  best epoch: 31
+  best val_mse: 0.010890026518609375
+  last checkpoint: epoch 50, val_mse 0.014233005978167057
   offline eval: pending
   rollout: pending
 

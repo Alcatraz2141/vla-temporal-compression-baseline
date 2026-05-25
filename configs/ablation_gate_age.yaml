@@ -20,8 +20,8 @@ data:
   H_action: 4
   state_dim: null
   action_dim: null
-  num_workers: 8
-  prefetch_factor: 4
+  num_workers: 4
+  prefetch_factor: 2
   augment:
     enabled: true
 

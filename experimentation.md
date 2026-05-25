@@ -1195,3 +1195,55 @@ Issues:
 The pod was about to terminate, so the active age-gated run was stopped immediately with SIGTERM at epoch 30. No train/eval/rollout process remained afterward.
 The sandbox helper failed with a bwrap namespace error, so file/process commands used escalation.
 ```
+
+## 2026-05-25 Age-Gated 50-Epoch Completion
+
+What ran this session:
+
+```bash
+# resumed the age-gated continuation from the epoch-30/31 checkpoint window
+uv run python train.py --config configs/ablation_gate_age.yaml
+
+# diagnostic low-queue run to avoid the cgroup OOM
+# configs/ablation_gate_age.yaml: num_workers 2, prefetch_factor 1
+
+# stable middle-ground run that completed the continuation
+# configs/ablation_gate_age.yaml: num_workers 4, prefetch_factor 2
+nohup setsid bash -lc 'export PYTHONFAULTHANDLER=1 PYTHONUNBUFFERED=1; uv run python train.py --config configs/ablation_gate_age.yaml'
+```
+
+Key metrics observed:
+
+```text
+epoch 31 best val_mse: 0.010890026519
+epoch 34 val_mse at num_workers=2 / prefetch_factor=1: 0.012528234860
+epoch 35 val_mse at num_workers=4 / prefetch_factor=2: 0.016462305794
+final epoch 50 val_mse: 0.014233005978
+best checkpoint remained epoch 31; later epochs did not beat it
+offline eval: not run yet
+task-5 rollout: not run yet
+```
+
+Config changes and why:
+
+```text
+batch_size stayed at 64 and lr stayed at 2e-4.
+The original 8 workers / prefetch_factor 4 queue depth caused a cgroup OOM at roughly 47 GB of charged shared memory, so the queue was reduced to 2/1 for stability.
+After confirming stability, the queue was increased to 4/2 as a middle-ground throughput setting; this kept the run below the memory cap and reduced epoch time to roughly 8 minutes.
+```
+
+GPU, batch size, timing:
+
+```text
+GPU: RunPod A100-class pod
+batch_size: 64
+epoch time at 2/1: about 20 minutes
+epoch time at 4/2: about 8 minutes
+```
+
+Issues and resolution:
+
+```text
+The age-gated run hit the pod memory cgroup limit at the original 8/4 dataloader queue depth. The failure was traced with /sys/fs/cgroup/memory.events and fixed by reducing queueing to 2/1, then moving to 4/2 once the run was stable.
+The command runner reaped a plain nohup background launch, so the surviving continuation used nohup setsid to detach cleanly.
+```

@@ -5,7 +5,7 @@ or when you need to stop early and preserve state.
 
 ---
 
-The session is ending. Do the following exactly in order before I terminate the pod.
+The session is ending. Do the following exactly in order before I terminate the pod. NO data will persist after i stop the Pod.
 
 **Step 1 — Update AGENTS.md**
 Add a new section at the bottom of AGENTS.md titled "## Current State as of <today's date>" containing:
@@ -66,7 +66,7 @@ git add configs/           # if any configs changed
 git add prompts/           # always include
 git status                 # show me what is staged before committing
 git commit -m "session <date>: <one line summary of what was done>"
-git push origin main
+Do not Push i will do that myself
 ```
 
 **Step 8 — Confirm**
@@ -76,4 +76,4 @@ Print a summary of what was saved:
 - List of models with their best val_mse
 - What is still pending for the next session
 
-Do not skip any step. If a step fails, note the error and continue with the rest.
+Do not skip any step. If a step fails, note the error and continue with the rest. Update the handoffs properly. 

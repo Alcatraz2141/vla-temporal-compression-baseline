@@ -1559,3 +1559,73 @@ Issues this session:
 - The age-gated run was still active when the session had to end; it was stopped with SIGTERM before backup.
 - Age-gated validation did not improve after epoch 18 despite training loss decreasing, so use `best.pt`, not `last.pt`.
 - The sandbox wrapper failed with `bwrap: No permissions to create a new namespace`; read-only and administrative commands were run with escalation.
+
+## Current State as of 2026-05-25
+
+Trained models and best checkpoint info:
+
+```text
+sliding_window:
+  best checkpoint: checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window/best.pt
+  best epoch: 18
+  best val_mse: 0.008474992022716574
+  last.pt: epoch 50, val_mse 0.015304431917944126
+
+event_gated_memory:
+  best checkpoint: checkpoints/libero_long/event_gated_memory/best.pt
+  best epoch: 46
+  best val_mse: 0.008947615628130734
+  last.pt: epoch 50, val_mse 0.010168199252802879
+
+age_gated_memory:
+  best checkpoint: checkpoints/libero_long/age_gated_memory/best.pt
+  best epoch: 31
+  best val_mse: 0.010890026518609375
+  last.pt: epoch 50, val_mse 0.014233005978167057
+
+event_gated_concat_query:
+  latest available checkpoint remains the earlier 10-epoch run
+  best checkpoint: checkpoints/libero_long/event_gated_concat_query/best.pt
+```
+
+Offline evals run:
+
+```text
+sliding_window best.pt: MSE 0.059324943327478, MAE 0.2940476749624525
+event_gated_memory best.pt: MSE 0.06263986602425575, MAE 0.2735399380326271
+age_gated_memory: not run yet on the 50-epoch continuation
+event_gated_concat_query: not rerun in the 50-epoch continuation stage
+```
+
+Online rollouts run:
+
+```text
+sliding_window task 5: success 0/1
+  video: results/rollout_videos_sliding_window_50ep_fixed/sliding_window/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+
+event_gated_memory task 5: success 0/1
+  video: results/rollout_videos_event_gated_memory_50ep/event_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+
+age_gated_memory: not run yet
+```
+
+Not done yet and next immediate commands:
+
+```bash
+bash scripts/backup_run_artifacts.sh /workspace/run_backups
+uv run huggingface-cli upload Alcatraz1412/vla-run-backups /workspace/run_backups --repo-type dataset
+
+uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml --checkpoint checkpoints/libero_long/age_gated_memory/best.pt
+bash libero_rollout_env/run_rollout.sh configs/ablation_gate_age.yaml checkpoints/libero_long/age_gated_memory/best.pt --tasks 5 --episodes-per-task 1 --max-steps 300 --video-dir results/rollout_videos_age_gated_memory_50ep --video-every 1 --video-fps 20 --results-path results/libero_rollouts_age_gated_memory_50ep.csv
+
+uv run python train.py --config configs/ablation_query_concat.yaml
+uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
+```
+
+Bugs and issues encountered this session:
+
+```text
+The age-gated continuation initially exhausted the pod cgroup at batch_size 64 with data.num_workers 8 and prefetch_factor 4. The failure was confirmed by memory.events showing oom_kill increments and was fixed by reducing queue depth to num_workers 2/prefetch_factor 1, then increasing to the stable middle ground of num_workers 4/prefetch_factor 2.
+
+A plain detached nohup launch was reaped by the command runner before GPU allocation. The successful detached run used nohup setsid ... so it survived the shell session and completed epoch 50.
+```

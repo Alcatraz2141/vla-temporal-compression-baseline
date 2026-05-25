@@ -78,7 +78,7 @@ eval or rollout.
 
 ## Current Checkpoint And Rollout State
 
-As of 2026-05-23:
+As of 2026-05-25:
 
 ```text
 sliding_window:
@@ -97,9 +97,9 @@ event_gated_memory:
 
 age_gated_memory:
   checkpoint: checkpoints/libero_long/age_gated_memory/best.pt
-  best epoch: 18
-  best val_mse: 0.011460925568826497
-  stopped at last.pt epoch 30 before pod termination
+  best epoch: 31
+  best val_mse: 0.010890026518609375
+  stopped at last.pt epoch 50 after the continuation completed
   rollout: pending
 ```
 
