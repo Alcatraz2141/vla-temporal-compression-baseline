@@ -31,3 +31,6 @@ timestamp,baseline,checkpoint,seed,mse,mae,pred_temporal_smoothness,success_rate
 2026-05-21T12:56:40.630447+00:00,sliding_window,checkpoints/libero_long_sliding_window_10ep_fixed/sliding_window/best.pt,42,0.059324943327478,0.2940476749624525,0.0038323509423727436,nan,nan
 2026-05-21T16:58:10.539844+00:00,event_gated_memory,checkpoints/libero_long/event_gated_memory/best.pt,42,0.06560039360608373,0.32510020051683697,0.001696680306590029,nan,nan
 2026-05-23T11:30:40.038187+00:00,event_gated_memory,checkpoints/libero_long/event_gated_memory/best.pt,42,0.06263986602425575,0.2735399380326271,0.003813432987954002,nan,nan
+2026-05-25T10:51:34.052071+00:00,age_gated_memory,checkpoints/libero_long/age_gated_memory/best.pt,42,0.0762301841750741,0.25906969606876373,0.0042779390860232525,nan,nan
+2026-05-25T17:34:28.585899+00:00,age_gated_memory,checkpoints/libero_long/age_gated_memory/best.pt,42,0.0762301841750741,0.25906969606876373,0.0042779390860232525,nan,nan
+2026-05-25T17:34:53.073692+00:00,event_gated_concat_query,checkpoints/libero_long/event_gated_concat_query/best.pt,42,0.06707473052665591,0.2805633209645748,0.0030587801375077106,nan,nan

@@ -1584,8 +1584,10 @@ age_gated_memory:
   last.pt: epoch 50, val_mse 0.014233005978167057
 
 event_gated_concat_query:
-  latest available checkpoint remains the earlier 10-epoch run
   best checkpoint: checkpoints/libero_long/event_gated_concat_query/best.pt
+  best epoch: 35
+  best val_mse: 0.009582  # training log precision
+  last.pt: epoch 50, val_mse 0.013192
 ```
 
 Offline evals run:
@@ -1593,8 +1595,8 @@ Offline evals run:
 ```text
 sliding_window best.pt: MSE 0.059324943327478, MAE 0.2940476749624525
 event_gated_memory best.pt: MSE 0.06263986602425575, MAE 0.2735399380326271
-age_gated_memory: not run yet on the 50-epoch continuation
-event_gated_concat_query: not rerun in the 50-epoch continuation stage
+age_gated_memory best.pt: MSE 0.0762301841750741, MAE 0.25906969606876373
+event_gated_concat_query best.pt: MSE 0.06707473052665591, MAE 0.2805633209645748
 ```
 
 Online rollouts run:
@@ -1606,7 +1608,11 @@ sliding_window task 5: success 0/1
 event_gated_memory task 5: success 0/1
   video: results/rollout_videos_event_gated_memory_50ep/event_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
 
-age_gated_memory: not run yet
+age_gated_memory task 5: success 0/1
+  video: results/rollout_videos_age_gated_memory_50ep/age_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+
+event_gated_concat_query task 5: success 0/1
+  video: results/rollout_videos_concat_query_50ep/event_gated_concat_query/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
 ```
 
 Not done yet and next immediate commands:
@@ -1615,11 +1621,8 @@ Not done yet and next immediate commands:
 bash scripts/backup_run_artifacts.sh /workspace/run_backups
 uv run huggingface-cli upload Alcatraz1412/vla-run-backups /workspace/run_backups --repo-type dataset
 
-uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml --checkpoint checkpoints/libero_long/age_gated_memory/best.pt
-bash libero_rollout_env/run_rollout.sh configs/ablation_gate_age.yaml checkpoints/libero_long/age_gated_memory/best.pt --tasks 5 --episodes-per-task 1 --max-steps 300 --video-dir results/rollout_videos_age_gated_memory_50ep --video-every 1 --video-fps 20 --results-path results/libero_rollouts_age_gated_memory_50ep.csv
-
-uv run python train.py --config configs/ablation_query_concat.yaml
-uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
+# The first four-model single-seed offline table and task-5 diagnostic rollouts are complete.
+# Next research steps are multi-task rollouts and/or multi-seed verification.
 ```
 
 Bugs and issues encountered this session:
@@ -1628,4 +1631,6 @@ Bugs and issues encountered this session:
 The age-gated continuation initially exhausted the pod cgroup at batch_size 64 with data.num_workers 8 and prefetch_factor 4. The failure was confirmed by memory.events showing oom_kill increments and was fixed by reducing queue depth to num_workers 2/prefetch_factor 1, then increasing to the stable middle ground of num_workers 4/prefetch_factor 2.
 
 A plain detached nohup launch was reaped by the command runner before GPU allocation. The successful detached run used nohup setsid ... so it survived the shell session and completed epoch 50.
+
+The isolated LIBERO rollout environment has a PyTorch CUDA build without support for the RTX PRO 4500 Blackwell `sm_120` GPU. GPU rollout fails while loading model weights; age-gated and concat-query task-5 rollouts were completed with `--device cpu`.
 ```

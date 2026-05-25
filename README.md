@@ -210,12 +210,18 @@ age_gated_memory:
   best epoch: 31
   best val_mse: 0.010890026518609375
   last checkpoint: epoch 50, val_mse 0.014233005978167057
-  offline eval: pending
-  rollout: pending
+  offline eval: MSE 0.0762301841750741, MAE 0.25906969606876373
+  task-5 rollout: 0/1
+  video: results/rollout_videos_age_gated_memory_50ep/age_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
 
 event_gated_concat_query:
-  latest available checkpoint remains the earlier 10-epoch run
-  50-epoch continuation/eval/rollout: pending
+  best checkpoint: checkpoints/libero_long/event_gated_concat_query/best.pt
+  best epoch: 35
+  best val_mse: 0.009582  # training log precision
+  last checkpoint: epoch 50, val_mse 0.013192
+  offline eval: MSE 0.06707473052665591, MAE 0.2805633209645748
+  task-5 rollout: 0/1
+  video: results/rollout_videos_concat_query_50ep/event_gated_concat_query/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
 ```
 
 Restore sequence:
@@ -238,15 +244,12 @@ uv run python scripts/smoke_test.py --sources libero_long
 bash libero_rollout_env/bootstrap.sh
 ```
 
-Next immediate commands:
+Next immediate work:
 
-```bash
-uv run python evaluation/eval.py   --config configs/ablation_gate_age.yaml   --checkpoint checkpoints/libero_long/age_gated_memory/best.pt
-
-bash libero_rollout_env/run_rollout.sh   configs/ablation_gate_age.yaml   checkpoints/libero_long/age_gated_memory/best.pt   --tasks 5 --episodes-per-task 1 --max-steps 300   --video-dir results/rollout_videos_age_gated_memory_50ep   --video-every 1 --video-fps 20   --results-path results/libero_rollouts_age_gated_memory_50ep.csv
-
-uv run python train.py --config configs/ablation_query_concat.yaml
-uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml
+```text
+The four-model single-seed offline table and task-5 diagnostic rollouts are complete.
+Next: preserve the uploaded backup, then decide on multi-task rollouts and multiple seeds.
+Rollouts on this RTX PRO 4500 pod require --device cpu in the isolated rollout environment.
 ```
 
 Before stopping a non-persistent pod:

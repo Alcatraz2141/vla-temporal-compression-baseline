@@ -1247,3 +1247,52 @@ Issues and resolution:
 The age-gated run hit the pod memory cgroup limit at the original 8/4 dataloader queue depth. The failure was traced with /sys/fs/cgroup/memory.events and fixed by reducing queueing to 2/1, then moving to 4/2 once the run was stable.
 The command runner reaped a plain nohup background launch, so the surviving continuation used nohup setsid to detach cleanly.
 ```
+
+
+## 2026-05-25 Concat Completion and Final Task-5 Diagnostics
+
+What ran this session:
+
+```bash
+uv run python train.py --config configs/ablation_query_concat.yaml
+uv run python evaluation/eval.py --config configs/ablation_gate_age.yaml --checkpoint checkpoints/libero_long/age_gated_memory/best.pt
+uv run python evaluation/eval.py --config configs/ablation_query_concat.yaml --checkpoint checkpoints/libero_long/event_gated_concat_query/best.pt
+
+bash libero_rollout_env/run_rollout.sh configs/ablation_gate_age.yaml checkpoints/libero_long/age_gated_memory/best.pt --tasks 5 --episodes-per-task 1 --max-steps 300 --video-dir results/rollout_videos_age_gated_memory_50ep --video-every 1 --video-fps 20 --results-path results/libero_rollouts_age_gated_memory_50ep.csv --device cpu
+bash libero_rollout_env/run_rollout.sh configs/ablation_query_concat.yaml checkpoints/libero_long/event_gated_concat_query/best.pt --tasks 5 --episodes-per-task 1 --max-steps 300 --video-dir results/rollout_videos_concat_query_50ep --video-every 1 --video-fps 20 --results-path results/libero_rollouts_concat_query_50ep.csv --device cpu
+```
+
+Final offline metrics for the fixed seed-42 comparison:
+
+```text
+model                       best epoch   val_mse        offline MSE          offline MAE
+sliding_window              18           0.0084749920   0.059324943327478    0.2940476749624525
+event_gated_memory          46           0.0089476156   0.062639866024256    0.2735399380326271
+age_gated_memory            31           0.0108900265   0.076230184175074    0.2590696960687637
+event_gated_concat_query    35           0.009582       0.067074730526656    0.2805633209645748
+```
+
+Task-5 diagnostic rollout results:
+
+```text
+sliding_window:             0/1 success
+event_gated_memory:         0/1 success
+age_gated_memory:           0/1 success
+  video: results/rollout_videos_age_gated_memory_50ep/age_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+event_gated_concat_query:   0/1 success
+  video: results/rollout_videos_concat_query_50ep/event_gated_concat_query/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+```
+
+Notable concat-query training metrics:
+
+```text
+epoch=35 train_mse=0.009364 val_mse=0.009582  # best in available log
+epoch=41 train_mse=0.006774 val_mse=0.009648
+epoch=50 train_mse=0.001909 val_mse=0.013192
+```
+
+Runtime issues and resolution:
+
+```text
+The RTX PRO 4500 Blackwell GPU reports CUDA capability sm_120, but the isolated LIBERO rollout PyTorch build does not include sm_120 kernels. Attempting GPU rollout failed during model weight loading with "no kernel image is available for execution on the device". The age-gated and concat-query task-5 diagnostic rollouts were rerun with --device cpu and completed successfully.
+```

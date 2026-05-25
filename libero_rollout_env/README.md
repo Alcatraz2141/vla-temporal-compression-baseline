@@ -99,14 +99,23 @@ age_gated_memory:
   checkpoint: checkpoints/libero_long/age_gated_memory/best.pt
   best epoch: 31
   best val_mse: 0.010890026518609375
-  stopped at last.pt epoch 50 after the continuation completed
-  rollout: pending
+  offline eval: MSE 0.0762301841750741, MAE 0.25906969606876373
+  task-5 rollout: 0/1
+  video: results/rollout_videos_age_gated_memory_50ep/age_gated_memory/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+
+event_gated_concat_query:
+  checkpoint: checkpoints/libero_long/event_gated_concat_query/best.pt
+  best epoch: 35
+  best val_mse: 0.009582  # training log precision
+  offline eval: MSE 0.06707473052665591, MAE 0.2805633209645748
+  task-5 rollout: 0/1
+  video: results/rollout_videos_concat_query_50ep/event_gated_concat_query/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
 ```
 
-Run age-gated rollout after offline eval:
+On RTX PRO 4500 Blackwell pods, run rollout policy inference on CPU because the isolated rollout environment's PyTorch CUDA build does not support `sm_120`:
 
 ```bash
-bash libero_rollout_env/run_rollout.sh   configs/ablation_gate_age.yaml   checkpoints/libero_long/age_gated_memory/best.pt   --tasks 5   --episodes-per-task 1   --max-steps 300   --video-dir results/rollout_videos_age_gated_memory_50ep   --video-every 1   --video-fps 20   --results-path results/libero_rollouts_age_gated_memory_50ep.csv
+bash libero_rollout_env/run_rollout.sh configs/ablation_gate_age.yaml checkpoints/libero_long/age_gated_memory/best.pt --tasks 5 --episodes-per-task 1 --max-steps 300 --video-dir results/rollout_videos_age_gated_memory_50ep --video-every 1 --video-fps 20 --results-path results/libero_rollouts_age_gated_memory_50ep.csv --device cpu
 ```
 
 ## Pinned Dependencies (known-working, from experimentation.md)
