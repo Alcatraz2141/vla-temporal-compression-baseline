@@ -49,6 +49,9 @@ SOURCE_KEYWORDS = {
     "ur5": ("ur5", "berkeley_autolab_ur5"),
 }
 
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD = (0.229, 0.224, 0.225)
+
 
 def _pad_left(indices: np.ndarray, target_len: int, default: int = 0) -> tuple[np.ndarray, np.ndarray]:
     mask = np.ones(len(indices), dtype=np.bool_)
@@ -79,6 +82,17 @@ def _read_json(path: Path) -> dict[str, Any]:
         return json.load(f)
 
 
+def _as_dim_array(values: Any, action_dim: int, default: float) -> np.ndarray:
+    if values is None:
+        return np.full(action_dim, default, dtype=np.float32)
+    arr = np.asarray(values, dtype=np.float32).reshape(-1)
+    if arr.size == action_dim:
+        return arr
+    out = np.full(action_dim, default, dtype=np.float32)
+    out[: min(arr.size, action_dim)] = arr[:action_dim]
+    return out
+
+
 class EpisodeDataset(Dataset):
     """Unified episode dataset for LIBERO HDF5 and local Open X-style episodes."""
 
@@ -106,6 +120,11 @@ class EpisodeDataset(Dataset):
         eval_windows_per_episode: int = 1,
         max_episodes: int | None = None,
         hdf5_glob: str = "**/*.hdf5",
+        stats_path: str | Path | None = None,
+        normalize_actions: bool = False,
+        action_normalize_dims: list[int] | None = None,
+        augment: bool = False,
+        image_normalization: str | None = None,
     ) -> None:
         self.source = source
         self.split = split
@@ -118,9 +137,10 @@ class EpisodeDataset(Dataset):
         self.root = Path(root) if root is not None else self._default_root(source)
         self.split_dir = Path(split_dir)
         self.hdf5_glob = hdf5_glob
-        self.transform = transforms.Compose(
-            [transforms.ToPILImage(), transforms.Resize((image_size, image_size)), transforms.ToTensor()]
-        )
+        self.action_stats = _read_json(Path(stats_path)) if stats_path else {}
+        self.normalize_actions = bool(normalize_actions and self.action_stats)
+        self.action_normalize_dims = action_normalize_dims
+        self.transform = self._make_transform(image_size, augment, image_normalization)
 
         all_records = self._discover_records()
         all_records = [record for record in all_records if record.length >= self.K_recent + self.H_action]
@@ -136,6 +156,24 @@ class EpisodeDataset(Dataset):
             self.records = self.records[: int(max_episodes)]
         if not self.records:
             raise FileNotFoundError(f"No records for source={source}, split={split} in {self.split_dir}")
+
+    def _make_transform(self, image_size: int, augment: bool, image_normalization: str | None) -> transforms.Compose:
+        ops: list[Any] = [transforms.ToPILImage()]
+        if augment:
+            ops.extend(
+                [
+                    transforms.RandomResizedCrop(image_size, scale=(0.85, 1.0)),
+                    transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.1, hue=0.03),
+                ]
+            )
+        else:
+            ops.append(transforms.Resize((image_size, image_size)))
+        ops.append(transforms.ToTensor())
+        if image_normalization in {"imagenet", "resnet", "imageNet"}:
+            ops.append(transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD))
+        elif image_normalization not in {None, "", "none"}:
+            raise ValueError(f"Unsupported image_normalization={image_normalization!r}. Expected 'imagenet' or 'none'.")
+        return transforms.Compose(ops)
 
     def _default_root(self, source: str) -> Path:
         if source == "libero_long":
@@ -288,6 +326,10 @@ class EpisodeDataset(Dataset):
         older_actions = np.asarray(prev_actions[older_idx], dtype=np.float32)
         recent_actions[~recent_mask] = 0.0
         older_actions[~older_mask] = 0.0
+        target_actions = np.asarray(episode["actions"][target_idx], dtype=np.float32)
+        recent_actions = self._normalize_actions(recent_actions)
+        older_actions = self._normalize_actions(older_actions)
+        target_actions = self._normalize_actions(target_actions)
 
         return {
             "recent_obs": torch.stack([self._image(episode["images"][i]) for i in recent_idx]),
@@ -296,7 +338,7 @@ class EpisodeDataset(Dataset):
             "older_obs": torch.stack([self._image(episode["images"][i]) for i in older_idx]),
             "older_actions": torch.from_numpy(older_actions),
             "older_states": torch.from_numpy(np.asarray(episode["states"][older_idx], dtype=np.float32)),
-            "target_actions": torch.from_numpy(np.asarray(episode["actions"][target_idx], dtype=np.float32)),
+            "target_actions": torch.from_numpy(target_actions),
             "language": episode["language"],
             "episode_id": record.episode_id,
             "timestep": torch.tensor(t, dtype=torch.long),
@@ -304,6 +346,24 @@ class EpisodeDataset(Dataset):
             "older_mask": torch.from_numpy(older_mask),
             "target_mask": torch.from_numpy(target_mask),
         }
+
+    def _normalize_actions(self, actions: np.ndarray) -> np.ndarray:
+        if not self.normalize_actions:
+            return actions
+        stats = self.action_stats.get("actions", self.action_stats)
+        action_dim = actions.shape[-1]
+        mean = _as_dim_array(stats.get("mean"), action_dim, 0.0)
+        std = np.clip(_as_dim_array(stats.get("std"), action_dim, 1.0), 1e-6, None)
+        dims = self.action_normalize_dims
+        if dims is None:
+            dims = stats.get("normalize_dims")
+        if dims is None:
+            dims = list(range(action_dim))
+        valid_dims = [int(dim) for dim in dims if 0 <= int(dim) < action_dim]
+        out = actions.astype(np.float32, copy=True)
+        if valid_dims:
+            out[..., valid_dims] = (out[..., valid_dims] - mean[valid_dims]) / std[valid_dims]
+        return out
 
     def _load_episode(self, record: EpisodeRecord) -> dict[str, Any]:
         if record.source == "libero_long":

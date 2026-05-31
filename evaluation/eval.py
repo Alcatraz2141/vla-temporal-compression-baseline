@@ -21,6 +21,19 @@ from utils.metrics import masked_mse, temporal_smoothness
 from utils.seed import resolve_device, set_seed
 
 
+def load_compatible_state_dict(model: torch.nn.Module, state_dict: dict[str, torch.Tensor]) -> None:
+    model_state = model.state_dict()
+    patched = dict(state_dict)
+    gate_key = "gate.0.weight"
+    if gate_key in patched and gate_key in model_state and patched[gate_key].shape != model_state[gate_key].shape:
+        old_weight = patched[gate_key]
+        new_weight = model_state[gate_key].clone()
+        cols = min(old_weight.shape[1], new_weight.shape[1])
+        new_weight[:, :cols] = old_weight[:, :cols]
+        patched[gate_key] = new_weight
+    model.load_state_dict(patched)
+
+
 def _move_tensor_batch(batch: dict[str, object], device: torch.device) -> dict[str, object]:
     return {key: value.to(device, non_blocking=True) if torch.is_tensor(value) else value for key, value in batch.items()}
 
@@ -61,11 +74,21 @@ def _safe_len(loader: torch.utils.data.DataLoader) -> int:
         return 1
 
 
+def _masked_mean(values: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    mask_f = mask.to(values.dtype)
+    while mask_f.ndim < values.ndim:
+        mask_f = mask_f.unsqueeze(-1)
+    return (values * mask_f).sum() / mask_f.expand_as(values).sum().clamp_min(1.0)
+
+
 @torch.no_grad()
 def evaluate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device: torch.device) -> dict[str, float]:
     model.eval()
     total_mse = 0.0
     total_mae = 0.0
+    total_continuous_mse = 0.0
+    total_continuous_mae = 0.0
+    total_gripper_acc = 0.0
     total_smoothness = 0.0
     batches = 0
     for batch in tqdm(loader, desc="eval", leave=False):
@@ -73,8 +96,21 @@ def evaluate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device
         mse = masked_mse(pred, actions, mask)
         mae = (pred - actions).abs()
         mae = (mae * mask.to(mae.dtype).unsqueeze(-1)).sum() / mask.to(mae.dtype).sum().clamp_min(1.0)
+        if pred.size(-1) >= 7:
+            continuous_err = pred[..., :-1] - actions[..., :-1]
+            continuous_mse = _masked_mean(continuous_err.pow(2), mask)
+            continuous_mae = _masked_mean(continuous_err.abs(), mask)
+            gripper_acc = (((pred[..., -1] >= 0.0) == (actions[..., -1] >= 0.0)).to(torch.float32) * mask.to(torch.float32)).sum()
+            gripper_acc = gripper_acc / mask.to(torch.float32).sum().clamp_min(1.0)
+        else:
+            continuous_mse = mse
+            continuous_mae = mae
+            gripper_acc = torch.tensor(float("nan"), device=device)
         total_mse += float(mse.cpu())
         total_mae += float(mae.cpu())
+        total_continuous_mse += float(continuous_mse.cpu())
+        total_continuous_mae += float(continuous_mae.cpu())
+        total_gripper_acc += float(gripper_acc.cpu())
         total_smoothness += float(temporal_smoothness(pred).cpu())
         batches += 1
     mse = total_mse / max(batches or _safe_len(loader), 1)
@@ -82,6 +118,9 @@ def evaluate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device
     return {
         "mse": mse,
         "mae": total_mae / denom,
+        "continuous_mse": total_continuous_mse / denom,
+        "continuous_mae": total_continuous_mae / denom,
+        "gripper_sign_accuracy": total_gripper_acc / denom,
         "pred_temporal_smoothness": total_smoothness / denom,
         "success_rate": float("nan"),
         "rollout_consistency": float("nan"),
@@ -137,7 +176,7 @@ def main() -> None:
 
     loader = build_dataloader(ckpt_cfg, ckpt_cfg["data"].get("val_split", "val"), shuffle=False)
     model = build_model(ckpt_cfg, int(checkpoint["state_dim"]), int(checkpoint["action_dim"])).to(device)
-    model.load_state_dict(checkpoint["model"])
+    load_compatible_state_dict(model, checkpoint["model"])
     metrics = evaluate(model, loader, device)
     row = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -146,6 +185,9 @@ def main() -> None:
         "seed": ckpt_cfg.get("seed", 42),
         "mse": metrics["mse"],
         "mae": metrics["mae"],
+        "continuous_mse": metrics["continuous_mse"],
+        "continuous_mae": metrics["continuous_mae"],
+        "gripper_sign_accuracy": metrics["gripper_sign_accuracy"],
         "pred_temporal_smoothness": metrics["pred_temporal_smoothness"],
         "success_rate": metrics["success_rate"],
         "rollout_consistency": metrics["rollout_consistency"],

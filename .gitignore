@@ -22,6 +22,7 @@ data/episodes*/
 data/episode_shards*/
 checkpoints/
 data/libero_long/
+data/libero_long_local/
 logs/
 results/rollout_videos*/
 results/libero_rollouts_*.csv

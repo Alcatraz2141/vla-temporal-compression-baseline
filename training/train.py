@@ -20,6 +20,20 @@ from utils.metrics import masked_mse, temporal_smoothness
 from utils.seed import resolve_device, set_seed
 
 
+def load_compatible_state_dict(model: torch.nn.Module, state_dict: dict[str, torch.Tensor]) -> None:
+    """Load older checkpoints after small backward-compatible architecture edits."""
+    model_state = model.state_dict()
+    patched = dict(state_dict)
+    gate_key = "gate.0.weight"
+    if gate_key in patched and gate_key in model_state and patched[gate_key].shape != model_state[gate_key].shape:
+        old_weight = patched[gate_key]
+        new_weight = model_state[gate_key].clone()
+        cols = min(old_weight.shape[1], new_weight.shape[1])
+        new_weight[:, :cols] = old_weight[:, :cols]
+        patched[gate_key] = new_weight
+    model.load_state_dict(patched)
+
+
 def amp_dtype(name: str) -> torch.dtype:
     if name == "float16":
         return torch.float16
@@ -96,14 +110,38 @@ def _model_forward_and_target(
 
 
 def action_loss(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor, cfg: dict[str, Any]) -> torch.Tensor:
+    gripper_loss_type = str(cfg["training"].get("gripper_loss_type", "mse"))
+    gripper_weight = float(cfg["training"].get("gripper_loss_weight", 1.0))
+    mask_f = mask.to(pred.dtype)
+
+    if gripper_loss_type == "bce_sign" and pred.size(-1) >= 7:
+        continuous_loss = (pred[..., :-1] - target[..., :-1]).pow(2)
+        continuous_mask = mask_f.unsqueeze(-1)
+        continuous_sum = (continuous_loss * continuous_mask).sum()
+        continuous_count = (continuous_mask.expand_as(continuous_loss)).sum()
+
+        gripper_target = (target[..., -1] > 0).to(pred.dtype)
+        gripper_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            pred[..., -1],
+            gripper_target,
+            reduction="none",
+        )
+        gripper_sum = (gripper_loss * mask_f).sum()
+        gripper_count = mask_f.sum()
+        numerator = continuous_sum + gripper_weight * gripper_sum
+        denominator = continuous_count + gripper_weight * gripper_count
+        return numerator / denominator.clamp_min(1.0)
+
+    if gripper_loss_type != "mse":
+        raise ValueError(f"Unsupported training.gripper_loss_type: {gripper_loss_type}")
+
     loss = (pred - target).pow(2)
     weights = torch.ones(pred.size(-1), dtype=loss.dtype, device=loss.device)
-    gripper_weight = float(cfg["training"].get("gripper_loss_weight", 1.0))
     if pred.size(-1) >= 7 and gripper_weight != 1.0:
         weights[-1] = gripper_weight
     loss = loss * weights.view(1, 1, -1)
-    mask_f = mask.to(loss.dtype).unsqueeze(-1)
-    return (loss * mask_f).sum() / (mask_f * weights.view(1, 1, -1)).sum().clamp_min(1.0)
+    mask_expanded = mask_f.unsqueeze(-1)
+    return (loss * mask_expanded).sum() / (mask_expanded * weights.view(1, 1, -1)).sum().clamp_min(1.0)
 
 
 def _move_batch(batch: dict[str, Any], device: torch.device, channels_last: bool) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -156,14 +194,14 @@ def run_epoch(
 
 
 @torch.no_grad()
-def validate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device: torch.device) -> float:
+def validate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device: torch.device, cfg: dict[str, Any]) -> float:
     model.eval()
     total = 0.0
     batches = 0
     channels_last = False
     for batch in tqdm(loader, desc="val", leave=False):
         pred, actions, mask = _model_forward_and_target(model, batch, device)
-        loss = action_loss(pred, actions, mask, {"training": {"gripper_loss_weight": 1.0}})
+        loss = action_loss(pred, actions, mask, cfg)
         total += float(loss.cpu())
         batches += 1
     return total / max(batches or _safe_len(loader), 1)
@@ -232,7 +270,7 @@ def main() -> None:
     resume = cfg["training"].get("resume")
     if resume:
         checkpoint = torch.load(resume, map_location=device)
-        model.load_state_dict(checkpoint["model"])
+        load_compatible_state_dict(model, checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
         if "scaler" in checkpoint:
             scaler.load_state_dict(checkpoint["scaler"])
@@ -245,8 +283,8 @@ def main() -> None:
 
     for epoch in range(start_epoch, int(cfg["training"].get("epochs", 5)) + 1):
         train_loss = run_epoch(model, train_loader, optimizer, scaler, device, cfg, scheduler=scheduler)
-        val_loss = validate(model, val_loader, device)
-        print(f"epoch={epoch} train_mse={train_loss:.6f} val_mse={val_loss:.6f}")
+        val_loss = validate(model, val_loader, device, cfg)
+        print(f"epoch={epoch} train_loss={train_loss:.6f} val_loss={val_loss:.6f}")
         checkpoint = {
             "model": _unwrap_model(model).state_dict(),
             "optimizer": optimizer.state_dict(),

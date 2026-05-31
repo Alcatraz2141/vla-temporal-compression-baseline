@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import warnings
 
 from braceexpand import braceexpand
 import torch
@@ -52,6 +53,7 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
     source = data_cfg.get("source", "local")
     if source == "unified_episode":
         episode_cfg = data_cfg.get("episode_loader", {})
+        normalization_cfg = data_cfg.get("normalization", {})
         dataset = EpisodeDataset(
             source=str(data_cfg.get("dataset", config.get("dataset", "fractal"))),
             split=split,
@@ -67,6 +69,11 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             eval_windows_per_episode=int(episode_cfg.get("eval_windows_per_episode", 1)),
             max_episodes=episode_cfg.get("max_episodes"),
             hdf5_glob=str(episode_cfg.get("hdf5_glob", "**/*.hdf5")),
+            stats_path=normalization_cfg.get("stats_path"),
+            normalize_actions=bool(normalization_cfg.get("actions", False)),
+            action_normalize_dims=normalization_cfg.get("action_dims"),
+            augment=bool(augment_cfg.get("enabled", False)) and split == data_cfg.get("split", "train"),
+            image_normalization=data_cfg.get("image_normalization", normalization_cfg.get("images")),
         )
         generator = torch.Generator()
         generator.manual_seed(int(config.get("seed", 42)))
@@ -118,6 +125,12 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             kwargs["prefetch_factor"] = int(data_cfg.get("prefetch_factor", 4))
         return DataLoader(dataset, **kwargs)
     if source == "libero_long":
+        warnings.warn(
+            "data.source='libero_long' uses the legacy LIBERO loader. "
+            "Use data.source='unified_episode' for corrected rollout-aligned LIBERO experiments.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         libero_cfg = data_cfg.get("libero_long", {})
         memory_cfg = config.get("memory", {})
         dataset = LiberoLongDataset(

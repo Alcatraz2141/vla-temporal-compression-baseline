@@ -240,6 +240,8 @@ class EventGatedMemoryVLA(nn.Module):
         gate_type: str = "event",
         query_type: str = "concat",
         action_hidden_dim: int = 256,
+        use_language: bool = False,
+        language_vocab_size: int = 1024,
     ) -> None:
         super().__init__()
         if gate_type not in {"event", "age_based"}:
@@ -252,11 +254,13 @@ class EventGatedMemoryVLA(nn.Module):
         self.max_memory_tokens = int(max_memory_tokens)
         self.gate_type = gate_type
         self.query_type = query_type
+        self.use_language = use_language
 
         self.vision, vision_dim = _build_resnet18(pretrained_vision)
         self.vision_proj = nn.Linear(vision_dim, d_model)
         self.action_encoder = nn.Sequential(nn.Linear(action_dim, d_model), nn.GELU(), nn.Linear(d_model, d_model))
         self.state_encoder = nn.Sequential(nn.Linear(state_dim, d_model), nn.GELU(), nn.Linear(d_model, d_model))
+        self.language_embedding = nn.Embedding(language_vocab_size, d_model) if self.use_language else None
         self.step_fusion = nn.Sequential(
             nn.Linear(d_model * 3, d_model),
             nn.GELU(),
@@ -264,7 +268,7 @@ class EventGatedMemoryVLA(nn.Module):
         )
         self.pool_query = nn.Parameter(torch.randn(d_model) * 0.02)
         self.gate = nn.Sequential(
-            nn.Linear(d_model * 3 + 1, d_model),
+            nn.Linear(d_model * 4 + 1, d_model),
             nn.GELU(),
             nn.Linear(d_model, 1),
         )
@@ -303,6 +307,7 @@ class EventGatedMemoryVLA(nn.Module):
         action: torch.Tensor,
         state: torch.Tensor,
         mask: torch.Tensor,
+        language_token: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         bsz, timesteps, dim = tokens.shape
         chunk_count = max((timesteps + self.chunk_size - 1) // self.chunk_size, 1)
@@ -328,15 +333,21 @@ class EventGatedMemoryVLA(nn.Module):
         attn = attn / attn.sum(dim=-1, keepdim=True).clamp_min(1e-6)
         summaries = torch.einsum("bcs,bcsd->bcd", attn, chunk_tokens)
 
-        valid_counts = chunk_mask.sum(dim=-1).clamp_min(1).to(tokens.dtype).unsqueeze(-1)
-        delta_visual = chunk_visual.diff(dim=2).abs().sum(dim=2) / valid_counts
-        delta_action = chunk_action.diff(dim=2).abs().sum(dim=2) / valid_counts
-        delta_state = chunk_state.diff(dim=2).abs().sum(dim=2) / valid_counts
+        pair_mask = chunk_mask[:, :, 1:] & chunk_mask[:, :, :-1]
+        pair_counts = pair_mask.sum(dim=-1).clamp_min(1).to(tokens.dtype).unsqueeze(-1)
+        pair_mask_f = pair_mask.to(tokens.dtype).unsqueeze(-1)
+        delta_visual = (chunk_visual.diff(dim=2).abs() * pair_mask_f).sum(dim=2) / pair_counts
+        delta_action = (chunk_action.diff(dim=2).abs() * pair_mask_f).sum(dim=2) / pair_counts
+        delta_state = (chunk_state.diff(dim=2).abs() * pair_mask_f).sum(dim=2) / pair_counts
         age = torch.linspace(0.0, 1.0, chunk_count, device=tokens.device).view(1, chunk_count, 1).expand(bsz, -1, -1)
         if self.gate_type == "age_based":
             gate_score = age.clamp_min(1.0 / max(chunk_count, 1))
         else:
-            gate_input = torch.cat([delta_visual, delta_action, delta_state, age], dim=-1)
+            if language_token is None:
+                language_features = delta_visual.new_zeros(bsz, chunk_count, dim)
+            else:
+                language_features = language_token.expand(-1, chunk_count, -1)
+            gate_input = torch.cat([delta_visual, delta_action, delta_state, language_features, age], dim=-1)
             gate_score = torch.sigmoid(self.gate(gate_input))
         memory_tokens = summaries * gate_score
         memory_mask = chunk_mask.any(dim=-1)
@@ -355,16 +366,31 @@ class EventGatedMemoryVLA(nn.Module):
         older_states: torch.Tensor,
         recent_mask: torch.Tensor | None = None,
         older_mask: torch.Tensor | None = None,
+        language_ids: torch.Tensor | None = None,
         **_: Any,
     ) -> torch.Tensor:
         recent_tokens, _, _, _ = self._encode_steps(recent_obs, recent_actions, recent_states)
         older_tokens, older_visual, older_action, older_state = self._encode_steps(older_obs, older_actions, older_states)
+        language_token = None
+        if self.language_embedding is not None:
+            if language_ids is None:
+                language_ids = torch.zeros(recent_obs.size(0), dtype=torch.long, device=recent_obs.device)
+            language_token = self.language_embedding(language_ids).unsqueeze(1)
+            recent_tokens = recent_tokens + language_token
+            older_tokens = older_tokens + language_token
         if recent_mask is None:
             recent_mask = torch.ones(recent_tokens.shape[:2], dtype=torch.bool, device=recent_tokens.device)
         if older_mask is None:
             older_mask = torch.ones(older_tokens.shape[:2], dtype=torch.bool, device=older_tokens.device)
 
-        memory_tokens, memory_mask = self._chunk_memory(older_tokens, older_visual, older_action, older_state, older_mask)
+        memory_tokens, memory_mask = self._chunk_memory(
+            older_tokens,
+            older_visual,
+            older_action,
+            older_state,
+            older_mask,
+            language_token=language_token,
+        )
         empty_memory = ~memory_mask.any(dim=1)
         if empty_memory.any():
             memory_mask = memory_mask.clone()
@@ -453,6 +479,8 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
             gate_type=memory_cfg.get("gate_type", "event"),
             query_type=memory_cfg.get("query_type", "concat"),
             action_hidden_dim=int(model_cfg.get("action_hidden_dim", 256)),
+            use_language=bool(model_cfg.get("use_language", False)),
+            language_vocab_size=int(model_cfg.get("language_vocab_size", 1024)),
         )
     if baseline not in {"sliding_window", "no_temporal", "larger_window"}:
         raise ValueError(f"Unknown baseline: {baseline}")
