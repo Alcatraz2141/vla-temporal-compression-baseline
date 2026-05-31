@@ -4,6 +4,90 @@ Date: 2026-05-30
 
 This note summarizes the current diagnosis for why offline LIBERO action-prediction metrics show signal while online LIBERO rollouts remain at zero success. The goal is to separate fixable implementation/evaluation issues from true behavior-cloning limitations before spending more GPU budget.
 
+## 2026-05-31 Local Progress Update
+
+The Mac/local implementation pass completed the planned P0/P1 low-risk fixes and the Windows 4 GB VRAM machine completed a final go/no-go check.
+
+Implemented locally:
+
+- rollout-aligned offline diagnostics in `evaluation/offline_diagnostics.py`;
+- train-split LIBERO action stats in `scripts/compute_libero_action_stats.py`;
+- opt-in continuous action normalization for the unified LIBERO loader;
+- rollout-side action unnormalization before `env.step`;
+- ImageNet image normalization in training/eval and rollout paths;
+- actual training-only augmentation for the unified episode loader;
+- deterministic language conditioning for `EventGatedMemoryVLA`;
+- masked event-gate delta features for padded older context;
+- split-aware rollout init selection and dry-run selection checks;
+- legacy LIBERO loader warning to avoid accidentally using old temporal semantics;
+- opt-in binary gripper loss with continuous MSE for dims `0:6`;
+- corrected H=1 configs:
+  - `configs/libero_long_sliding_window_corrected_h1.yaml`
+  - `configs/libero_long_event_gated_corrected_h1.yaml`
+
+Full LIBERO-Long was downloaded locally and inspected:
+
+```text
+files: 10 HDF5 files under data/libero_long
+train action stats: results/libero_action_stats_train.json
+train demos in stats: 400
+actions in stats: 110372
+state_dim: 8
+action_dim: 7
+```
+
+Windows 4 GB VRAM go/no-go result:
+
+```text
+GPU: NVIDIA GeForce RTX 3050 Laptop GPU, 4 GB VRAM
+RAM: about 7.9 GB
+PyTorch: 2.5.1+cu121
+CUDA available: yes
+bf16 supported: yes
+LIBERO inspect: passed
+LIBERO smoke test: passed
+```
+
+Bounded local training evidence:
+
+```text
+config: configs/libero_long_sliding_window_corrected_h1.yaml
+run: --epochs 10 --max-steps-per-epoch 5
+
+epoch 1  val_loss 0.757886
+epoch 10 val_loss 0.745255
+
+checkpoint: checkpoints/gpu_check_corrected_h1_10epoch/sliding_window_corrected_h1/best.pt
+```
+
+Additional 4 GB GPU check:
+
+```text
+run: --epochs 2 --max-steps-per-epoch 50
+epoch 1 train_loss 0.891342 val_loss 0.750228
+epoch 2 train_loss 0.868831 val_loss 0.744029
+VRAM observed: about 439 MiB
+GPU utilization observed: up to about 50%
+```
+
+Diagnostics on the tiny checkpoint:
+
+```text
+first_action_mse_per_element: 0.8214608968
+position_mse:                 0.8370953549
+rotation_mse:                 0.7470947452
+continuous_mse:               0.7920950475
+continuous_mae:               0.5755884461
+gripper_sign_accuracy:        0.555
+```
+
+Interpretation:
+
+- The corrected training path is no longer speculative: CUDA, data loading, loss/backprop, validation, checkpointing, eval, and diagnostics all work.
+- The tiny local model is not a good policy yet. Gripper sign accuracy is only slightly above random, which is expected with tiny training.
+- The local result justifies a bounded RunPod training run. It does not prove final rollout success.
+- The 4 GB machine is useful for smoke/debug only; full `10 x 50000` or memory-model training is not practical there.
+
 ## Current Working Hypothesis
 
 The simulator/action interface is basically wired because expert HDF5 replay succeeds in the official LIBERO simulator. The remaining failures are likely a mixture of:
@@ -274,9 +358,9 @@ Avoid locally:
 
 ## GPU Budget Plan
 
-Do not spend GPU on all four models immediately. First prove the corrected reactive baseline works.
+Do not spend GPU on all four models immediately. The 2026-05-31 local checks prove the corrected reactive baseline path is runnable and learning, so the next paid run should be bounded rather than a full blind sweep.
 
-Recommended first GPU run:
+Recommended first RunPod run:
 
 ```text
 model: sliding_window
@@ -286,16 +370,24 @@ binary gripper: on
 ImageNet normalization: on
 language: on
 augmentation: on
+budget gate: 1 epoch, 2000-5000 steps
 ```
 
 Then evaluate:
 
 - first-action offline metrics;
 - per-dim metrics;
+- continuous action MSE/MAE;
+- gripper sign accuracy;
 - training-init rollout on one easier task or task 5;
 - held-out rollout only if training-init behavior is sane.
 
-Only after the corrected sliding-window policy shows non-random closed-loop behavior should memory models be retrained.
+Decision rule:
+
+- Continue scaling if validation loss drops clearly below the local 4 GB baseline around `0.744` and gripper sign accuracy improves beyond the tiny-checkpoint `0.555`.
+- Stop and debug if validation loss plateaus, diagnostics become NaN/inf, or gripper sign accuracy remains near random after a meaningful number of steps.
+- Only after the corrected sliding-window policy shows stable improvement should `event_gated_memory_corrected_h1` be trained under the same step budget.
+- Only after the corrected sliding-window policy shows non-random closed-loop behavior should the broader memory ablation table be rerun.
 
 ## Rough GPU-Time Estimates
 
@@ -321,17 +413,15 @@ These estimates are intentionally conservative. Prior A100 runs were much faster
 
 ## Recommended Execution Order
 
-1. Implement P0 diagnostics locally.
-2. Compute train action stats locally.
-3. Implement action normalization, binary gripper support, and image normalization locally.
-4. Add actual unified-loader augmentation locally.
-5. Add language conditioning to memory models locally.
-6. Add event-delta masking locally.
-7. Run smoke tests and tiny overfit tests locally.
-8. Use limited GPU time for one corrected `sliding_window` run, preferably `H_action: 1`.
-9. Run training-init rollout sanity checks before held-out evaluation.
-10. If reactive BC works, retrain memory variants fairly.
-11. If reactive BC still fails on training init, pause memory work and debug action/preprocessing/model capacity.
+1. P0/P1 local implementation is complete as of 2026-05-31.
+2. Local LIBERO inspection, smoke tests, action stats, tiny CUDA training, eval, and diagnostics have passed.
+3. Start a bounded RunPod run for `configs/libero_long_sliding_window_corrected_h1.yaml`.
+4. Use `--max-steps-per-epoch 2000` first if budget is tight, or `5000` if the pod is stable.
+5. Evaluate with `evaluation/eval.py` and `evaluation/offline_diagnostics.py`.
+6. If sliding-window improves, run `configs/libero_long_event_gated_corrected_h1.yaml` with the same step count.
+7. If both are stable, run task-5 training-init rollout before any held-out rollout.
+8. If reactive BC works, retrain memory variants fairly.
+9. If reactive BC still fails on training init, pause memory work and debug action/preprocessing/model capacity.
 
 ## What Not To Do Yet
 

@@ -78,6 +78,34 @@ eval or rollout.
 
 ## Current Checkpoint And Rollout State
 
+As of 2026-05-31, the immediate next rollout work is gated on a corrected H=1 retraining pass.
+The older H=4-style 50-epoch checkpoints below all produced 0/1 on task 5 and should not be treated
+as final evidence against the corrected-H1 objective.
+
+Corrected-H1 local validation summary:
+
+```text
+configs/libero_long_sliding_window_corrected_h1.yaml passed local CUDA training checks.
+Windows 4 GB RTX 3050 Laptop GPU:
+  10 x 5-step check: val_loss 0.757886 -> 0.745255
+  2 x 50-step check: val_loss 0.750228 -> 0.744029
+  gripper_sign_accuracy on tiny checkpoint: 0.555
+
+Decision:
+  GO for bounded RunPod training.
+  Run rollout only after offline diagnostics improve on a real RunPod checkpoint.
+```
+
+Next rollout-facing order:
+
+```text
+1. Train corrected sliding-window H=1 for 2000-5000 steps on RunPod.
+2. Run evaluation/offline_diagnostics.py.
+3. If val_loss and gripper_sign_accuracy improve, train corrected event-gated H=1.
+4. Run task-5 training-init rollout before held-out split rollouts.
+5. Use --split-file for held-out rollouts only after training-init behavior is sane.
+```
+
 As of 2026-05-25:
 
 ```text

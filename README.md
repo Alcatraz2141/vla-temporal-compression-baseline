@@ -187,6 +187,44 @@ This includes the optional SmolVLA/LeRobot external baseline path.
 
 ## Current LIBERO Handoff
 
+Latest corrected-H1 local validation as of 2026-05-31:
+
+```text
+Status: GO for a bounded RunPod run, not a full blind sweep.
+
+Implemented since the 2026-05-25 runs:
+- corrected H=1 configs for sliding-window and event-gated memory
+- action normalization from train-split stats
+- binary gripper loss
+- ImageNet image normalization
+- unified-loader augmentation
+- language conditioning for event-gated memory
+- masked event-gate deltas
+- split-aware rollout init selection
+- rollout-aligned offline diagnostics
+
+Local/Windows 4 GB VRAM validation:
+- GPU: NVIDIA GeForce RTX 3050 Laptop GPU, 4 GB VRAM
+- PyTorch: 2.5.1+cu121
+- CUDA available: yes
+- LIBERO inspect and smoke test: passed
+- tiny corrected sliding-window run decreased val_loss from 0.757886 to 0.745255
+- 2 x 50-step check decreased val_loss from 0.750228 to 0.744029
+
+Tiny-checkpoint diagnostics:
+- continuous_mse:        0.7920950475
+- continuous_mae:        0.5755884461
+- first_action_mse:      0.8214608968
+- position_mse:          0.8370953549
+- rotation_mse:          0.7470947452
+- gripper_sign_accuracy: 0.555
+
+Interpretation:
+- The corrected training/eval path is wired and learning.
+- The tiny model is not rollout-ready.
+- Next spend should be bounded RunPod training, not a full 50-epoch run by default.
+```
+
 Latest authoritative state as of 2026-05-25:
 
 ```text
@@ -247,9 +285,15 @@ bash libero_rollout_env/bootstrap.sh
 Next immediate work:
 
 ```text
-The four-model single-seed offline table and task-5 diagnostic rollouts are complete.
-Next: preserve the uploaded backup, then decide on multi-task rollouts and multiple seeds.
-Rollouts on this RTX PRO 4500 pod require --device cpu in the isolated rollout environment.
+Run a bounded corrected-H1 RunPod training gate:
+1. Train configs/libero_long_sliding_window_corrected_h1.yaml for 2000-5000 steps.
+2. Evaluate with evaluation/eval.py and evaluation/offline_diagnostics.py.
+3. Continue only if val_loss drops clearly below the local 0.744 baseline and gripper_sign_accuracy improves beyond 0.555.
+4. Then run configs/libero_long_event_gated_corrected_h1.yaml for the same step budget.
+5. Run task-5 training-init rollout only after offline diagnostics are sane.
+
+The older four-model single-seed offline table and task-5 diagnostic rollouts are complete, but they used pre-corrected H=4-style objectives/checkpoints and should not be treated as directly comparable to the new corrected-H1 runs.
+Rollouts on RTX PRO 4500 Blackwell pods require --device cpu in the isolated rollout environment.
 ```
 
 Before stopping a non-persistent pod:

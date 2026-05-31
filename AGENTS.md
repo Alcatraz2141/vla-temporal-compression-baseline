@@ -1634,3 +1634,105 @@ A plain detached nohup launch was reaped by the command runner before GPU alloca
 
 The isolated LIBERO rollout environment has a PyTorch CUDA build without support for the RTX PRO 4500 Blackwell `sm_120` GPU. GPU rollout fails while loading model weights; age-gated and concat-query task-5 rollouts were completed with `--device cpu`.
 ```
+
+## Current State as of 2026-05-31
+
+The current active direction is no longer the older H=4 corrected-loader table. The next experiment is a corrected rollout-aligned H=1 baseline gate.
+
+Implemented locally since the 2026-05-25 runs:
+
+```text
+evaluation/offline_diagnostics.py
+scripts/compute_libero_action_stats.py
+configs/libero_long_sliding_window_corrected_h1.yaml
+configs/libero_long_event_gated_corrected_h1.yaml
+
+Action normalization in the unified episode loader.
+Rollout-side action unnormalization.
+ImageNet normalization in training/eval/rollout paths.
+Training-only augmentation in source=unified_episode.
+Binary gripper loss for corrected-H1 configs.
+Language conditioning for EventGatedMemoryVLA.
+Masked event-gate deltas for padded older context.
+Split-aware rollout init selection.
+Legacy LIBERO loader warning.
+```
+
+Local LIBERO status:
+
+```text
+Full LIBERO-Long local download verified: 10 HDF5 files.
+Inspection passed: 128x128 RGB, action_dim 7, state_dim 8.
+Smoke test passed.
+Train action stats: results/libero_action_stats_train.json
+Stats demos: 400
+Stats actions: 110372
+```
+
+Windows 4 GB VRAM go/no-go:
+
+```text
+Machine: RTX 3050 Laptop GPU, 4 GB VRAM, about 7.9 GB RAM
+PyTorch: 2.5.1+cu121
+CUDA available: yes
+bf16 supported: yes
+
+Bounded check:
+python train.py --config configs/libero_long_sliding_window_corrected_h1.yaml --epochs 10 --max-steps-per-epoch 5
+
+epoch 1 val_loss:  0.757886
+epoch 10 val_loss: 0.745255
+
+Additional movement check:
+--epochs 2 --max-steps-per-epoch 50
+epoch 1 train_loss 0.891342 val_loss 0.750228
+epoch 2 train_loss 0.868831 val_loss 0.744029
+```
+
+Tiny checkpoint diagnostics:
+
+```text
+first_action_mse_per_element: 0.8214608968
+position_mse:                 0.8370953549
+rotation_mse:                 0.7470947452
+continuous_mse:               0.7920950475
+continuous_mae:               0.5755884461
+gripper_sign_accuracy:        0.555
+```
+
+Interpretation:
+
+```text
+GO for bounded RunPod training.
+The corrected training/eval path is wired and learning.
+The tiny model is not rollout-ready.
+The 4 GB Windows GPU is suitable only for smoke/debug runs, not full training.
+```
+
+Next clean experiment order:
+
+```bash
+# 1. Bounded corrected sliding-window RunPod gate.
+uv run python train.py \
+  --config configs/libero_long_sliding_window_corrected_h1.yaml \
+  --epochs 1 \
+  --max-steps-per-epoch 5000
+
+uv run python evaluation/eval.py \
+  --config configs/libero_long_sliding_window_corrected_h1.yaml
+
+uv run python evaluation/offline_diagnostics.py \
+  --config configs/libero_long_sliding_window_corrected_h1.yaml \
+  --checkpoint checkpoints/libero_long_corrected/sliding_window_corrected_h1/best.pt
+
+# 2. Continue only if val_loss drops clearly below about 0.744
+# and gripper_sign_accuracy improves beyond about 0.555.
+
+# 3. Then run the event-gated corrected-H1 config with the same step budget.
+uv run python train.py \
+  --config configs/libero_long_event_gated_corrected_h1.yaml \
+  --epochs 1 \
+  --max-steps-per-epoch 5000
+```
+
+Do not start a full multi-day sweep until the bounded corrected-H1 RunPod gate improves offline diagnostics.

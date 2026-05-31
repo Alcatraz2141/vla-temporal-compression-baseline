@@ -1296,3 +1296,160 @@ Runtime issues and resolution:
 ```text
 The RTX PRO 4500 Blackwell GPU reports CUDA capability sm_120, but the isolated LIBERO rollout PyTorch build does not include sm_120 kernels. Attempting GPU rollout failed during model weight loading with "no kernel image is available for execution on the device". The age-gated and concat-query task-5 diagnostic rollouts were rerun with --device cpu and completed successfully.
 ```
+
+## 2026-05-31 Corrected-H1 Local Implementation And 4GB GPU Go/No-Go
+
+Goal:
+
+```text
+Before spending more RunPod budget, check whether the corrected rollout-aligned H=1 training path is actually runnable and learning on local hardware.
+```
+
+Implemented locally:
+
+```text
+evaluation/offline_diagnostics.py
+scripts/compute_libero_action_stats.py
+configs/libero_long_sliding_window_corrected_h1.yaml
+configs/libero_long_event_gated_corrected_h1.yaml
+
+Action normalization for the unified episode loader.
+Rollout-side action unnormalization before env.step.
+ImageNet image normalization in dataset/eval/rollout paths.
+Training-only augmentation for source=unified_episode.
+Binary gripper loss option, enabled in corrected-H1 configs.
+Language conditioning for EventGatedMemoryVLA.
+Masked event-gate deltas for padded older context.
+Split-aware rollout init selection and dry-run selection.
+Warning for legacy data.source=libero_long loader use.
+```
+
+Local LIBERO status:
+
+```text
+Full LIBERO-Long downloaded locally: 10 HDF5 files.
+Inspection passed: image 128x128x3, action_dim 7, state_dim 8.
+Smoke test passed.
+Train action stats written: results/libero_action_stats_train.json
+Stats source: splits/libero_long_train.txt
+Train demos: 400
+Actions counted: 110372
+Continuous normalized dims: 0,1,2,3,4,5
+Gripper remains unnormalized for binary sign loss.
+```
+
+Mac sanity checks:
+
+```text
+Both corrected-H1 configs built dataloaders and produced model outputs with shape (2, 1, 7).
+Tiny optimizer/backprop checks passed on CPU for both sliding_window_corrected_h1 and event_gated_memory_corrected_h1.
+```
+
+Windows 4 GB VRAM machine check:
+
+```text
+RAM: about 7.9 GB
+GPU: NVIDIA GeForce RTX 3050 Laptop GPU, 4 GB VRAM
+PyTorch: 2.5.1+cu121
+CUDA: 12.1
+CUDA available: True
+bf16 supported: True
+```
+
+Important Windows environment note:
+
+```text
+Use the activated venv directly with python, not plain `uv run`, unless the repo lockfile has been updated for CUDA PyTorch.
+Plain `uv run` may resync the environment back to CPU PyTorch from uv.lock.
+```
+
+Bounded 10-epoch 4GB check:
+
+```text
+command shape:
+python train.py --config configs/libero_long_sliding_window_corrected_h1.yaml --epochs 10 --max-steps-per-epoch 5
+
+epoch=1  train_loss=1.148910  val_loss=0.757886
+epoch=2  train_loss=1.152323  val_loss=0.754818
+epoch=3  train_loss=1.140435  val_loss=0.752576
+epoch=4  train_loss=1.124937  val_loss=0.751295
+epoch=5  train_loss=1.113524  val_loss=0.750146
+epoch=6  train_loss=1.136475  val_loss=0.749162
+epoch=7  train_loss=1.083851  val_loss=0.748099
+epoch=8  train_loss=1.078010  val_loss=0.747053
+epoch=9  train_loss=1.056888  val_loss=0.746131
+epoch=10 train_loss=1.025800  val_loss=0.745255
+```
+
+Checkpoint verified:
+
+```text
+best.pt: checkpoints/gpu_check_corrected_h1_10epoch/sliding_window_corrected_h1/best.pt
+last.pt: checkpoints/gpu_check_corrected_h1_10epoch/sliding_window_corrected_h1/last.pt
+saved epoch: 10
+best val: 0.7452554704248905
+state_dim: 8
+action_dim: 7
+log: results/train_corrected_h1_10epoch_gpu_check.log
+```
+
+Diagnostics on the tiny checkpoint:
+
+```text
+first_action_mse_per_element: 0.8214608968
+position_mse:                 0.8370953549
+rotation_mse:                 0.7470947452
+gripper_sign_accuracy:        0.555
+
+eval mse:                     5.7502262732
+eval mae:                     4.4383761054
+continuous_mse:               0.7920950475
+continuous_mae:               0.5755884461
+```
+
+Additional 4GB training movement check:
+
+```text
+run: --epochs 2 --max-steps-per-epoch 50
+epoch=1 train_loss=0.891342 val_loss=0.750228
+epoch=2 train_loss=0.868831 val_loss=0.744029
+
+VRAM observed: about 439 MiB
+GPU utilization observed: up to 50%
+No OOM, freeze, checkpoint-load failure, NaN/inf diagnostics, or crash.
+gripper_transition_accuracy NaN is expected for H_action=1 because there are no within-chunk transitions.
+```
+
+Conclusion:
+
+```text
+GO for a bounded RunPod run.
+
+This proves the corrected training/eval path is wired and learning. It does not prove rollout success.
+The 4GB machine is only suitable for smoke/debug runs, not full training.
+Do not run 10 epochs x 50000 steps on the 4GB machine; at laptop speed this can take days to weeks and is fragile.
+```
+
+Next RunPod action:
+
+```bash
+uv run python train.py \
+  --config configs/libero_long_sliding_window_corrected_h1.yaml \
+  --epochs 1 \
+  --max-steps-per-epoch 5000
+
+uv run python evaluation/eval.py \
+  --config configs/libero_long_sliding_window_corrected_h1.yaml
+
+uv run python evaluation/offline_diagnostics.py \
+  --config configs/libero_long_sliding_window_corrected_h1.yaml \
+  --checkpoint checkpoints/libero_long_corrected/sliding_window_corrected_h1/best.pt
+```
+
+Decision rule:
+
+```text
+Continue scaling if val_loss drops clearly below the local 4GB 0.744 baseline and gripper_sign_accuracy improves beyond 0.555.
+Then run configs/libero_long_event_gated_corrected_h1.yaml for the same step budget.
+Pause if validation plateaus, diagnostics are NaN/inf, or gripper remains near random after meaningful training.
+```
