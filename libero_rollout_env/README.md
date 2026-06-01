@@ -78,6 +78,33 @@ eval or rollout.
 
 ## Current Checkpoint And Rollout State
 
+As of 2026-06-01, the corrected-H1 rollout stack has produced nonzero simulator success.
+
+Task-5 transition-aware sliding-window overfit:
+
+```text
+config: configs/libero_long_sliding_window_corrected_h1_task5_overfit.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/sliding_window_corrected_h1_task5_overfit/best.pt
+task-5 train split rollout: 5/5
+task-5 val split rollout: 2/5
+task-5 test split rollout: 5/5
+```
+
+Useful videos:
+
+```text
+results/rollout_videos_sliding_window_corrected_h1_task5_overfit_train_task5/sliding_window_corrected_h1_task5_overfit/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+results/rollout_videos_sliding_window_corrected_h1_task5_overfit_test_task5/sliding_window_corrected_h1_task5_overfit/seed42_task05_episode6_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+```
+
+Interpretation:
+
+```text
+The rollout environment is capable of measuring real success.
+The old 0/1 task-5 rollouts should remain diagnostic-only.
+The next rollout-facing comparison must use the transition-aware corrected-H1 full-dataset checkpoints.
+```
+
 As of 2026-05-31, the immediate next rollout work is gated on a corrected H=1 retraining pass.
 The older H=4-style 50-epoch checkpoints below all produced 0/1 on task 5 and should not be treated
 as final evidence against the corrected-H1 objective.

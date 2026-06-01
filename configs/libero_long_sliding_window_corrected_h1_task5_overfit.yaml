@@ -9,13 +9,14 @@ data:
     root: data/libero_long
     split_dir: splits
     hdf5_glob: "**/*.hdf5"
-    samples_per_epoch: 50000
-    eval_windows_per_episode: 4
+    samples_per_epoch: 20000
+    eval_windows_per_episode: 16
     load_older_context: false
+    task_filter: STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy
     transition_sample_prob: 0.35
     transition_sample_radius: 4
   split: train
-  val_split: val
+  val_split: train
   image_size: 128
   image_normalization: imagenet
   T_obs: 8
@@ -35,7 +36,7 @@ data:
 
 model:
   baseline: sliding_window
-  run_name: sliding_window_corrected_h1_transition20
+  run_name: sliding_window_corrected_h1_task5_overfit
   vision_encoder: resnet18
   pretrained_vision: true
   d_model: 256
@@ -58,14 +59,14 @@ memory:
 training:
   batch_size: 48
   epochs: 20
-  max_steps_per_epoch: 50000
+  max_steps_per_epoch: 20000
   lr: 1.0e-4
   optimizer: adamw
   lr_schedule: cosine
-  warmup_steps: 1000
-  total_steps: 50000
-  eval_every: 5000
-  save_every: 10000
+  warmup_steps: 500
+  total_steps: 20000
+  eval_every: 2000
+  save_every: 5000
   weight_decay: 1.0e-4
   grad_clip_norm: 1.0
   amp: true
@@ -76,10 +77,10 @@ training:
   gripper_loss_weight: 5.0
   gripper_transition_loss_weight: 25.0
   gripper_loss_type: bce_sign
-  log_every: 500
-  checkpoint_dir: checkpoints/libero_long_corrected_transition20
+  log_every: 250
+  checkpoint_dir: checkpoints/libero_long_corrected_task5
   resume: null
 
 evaluation:
   batch_size: 48
-  results_path: results/baselines_corrected.csv
+  results_path: results/baselines_corrected_task5.csv

@@ -187,6 +187,39 @@ This includes the optional SmolVLA/LeRobot external baseline path.
 
 ## Current LIBERO Handoff
 
+Latest RunPod corrected-H1 rollout update as of 2026-06-01:
+
+```text
+GPU: RTX 4090, 24 GB VRAM
+
+Main finding:
+- Corrected-H1 rollout can succeed in LIBERO sim.
+- Earlier 0% rollouts were not just a simulator wiring failure.
+- The immediate issue was sparse gripper transition behavior and closed-loop brittleness.
+
+Task-5 transition-aware overfit:
+- checkpoint: checkpoints/libero_long_corrected_task5/sliding_window_corrected_h1_task5_overfit/best.pt
+- best epoch: 20
+- best val_loss: 0.0019988442626804096
+- eval continuous_mse: 0.004982923693526134
+- eval continuous_mae: 0.04651936175797483
+- eval gripper_sign_accuracy: 0.9999000800313423
+
+Rollouts:
+- task-5 train split: 5/5
+- task-5 val split: 2/5
+- task-5 test split: 5/5
+
+Useful videos:
+- results/rollout_videos_sliding_window_corrected_h1_task5_overfit_train_task5/sliding_window_corrected_h1_task5_overfit/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+- results/rollout_videos_sliding_window_corrected_h1_task5_overfit_test_task5/sliding_window_corrected_h1_task5_overfit/seed42_task05_episode6_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+
+Next run:
+- full LIBERO corrected-H1 sliding-window, 20 epochs, transition sampling/loss enabled
+- then eval, diagnostics, and task 0/2/5 rollouts
+- then train corrected-H1 event-gated memory with the same 20-epoch protocol
+```
+
 Latest corrected-H1 local validation as of 2026-05-31:
 
 ```text

@@ -125,6 +125,10 @@ class EpisodeDataset(Dataset):
         action_normalize_dims: list[int] | None = None,
         augment: bool = False,
         image_normalization: str | None = None,
+        load_older_context: bool = True,
+        task_filter: str | list[str] | None = None,
+        transition_sample_prob: float = 0.0,
+        transition_sample_radius: int = 3,
     ) -> None:
         self.source = source
         self.split = split
@@ -137,12 +141,19 @@ class EpisodeDataset(Dataset):
         self.root = Path(root) if root is not None else self._default_root(source)
         self.split_dir = Path(split_dir)
         self.hdf5_glob = hdf5_glob
+        self.image_size = int(image_size)
+        self.load_older_context = bool(load_older_context)
+        self.task_filter = self._normalize_task_filter(task_filter)
+        self.transition_sample_prob = float(transition_sample_prob)
+        self.transition_sample_radius = max(int(transition_sample_radius), 0)
         self.action_stats = _read_json(Path(stats_path)) if stats_path else {}
         self.normalize_actions = bool(normalize_actions and self.action_stats)
         self.action_normalize_dims = action_normalize_dims
         self.transform = self._make_transform(image_size, augment, image_normalization)
 
         all_records = self._discover_records()
+        if self.task_filter:
+            all_records = [record for record in all_records if self._record_matches_task_filter(record)]
         all_records = [record for record in all_records if record.length >= self.K_recent + self.H_action]
         if not all_records:
             raise FileNotFoundError(
@@ -179,6 +190,21 @@ class EpisodeDataset(Dataset):
         if source == "libero_long":
             return Path("data/libero_long")
         return SOURCE_ROOTS.get(source, Path("data/raw_diverse"))
+
+    def _normalize_task_filter(self, task_filter: str | list[str] | None) -> tuple[str, ...]:
+        if task_filter is None:
+            return ()
+        if isinstance(task_filter, str):
+            items = [task_filter]
+        else:
+            items = list(task_filter)
+        return tuple(item.removesuffix("_demo").lower() for item in items if str(item).strip())
+
+    def _record_matches_task_filter(self, record: EpisodeRecord) -> bool:
+        if not self.task_filter:
+            return True
+        task = record.path.stem.removesuffix("_demo").lower()
+        return any(wanted in task for wanted in self.task_filter)
 
     def _discover_records(self) -> list[EpisodeRecord]:
         if self.source == "libero_long":
@@ -310,15 +336,35 @@ class EpisodeDataset(Dataset):
             raise ValueError(f"Episode too short after loading: {record.episode_id}")
         if self.split == "train":
             t = rng.randint(min_t, max_t)
+            if self.transition_sample_prob > 0.0 and rng.random() < self.transition_sample_prob:
+                action_sign = np.sign(np.asarray(episode["actions"][:, -1], dtype=np.float32))
+                transition_idx = np.flatnonzero(action_sign[1:] != action_sign[:-1]) + 1
+                if len(transition_idx) > 0:
+                    center = int(rng.choice(list(transition_idx)))
+                    lo = max(min_t, center - self.transition_sample_radius)
+                    hi = min(max_t, center + self.transition_sample_radius)
+                    t = rng.randint(lo, hi)
         else:
             t = min_t + round((max_t - min_t) * eval_anchor / max(self.eval_windows_per_episode - 1, 1))
 
         recent_idx, recent_mask = _pad_left(np.arange(max(0, t - self.K_recent + 1), t + 1), self.K_recent)
-        older_raw = np.arange(0, max(0, t - self.K_recent + 1))
-        if len(older_raw) > self.max_older_steps:
-            older_raw = np.linspace(older_raw[0], older_raw[-1], self.max_older_steps).round().astype(np.int64)
-        older_idx, older_mask = _pad_left(older_raw, self.max_older_steps)
+        if self.load_older_context and self.max_older_steps > 0:
+            older_raw = np.arange(0, max(0, t - self.K_recent + 1))
+            if len(older_raw) > self.max_older_steps:
+                older_raw = np.linspace(older_raw[0], older_raw[-1], self.max_older_steps).round().astype(np.int64)
+            older_idx, older_mask = _pad_left(older_raw, self.max_older_steps)
+        else:
+            older_idx = np.empty(0, dtype=np.int64)
+            older_mask = np.empty(0, dtype=np.bool_)
         target_idx, target_mask = _take_or_pad(np.arange(t, t + self.H_action), self.H_action, length - 1)
+        target_transition = np.zeros(self.H_action, dtype=np.bool_)
+        for out_i, action_i in enumerate(target_idx):
+            if not target_mask[out_i]:
+                continue
+            prev_i = max(int(action_i) - 1, 0)
+            target_transition[out_i] = bool(
+                np.sign(episode["actions"][prev_i, -1]) != np.sign(episode["actions"][action_i, -1])
+            )
         prev_actions = np.zeros_like(episode["actions"], dtype=np.float32)
         if length > 1:
             prev_actions[1:length] = np.asarray(episode["actions"][: length - 1], dtype=np.float32)
@@ -335,7 +381,11 @@ class EpisodeDataset(Dataset):
             "recent_obs": torch.stack([self._image(episode["images"][i]) for i in recent_idx]),
             "recent_actions": torch.from_numpy(recent_actions),
             "recent_states": torch.from_numpy(np.asarray(episode["states"][recent_idx], dtype=np.float32)),
-            "older_obs": torch.stack([self._image(episode["images"][i]) for i in older_idx]),
+            "older_obs": (
+                torch.stack([self._image(episode["images"][i]) for i in older_idx])
+                if len(older_idx) > 0
+                else torch.empty((0, 3, self.image_size, self.image_size), dtype=torch.float32)
+            ),
             "older_actions": torch.from_numpy(older_actions),
             "older_states": torch.from_numpy(np.asarray(episode["states"][older_idx], dtype=np.float32)),
             "target_actions": torch.from_numpy(target_actions),
@@ -345,6 +395,7 @@ class EpisodeDataset(Dataset):
             "recent_mask": torch.from_numpy(recent_mask),
             "older_mask": torch.from_numpy(older_mask),
             "target_mask": torch.from_numpy(target_mask),
+            "gripper_transition": torch.from_numpy(target_transition),
         }
 
     def _normalize_actions(self, actions: np.ndarray) -> np.ndarray:
@@ -429,6 +480,7 @@ def episode_collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
         "recent_mask",
         "older_mask",
         "target_mask",
+        "gripper_transition",
     )
     for key in tensor_keys:
         out[key] = torch.stack([sample[key] for sample in batch])

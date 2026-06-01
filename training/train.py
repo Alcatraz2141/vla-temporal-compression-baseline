@@ -109,7 +109,13 @@ def _model_forward_and_target(
     return pred, batch["actions"], batch["mask"]
 
 
-def action_loss(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor, cfg: dict[str, Any]) -> torch.Tensor:
+def action_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    mask: torch.Tensor,
+    cfg: dict[str, Any],
+    gripper_transition: torch.Tensor | None = None,
+) -> torch.Tensor:
     gripper_loss_type = str(cfg["training"].get("gripper_loss_type", "mse"))
     gripper_weight = float(cfg["training"].get("gripper_loss_weight", 1.0))
     mask_f = mask.to(pred.dtype)
@@ -126,8 +132,18 @@ def action_loss(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor, cf
             gripper_target,
             reduction="none",
         )
-        gripper_sum = (gripper_loss * mask_f).sum()
-        gripper_count = mask_f.sum()
+        gripper_weights = torch.ones_like(mask_f)
+        transition_weight = float(cfg["training"].get("gripper_transition_loss_weight", 1.0))
+        if gripper_transition is not None and transition_weight != 1.0:
+            transition = gripper_transition.to(device=pred.device, dtype=pred.dtype)
+            gripper_weights = torch.where(
+                transition > 0,
+                torch.full_like(gripper_weights, transition_weight),
+                gripper_weights,
+            )
+        weighted_mask = mask_f * gripper_weights
+        gripper_sum = (gripper_loss * weighted_mask).sum()
+        gripper_count = weighted_mask.sum()
         numerator = continuous_sum + gripper_weight * gripper_sum
         denominator = continuous_count + gripper_weight * gripper_count
         return numerator / denominator.clamp_min(1.0)
@@ -172,7 +188,12 @@ def run_epoch(
             break
         with autocast_context(device, cfg):
             pred, actions, mask = _model_forward_and_target(model, batch, device)
-            loss = action_loss(pred, actions, mask, cfg)
+            transition = batch.get("gripper_transition")
+            if torch.is_tensor(transition):
+                transition = transition.to(device, non_blocking=True)
+            else:
+                transition = None
+            loss = action_loss(pred, actions, mask, cfg, transition)
             if smooth_weight > 0:
                 loss = loss + smooth_weight * temporal_smoothness(pred)
 
@@ -201,7 +222,12 @@ def validate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device
     channels_last = False
     for batch in tqdm(loader, desc="val", leave=False):
         pred, actions, mask = _model_forward_and_target(model, batch, device)
-        loss = action_loss(pred, actions, mask, cfg)
+        transition = batch.get("gripper_transition")
+        if torch.is_tensor(transition):
+            transition = transition.to(device, non_blocking=True)
+        else:
+            transition = None
+        loss = action_loss(pred, actions, mask, cfg, transition)
         total += float(loss.cpu())
         batches += 1
     return total / max(batches or _safe_len(loader), 1)

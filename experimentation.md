@@ -1453,3 +1453,185 @@ Continue scaling if val_loss drops clearly below the local 4GB 0.744 baseline an
 Then run configs/libero_long_event_gated_corrected_h1.yaml for the same step budget.
 Pause if validation plateaus, diagnostics are NaN/inf, or gripper remains near random after meaningful training.
 ```
+
+## 2026-06-01 RunPod Corrected-H1 Rollout Diagnostic
+
+Environment:
+
+```text
+GPU: NVIDIA GeForce RTX 4090, 24 GB VRAM
+Main env PyTorch: 2.11.0+cu128
+CUDA available: yes
+LIBERO data: 10 HDF5 files under data/libero_long
+Rollout env: /workspace/libero_rollout_envs/.venv
+```
+
+Initial full-dataset corrected sliding-window run:
+
+```bash
+uv run python train.py --config configs/libero_long_sliding_window_corrected_h1.yaml
+uv run python evaluation/eval.py --config configs/libero_long_sliding_window_corrected_h1.yaml
+uv run python evaluation/offline_diagnostics.py \
+  --config configs/libero_long_sliding_window_corrected_h1.yaml \
+  --checkpoint checkpoints/libero_long_corrected/sliding_window_corrected_h1/best.pt
+```
+
+Key implementation fix before this run:
+
+- `sliding_window` was still loading unused `older_obs`, creating a large CPU/HDF5 bottleneck and low GPU utilization.
+- Added `data.episode_loader.load_older_context: false` for sliding-window only.
+- Throughput improved substantially because the loader stopped decoding older images that the model ignores.
+
+10-epoch corrected sliding-window result:
+
+```text
+checkpoint: checkpoints/libero_long_corrected/sliding_window_corrected_h1/best.pt
+best epoch: 3
+best val_loss: 0.030981527268886568
+eval continuous_mse: 0.04247721564024687
+eval continuous_mae: 0.1220744714140892
+eval gripper_sign_accuracy: 0.9958333373069763
+```
+
+Task-5 rollout with that checkpoint:
+
+```text
+task 5 train-init rollout: 0/5
+task 2 train-init rollout: 0/3
+task 0 train-init rollout: 0/3
+```
+
+This showed the corrected policy was learning offline but still brittle in closed-loop control.
+
+Rollout alignment probe added:
+
+```text
+evaluation/rollout_alignment_checks.py
+```
+
+For the 10-epoch full-dataset checkpoint on task-5 demo 0:
+
+```text
+continuous_mse_raw: 0.0009216241887770593
+continuous_mae_raw: 0.0173778235912323
+gripper_sign_accuracy_full_demo: 0.9957264957264957
+expert_gripper_transition_count: 1
+gripper_sign_accuracy_at_transitions: 0.0
+```
+
+Interpretation:
+
+- Average gripper sign accuracy was high because most timesteps do not change gripper state.
+- The model missed the rare but critical gripper transition.
+- In closed-loop rollout, one missed grasp/release transition can fail the whole task even if offline MSE looks good.
+
+Task-5 targeted diagnostic changes:
+
+- Added `task_filter` support to `datasets/episode_loader.py`.
+- Added `transition_sample_prob` and `transition_sample_radius` to oversample windows near expert gripper transitions.
+- Added `gripper_transition` targets to the collated batch.
+- Added `training.gripper_transition_loss_weight` to upweight BCE gripper loss on transition steps.
+- Added task-5 overfit config:
+
+```text
+configs/libero_long_sliding_window_corrected_h1_task5_overfit.yaml
+```
+
+Task-5 overfit run:
+
+```bash
+uv run python train.py --config configs/libero_long_sliding_window_corrected_h1_task5_overfit.yaml
+uv run python evaluation/eval.py --config configs/libero_long_sliding_window_corrected_h1_task5_overfit.yaml
+uv run python evaluation/offline_diagnostics.py \
+  --config configs/libero_long_sliding_window_corrected_h1_task5_overfit.yaml \
+  --checkpoint checkpoints/libero_long_corrected_task5/sliding_window_corrected_h1_task5_overfit/best.pt \
+  --results-path results/offline_diagnostics_task5.csv
+```
+
+Task-5 overfit result:
+
+```text
+checkpoint: checkpoints/libero_long_corrected_task5/sliding_window_corrected_h1_task5_overfit/best.pt
+best epoch: 20
+best val_loss: 0.0019988442626804096
+eval continuous_mse: 0.004982923693526134
+eval continuous_mae: 0.04651936175797483
+eval gripper_sign_accuracy: 0.9999000800313423
+```
+
+Alignment probe on task-5 demo 0 after transition-aware overfit:
+
+```text
+continuous_mse_raw: 0.0004958088393323123
+continuous_mae_raw: 0.012522691860795021
+gripper_sign_accuracy_full_demo: 1.0
+gripper_sign_accuracy_at_transitions: 1.0
+predicted_close_fraction: 0.24358974358974358
+expert_close_fraction: 0.24358974358974358
+```
+
+Online rollout results:
+
+```text
+task-5 train split: 5/5 success
+csv: results/libero_rollouts_sliding_window_corrected_h1_task5_overfit_train_task5.csv
+video dir: results/rollout_videos_sliding_window_corrected_h1_task5_overfit_train_task5/sliding_window_corrected_h1_task5_overfit/
+
+task-5 val split: 2/5 success
+csv: results/libero_rollouts_sliding_window_corrected_h1_task5_overfit_val_task5.csv
+video dir: results/rollout_videos_sliding_window_corrected_h1_task5_overfit_val_task5/sliding_window_corrected_h1_task5_overfit/
+
+task-5 test split: 5/5 success
+csv: results/libero_rollouts_sliding_window_corrected_h1_task5_overfit_test_task5.csv
+video dir: results/rollout_videos_sliding_window_corrected_h1_task5_overfit_test_task5/sliding_window_corrected_h1_task5_overfit/
+```
+
+Useful videos to inspect:
+
+```text
+results/rollout_videos_sliding_window_corrected_h1_task5_overfit_train_task5/sliding_window_corrected_h1_task5_overfit/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+
+results/rollout_videos_sliding_window_corrected_h1_task5_overfit_test_task5/sliding_window_corrected_h1_task5_overfit/seed42_task05_episode6_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+```
+
+Current interpretation:
+
+```text
+The LIBERO rollout stack is not fundamentally broken.
+The corrected H=1 policy can produce simulator success.
+The prior zero-success rollouts were likely caused by undertrained closed-loop behavior, sparse gripper transition supervision, and data-loading inefficiency rather than a pure simulator/action-interface bug.
+Task-5 overfit success does not prove the full multitask benchmark is solved.
+The next fair comparison is to apply the same transition-aware training to both corrected sliding-window and corrected event-gated memory, then compare eval plus rollouts.
+```
+
+Next run started/planned:
+
+```bash
+mkdir -p logs
+stdbuf -oL -eL uv run python train.py \
+  --config configs/libero_long_sliding_window_corrected_h1.yaml \
+  2>&1 | tee logs/sliding_window_corrected_h1_transition20.log
+```
+
+Active full-dataset corrected configs as of this entry:
+
+```text
+configs/libero_long_sliding_window_corrected_h1.yaml
+  run_name: sliding_window_corrected_h1_transition20
+  checkpoint_dir: checkpoints/libero_long_corrected_transition20
+  epochs: 20
+  batch_size: 48
+  load_older_context: false
+  transition_sample_prob: 0.35
+  transition_sample_radius: 4
+  gripper_transition_loss_weight: 25.0
+
+configs/libero_long_event_gated_corrected_h1.yaml
+  run_name: event_gated_memory_corrected_h1_transition20
+  checkpoint_dir: checkpoints/libero_long_corrected_transition20
+  epochs: 20
+  batch_size: 48
+  transition_sample_prob: 0.35
+  transition_sample_radius: 4
+  gripper_transition_loss_weight: 25.0
+```

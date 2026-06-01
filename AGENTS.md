@@ -1736,3 +1736,112 @@ uv run python train.py \
 ```
 
 Do not start a full multi-day sweep until the bounded corrected-H1 RunPod gate improves offline diagnostics.
+
+## Current State as of 2026-06-01
+
+RunPod environment:
+
+```text
+GPU: NVIDIA GeForce RTX 4090, 24 GB VRAM
+Main env PyTorch: 2.11.0+cu128
+LIBERO data: 10 HDF5 files present under data/libero_long
+Rollout env: /workspace/libero_rollout_envs/.venv
+```
+
+Important implementation updates from the 2026-06-01 diagnostic:
+
+```text
+datasets/episode_loader.py:
+  - load_older_context option, used to avoid decoding unused older images for sliding-window
+  - task_filter option for single-task diagnostics
+  - transition_sample_prob and transition_sample_radius for sampling near expert gripper transitions
+  - gripper_transition target returned in each batch
+
+datasets/data_loader.py:
+  - passes the above options from data.episode_loader
+
+training/train.py:
+  - supports training.gripper_transition_loss_weight for bce_sign gripper loss
+
+evaluation/rollout_alignment_checks.py:
+  - compares checkpoint actions against a LIBERO HDF5 demo, including gripper transition timing
+```
+
+The first 10-epoch full-dataset corrected sliding-window checkpoint learned offline but still failed online:
+
+```text
+checkpoint: checkpoints/libero_long_corrected/sliding_window_corrected_h1/best.pt
+best epoch: 3
+best val_loss: 0.030981527268886568
+eval continuous_mse: 0.04247721564024687
+eval continuous_mae: 0.1220744714140892
+eval gripper_sign_accuracy: 0.9958333373069763
+task-5 train-init rollout: 0/5
+task-2 train-init rollout: 0/3
+task-0 train-init rollout: 0/3
+task-5 demo-0 gripper transition accuracy: 0.0
+```
+
+Task-5 transition-aware overfit succeeded online:
+
+```text
+config: configs/libero_long_sliding_window_corrected_h1_task5_overfit.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/sliding_window_corrected_h1_task5_overfit/best.pt
+best epoch: 20
+best val_loss: 0.0019988442626804096
+eval continuous_mse: 0.004982923693526134
+eval continuous_mae: 0.04651936175797483
+eval gripper_sign_accuracy: 0.9999000800313423
+alignment demo-0 gripper transition accuracy: 1.0
+task-5 train split rollout: 5/5
+task-5 val split rollout: 2/5
+task-5 test split rollout: 5/5
+```
+
+Useful rollout videos:
+
+```text
+results/rollout_videos_sliding_window_corrected_h1_task5_overfit_train_task5/sliding_window_corrected_h1_task5_overfit/seed42_task05_episode0_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+results/rollout_videos_sliding_window_corrected_h1_task5_overfit_test_task5/sliding_window_corrected_h1_task5_overfit/seed42_task05_episode6_STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy.mp4
+```
+
+Interpretation:
+
+```text
+The corrected LIBERO rollout stack is not fundamentally broken.
+The corrected-H1 policy can produce real online success.
+The earlier 0% rollouts were likely caused by sparse gripper transition learning and closed-loop brittleness, not just lack of GPU capacity.
+Task-5 overfit success does not prove full LIBERO-Long success or memory superiority.
+```
+
+Active next run:
+
+```text
+Train full LIBERO corrected-H1 sliding-window for 20 epochs with transition sampling/loss enabled.
+Then run eval, offline diagnostics, and task 0/2/5 rollouts.
+If sane, run all 10 tasks.
+Then train corrected-H1 event-gated memory for the same 20-epoch protocol.
+```
+
+Active full-dataset corrected configs:
+
+```text
+configs/libero_long_sliding_window_corrected_h1.yaml
+  run_name: sliding_window_corrected_h1_transition20
+  checkpoint_dir: checkpoints/libero_long_corrected_transition20
+  epochs: 20
+  batch_size: 48
+  load_older_context: false
+  transition_sample_prob: 0.35
+  transition_sample_radius: 4
+  gripper_transition_loss_weight: 25.0
+
+configs/libero_long_event_gated_corrected_h1.yaml
+  run_name: event_gated_memory_corrected_h1_transition20
+  checkpoint_dir: checkpoints/libero_long_corrected_transition20
+  epochs: 20
+  batch_size: 48
+  transition_sample_prob: 0.35
+  transition_sample_radius: 4
+  gripper_transition_loss_weight: 25.0
+```

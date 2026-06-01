@@ -74,6 +74,10 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             action_normalize_dims=normalization_cfg.get("action_dims"),
             augment=bool(augment_cfg.get("enabled", False)) and split == data_cfg.get("split", "train"),
             image_normalization=data_cfg.get("image_normalization", normalization_cfg.get("images")),
+            load_older_context=bool(episode_cfg.get("load_older_context", True)),
+            task_filter=episode_cfg.get("task_filter"),
+            transition_sample_prob=float(episode_cfg.get("transition_sample_prob", 0.0)),
+            transition_sample_radius=int(episode_cfg.get("transition_sample_radius", 3)),
         )
         generator = torch.Generator()
         generator.manual_seed(int(config.get("seed", 42)))

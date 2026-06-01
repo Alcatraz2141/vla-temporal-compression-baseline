@@ -11,6 +11,8 @@ data:
     hdf5_glob: "**/*.hdf5"
     samples_per_epoch: 50000
     eval_windows_per_episode: 4
+    transition_sample_prob: 0.35
+    transition_sample_radius: 4
   split: train
   val_split: val
   image_size: 128
@@ -21,7 +23,7 @@ data:
   H_action: 1
   state_dim: null
   action_dim: null
-  num_workers: 4
+  num_workers: 8
   prefetch_factor: 2
   normalization:
     actions: true
@@ -32,7 +34,7 @@ data:
 
 model:
   baseline: event_gated_memory
-  run_name: event_gated_memory_corrected_h1
+  run_name: event_gated_memory_corrected_h1_transition20
   vision_encoder: resnet18
   pretrained_vision: true
   d_model: 256
@@ -51,8 +53,8 @@ memory:
   query_type: cross_attention
 
 training:
-  batch_size: 32
-  epochs: 10
+  batch_size: 48
+  epochs: 20
   max_steps_per_epoch: 50000
   lr: 1.0e-4
   optimizer: adamw
@@ -69,11 +71,12 @@ training:
   compile: false
   temporal_smoothness_weight: 0.0
   gripper_loss_weight: 5.0
+  gripper_transition_loss_weight: 25.0
   gripper_loss_type: bce_sign
   log_every: 500
-  checkpoint_dir: checkpoints/libero_long_corrected
+  checkpoint_dir: checkpoints/libero_long_corrected_transition20
   resume: null
 
 evaluation:
-  batch_size: 32
+  batch_size: 48
   results_path: results/baselines_corrected.csv

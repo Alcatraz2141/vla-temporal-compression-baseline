@@ -101,6 +101,61 @@ The simulator/action interface is basically wired because expert HDF5 replay suc
 
 Do not jump straight to broad memory sweeps or heavier architectures until the P0 diagnostics and baseline fixes are complete.
 
+## 2026-06-01 RunPod Update
+
+The first 24 GB RTX 4090 corrected-H1 pass found two practical issues:
+
+- the strict sliding-window model was still paying the cost to load/decode unused older image context;
+- rare gripper open/close transitions were too easy for the loss and offline metrics to miss.
+
+Implemented fixes:
+
+- `data.episode_loader.load_older_context: false` for sliding-window configs;
+- `task_filter` support for isolated task diagnostics;
+- `transition_sample_prob` / `transition_sample_radius` for sampling near expert gripper transitions;
+- `gripper_transition` batch targets;
+- `training.gripper_transition_loss_weight` for transition-weighted binary gripper loss;
+- `evaluation/rollout_alignment_checks.py` for demo-level rollout alignment checks.
+
+Diagnostic evidence:
+
+```text
+10-epoch full corrected sliding-window:
+  eval continuous_mse: 0.04247721564024687
+  eval continuous_mae: 0.1220744714140892
+  gripper_sign_accuracy: 0.9958333373069763
+  task-5 train-init rollout: 0/5
+  demo-0 gripper transition accuracy: 0.0
+
+20-epoch task-5 transition-aware overfit:
+  eval continuous_mse: 0.004982923693526134
+  eval continuous_mae: 0.04651936175797483
+  gripper_sign_accuracy: 0.9999000800313423
+  demo-0 gripper transition accuracy: 1.0
+  task-5 train split rollout: 5/5
+  task-5 val split rollout: 2/5
+  task-5 test split rollout: 5/5
+```
+
+Interpretation:
+
+```text
+The rollout stack is capable of success.
+The old 0% rollout result was not proof that LIBERO sim wiring or corrected-H1 training was hopeless.
+The immediate bottleneck was sparse, high-impact gripper transition behavior plus closed-loop brittleness.
+Full-dataset retraining is still required before comparing sliding-window against event-gated memory.
+```
+
+Current next experiment:
+
+```text
+1. Train full LIBERO corrected-H1 sliding-window for 20 epochs with transition sampling/loss enabled.
+2. Eval and run offline diagnostics.
+3. Roll out tasks 0, 2, and 5 first.
+4. If nonzero/stable, roll out all 10 tasks.
+5. Repeat the same budget and rollout protocol for corrected-H1 event-gated memory.
+```
+
 ## Priority Summary
 
 | Priority | Issue | Why It Matters | Local On M4 Pro? | Needs GPU For Final Evidence? |
@@ -413,15 +468,14 @@ These estimates are intentionally conservative. Prior A100 runs were much faster
 
 ## Recommended Execution Order
 
-1. P0/P1 local implementation is complete as of 2026-05-31.
-2. Local LIBERO inspection, smoke tests, action stats, tiny CUDA training, eval, and diagnostics have passed.
-3. Start a bounded RunPod run for `configs/libero_long_sliding_window_corrected_h1.yaml`.
-4. Use `--max-steps-per-epoch 2000` first if budget is tight, or `5000` if the pod is stable.
-5. Evaluate with `evaluation/eval.py` and `evaluation/offline_diagnostics.py`.
-6. If sliding-window improves, run `configs/libero_long_event_gated_corrected_h1.yaml` with the same step count.
-7. If both are stable, run task-5 training-init rollout before any held-out rollout.
-8. If reactive BC works, retrain memory variants fairly.
-9. If reactive BC still fails on training init, pause memory work and debug action/preprocessing/model capacity.
+1. P0/P1 implementation is complete and the 2026-06-01 task-5 diagnostic proved nonzero online success.
+2. Train `configs/libero_long_sliding_window_corrected_h1.yaml` for the configured 20 epochs.
+3. Evaluate with `evaluation/eval.py` and `evaluation/offline_diagnostics.py`.
+4. Run task 0/2/5 rollouts first, using split-aware init selection.
+5. If rollout behavior is nonzero and diagnostics are sane, run all 10 tasks.
+6. Train `configs/libero_long_event_gated_corrected_h1.yaml` for the same 20-epoch budget and rollout protocol.
+7. Compare sliding-window and event-gated only after both have the same corrected-H1 transition-aware treatment.
+8. If full-dataset sliding-window is still 0% despite task-5 overfit success, inspect videos and per-task transition timing before spending on memory sweeps.
 
 ## What Not To Do Yet
 
