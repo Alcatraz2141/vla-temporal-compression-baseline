@@ -1635,3 +1635,65 @@ configs/libero_long_event_gated_corrected_h1.yaml
   transition_sample_radius: 4
   gripper_transition_loss_weight: 25.0
 ```
+
+### 2026-06-01 Full-Dataset Sliding-Window Transition20 Result
+
+20-epoch corrected-H1 full-dataset sliding-window training completed.
+
+```text
+config: configs/libero_long_sliding_window_corrected_h1.yaml
+run_name: sliding_window_corrected_h1_transition20
+checkpoint_dir: checkpoints/libero_long_corrected_transition20/sliding_window_corrected_h1_transition20
+log: logs/sliding_window_corrected_h1_transition20.log
+best checkpoint: checkpoints/libero_long_corrected_transition20/sliding_window_corrected_h1_transition20/best.pt
+best epoch: 13
+best val_loss: 0.05925493258982897
+last epoch: 20
+last val_loss: 0.0677828005515039
+```
+
+Offline eval on `best.pt`:
+
+```text
+continuous_mse: 0.0438247038051486
+continuous_mae: 0.11593457460403442
+gripper_sign_accuracy: 0.9708333373069763
+results csv: results/baselines_corrected.csv
+```
+
+Offline diagnostics on `best.pt`:
+
+```text
+position_mse: 0.044834493841399405
+position_mae: 0.12560443930405504
+rotation_mse: 0.05637822325462167
+rotation_mae: 0.12436454308995355
+gripper_sign_accuracy: 0.965
+results csv: results/offline_diagnostics_transition20.csv
+```
+
+Quick train-init rollouts on tasks 0, 2, and 5:
+
+```text
+task 0 train split: 0/3
+task 2 train split: 0/3
+task 5 train split: 0/3
+```
+
+Rollout CSVs:
+
+```text
+results/libero_rollouts_sliding_window_corrected_h1_transition20_train_task0.csv
+results/libero_rollouts_sliding_window_corrected_h1_transition20_train_task2.csv
+results/libero_rollouts_sliding_window_corrected_h1_transition20_train_task5.csv
+```
+
+Interpretation:
+
+```text
+The task-5 overfit run proves the rollout stack and corrected-H1 action interface can succeed.
+The full-dataset sliding-window transition-aware run still does not produce robust train-init rollout success.
+This suggests the remaining issue is not just more epochs or transition weighting; the multitask sliding-window policy is likely under-capacity, under-conditioned, or too brittle under closed-loop compounding error.
+Do not claim sliding-window online success from this run.
+Before spending on a full event-gated run, inspect videos and consider whether event memory should be trained as the next comparison or whether full-dataset task-balanced/transition-balanced sampling needs strengthening first.
+```
