@@ -1845,3 +1845,84 @@ configs/libero_long_event_gated_corrected_h1.yaml
   transition_sample_radius: 4
   gripper_transition_loss_weight: 25.0
 ```
+
+## Current State as of 2026-06-02
+
+Local Mac diagnostics were run after pulling the June 1 RunPod artifacts from Hugging Face.
+
+Artifact source:
+
+```text
+HF dataset: Alcatraz1412/vla-run-backups
+archive: runpod_20260601/vla_run_artifacts_20260601_132848.tar.gz
+```
+
+Extracted locally:
+
+```text
+checkpoints/libero_long_corrected_transition20/sliding_window_corrected_h1_transition20/best.pt
+checkpoints/libero_long_corrected_task5/sliding_window_corrected_h1_task5_overfit/best.pt
+configs/libero_long_sliding_window_corrected_h1_task5_overfit.yaml
+results/offline_diagnostics_task5.csv
+results/offline_diagnostics_transition20.csv
+```
+
+Task-5 alignment comparison across demos `0,1,2,3,4,6,12,14,21,27,34,36,39,41,45`:
+
+```text
+full_transition20:
+  mean continuous MSE:        0.000643
+  mean continuous MAE:        0.014436
+  mean gripper accuracy:      0.994818
+  transition hits:            8/15
+  transition accuracy mean:   0.566667
+  near-transition accuracy:   0.861538
+
+task5_overfit:
+  mean continuous MSE:        0.000435
+  mean continuous MAE:        0.011628
+  mean gripper accuracy:      0.996526
+  transition hits:            12/15
+  transition accuracy mean:   0.800000
+  near-transition accuracy:   0.904762
+```
+
+Full validation per-task transition diagnostic for `sliding_window_corrected_h1_transition20`:
+
+```text
+results/per_task_transition_diagnostics_transition20_val.csv
+
+mean task continuous_mse:        0.000862
+mean task continuous_mae:        0.017611
+mean task gripper accuracy:      0.966178
+overall transition accuracy:     101/175 = 0.577143
+overall near-transition accuracy: 943/1216 = 0.775493
+```
+
+Weakest transition tasks:
+
+```text
+LIVING_ROOM_SCENE2_put_both_the_alphabet_soup_and_the_tomato_sauce_in_the_basket: 5/12 = 0.416667
+LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate: 8/18 = 0.444444
+LIVING_ROOM_SCENE1_put_both_the_alphabet_soup_and_the_cream_cheese_box_in_the_basket: 4/8 = 0.500000
+LIVING_ROOM_SCENE5_put_the_white_mug_on_the_left_plate_and_put_the_yellow_and_white_mug_on_the_right_plate: 7/14 = 0.500000
+```
+
+Interpretation:
+
+```text
+The full multitask model is strong on average continuous action prediction but unreliable at rare exact gripper transitions.
+Overall gripper sign accuracy is not enough because non-transition frames dominate.
+Task-5 overfit success proves the rollout stack and corrected-H1 interface can work.
+The project is not moving away from the memory paper idea; the reactive baseline must first execute basic grasp/release timing so memory comparisons are meaningful.
+```
+
+Recommended next work:
+
+```text
+1. Strengthen task-balanced plus transition-balanced sampling for full LIBERO.
+2. Track per-task transition accuracy as a primary training/eval gate.
+3. If transition accuracy stays weak, add stronger task conditioning such as task embedding into the action head, FiLM, task adapters, or lightweight task-specific heads.
+4. Train event-gated memory only after applying the same improved sampling/conditioning protocol to sliding-window.
+5. If improved sampling/conditioning still gives 0% rollout, pivot to ACT/action chunking before considering diffusion.
+```

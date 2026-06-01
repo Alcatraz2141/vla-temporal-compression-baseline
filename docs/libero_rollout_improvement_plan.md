@@ -156,6 +156,62 @@ Current next experiment:
 5. Repeat the same budget and rollout protocol for corrected-H1 event-gated memory.
 ```
 
+## 2026-06-02 Local Per-Task Diagnostic Update
+
+The 20-epoch full-dataset corrected-H1 sliding-window model was diagnosed locally on the Mac using the June 1 RunPod artifact.
+
+Artifact:
+
+```text
+runpod_20260601/vla_run_artifacts_20260601_132848.tar.gz
+checkpoint: checkpoints/libero_long_corrected_transition20/sliding_window_corrected_h1_transition20/best.pt
+comparison checkpoint: checkpoints/libero_long_corrected_task5/sliding_window_corrected_h1_task5_overfit/best.pt
+```
+
+Task-5 comparison across selected train/val/test demos:
+
+```text
+full_transition20:
+  mean continuous MSE:      0.000643
+  mean continuous MAE:      0.014436
+  transition hits:          8/15
+
+task5_overfit:
+  mean continuous MSE:      0.000435
+  mean continuous MAE:      0.011628
+  transition hits:          12/15
+```
+
+Full validation split per-task diagnostic:
+
+```text
+results/per_task_transition_diagnostics_transition20_val.csv
+
+mean task continuous_mse:        0.000862
+mean task continuous_mae:        0.017611
+mean task gripper accuracy:      0.966178
+overall transition accuracy:     101/175 = 0.577143
+overall near-transition accuracy: 943/1216 = 0.775493
+```
+
+Conclusion:
+
+```text
+Average action prediction is not the blocking issue anymore.
+The blocking issue is reliable rare transition timing across all tasks.
+Do not spend on a broad event-gated run until the reactive baseline uses stronger task-balanced and transition-balanced training, otherwise the memory comparison will be confounded by a weak controller.
+```
+
+Updated next experiment:
+
+```text
+1. Strengthen task-balanced plus transition-balanced sampling for full LIBERO.
+2. Use per-task exact transition accuracy as a first-class metric.
+3. If transition accuracy remains weak, add stronger task conditioning before memory comparisons.
+4. Train corrected-H1 event-gated memory only under the same improved protocol.
+5. If this still produces zero rollout success, pivot to ACT/action chunking.
+```
+
 ## Priority Summary
 
 | Priority | Issue | Why It Matters | Local On M4 Pro? | Needs GPU For Final Evidence? |
@@ -469,13 +525,13 @@ These estimates are intentionally conservative. Prior A100 runs were much faster
 ## Recommended Execution Order
 
 1. P0/P1 implementation is complete and the 2026-06-01 task-5 diagnostic proved nonzero online success.
-2. Train `configs/libero_long_sliding_window_corrected_h1.yaml` for the configured 20 epochs.
-3. Evaluate with `evaluation/eval.py` and `evaluation/offline_diagnostics.py`.
-4. Run task 0/2/5 rollouts first, using split-aware init selection.
-5. If rollout behavior is nonzero and diagnostics are sane, run all 10 tasks.
-6. Train `configs/libero_long_event_gated_corrected_h1.yaml` for the same 20-epoch budget and rollout protocol.
+2. The 2026-06-02 diagnostic showed full-dataset sliding-window still hits only `101/175` validation gripper transitions.
+3. Strengthen task-balanced plus transition-balanced sampling before another full comparison run.
+4. Evaluate with per-task transition accuracy, continuous MSE/MAE, and train-init rollouts.
+5. Add stronger task conditioning if transition accuracy remains weak.
+6. Train `configs/libero_long_event_gated_corrected_h1.yaml` only after the baseline uses the same improved protocol.
 7. Compare sliding-window and event-gated only after both have the same corrected-H1 transition-aware treatment.
-8. If full-dataset sliding-window is still 0% despite task-5 overfit success, inspect videos and per-task transition timing before spending on memory sweeps.
+8. If improved sliding-window is still 0% despite task-5 overfit success, pivot to ACT/action chunking before diffusion.
 
 ## What Not To Do Yet
 

@@ -187,6 +187,46 @@ This includes the optional SmolVLA/LeRobot external baseline path.
 
 ## Current LIBERO Handoff
 
+Latest local diagnostic update as of 2026-06-02:
+
+```text
+The June 1 RunPod artifact was downloaded from:
+runpod_20260601/vla_run_artifacts_20260601_132848.tar.gz
+
+Extracted locally:
+checkpoints/libero_long_corrected_transition20/sliding_window_corrected_h1_transition20/best.pt
+checkpoints/libero_long_corrected_task5/sliding_window_corrected_h1_task5_overfit/best.pt
+
+Per-task validation diagnostics for full_transition20:
+results/per_task_transition_diagnostics_transition20_val.csv
+
+Summary:
+- mean task continuous_mse:        0.000862
+- mean task continuous_mae:        0.017611
+- mean task gripper accuracy:      0.966178
+- overall transition accuracy:     101/175 = 0.577143
+- overall near-transition accuracy: 943/1216 = 0.775493
+
+Task-5 checkpoint comparison:
+- full_transition20 transition hits: 8/15
+- task5_overfit transition hits:     12/15
+
+Interpretation:
+- Average action prediction is strong, but exact gripper transition timing is still too weak.
+- Overall gripper accuracy is misleading because most frames are non-transition frames.
+- The baseline must learn reliable grasp/release timing before event-memory results are interpretable.
+```
+
+Current recommended next work:
+
+```text
+1. Strengthen full-dataset task-balanced plus transition-balanced sampling.
+2. Treat per-task transition accuracy as a primary gate.
+3. If transition accuracy remains weak, add stronger task conditioning.
+4. Train event-gated memory only after sliding-window uses the same improved protocol.
+5. If improved sampling/conditioning still gives 0% rollout, pivot to ACT/action chunking.
+```
+
 Latest RunPod corrected-H1 rollout update as of 2026-06-01:
 
 ```text

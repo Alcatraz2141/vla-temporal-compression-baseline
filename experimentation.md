@@ -1697,3 +1697,85 @@ This suggests the remaining issue is not just more epochs or transition weightin
 Do not claim sliding-window online success from this run.
 Before spending on a full event-gated run, inspect videos and consider whether event memory should be trained as the next comparison or whether full-dataset task-balanced/transition-balanced sampling needs strengthening first.
 ```
+
+## 2026-06-02 Local Per-Task Transition Diagnostics
+
+What ran locally on the Mac:
+
+```text
+Downloaded/extracted June 1 RunPod artifact from Hugging Face:
+runpod_20260601/vla_run_artifacts_20260601_132848.tar.gz
+
+Extracted needed checkpoints:
+checkpoints/libero_long_corrected_transition20/sliding_window_corrected_h1_transition20/best.pt
+checkpoints/libero_long_corrected_task5/sliding_window_corrected_h1_task5_overfit/best.pt
+
+Ran task-5 alignment probes and a full validation per-task transition diagnostic.
+```
+
+Task-5 comparison over demo indices `0,1,2,3,4,6,12,14,21,27,34,36,39,41,45`:
+
+```text
+full_transition20:
+  mean continuous MSE:        0.000643
+  mean continuous MAE:        0.014436
+  mean gripper accuracy:      0.994818
+  transition hits:            8/15
+  transition accuracy mean:   0.566667
+  near-transition accuracy:   0.861538
+
+task5_overfit:
+  mean continuous MSE:        0.000435
+  mean continuous MAE:        0.011628
+  mean gripper accuracy:      0.996526
+  transition hits:            12/15
+  transition accuracy mean:   0.800000
+  near-transition accuracy:   0.904762
+```
+
+Full `val` split per-task diagnostic for `sliding_window_corrected_h1_transition20`:
+
+```text
+results/per_task_transition_diagnostics_transition20_val.csv
+
+mean task continuous_mse:        0.000862
+mean task continuous_mae:        0.017611
+mean task gripper accuracy:      0.966178
+overall transition accuracy:     101/175 = 0.577143
+overall near-transition accuracy: 943/1216 = 0.775493
+```
+
+Per-task transition accuracy:
+
+```text
+KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it:                         16/26 = 0.615385
+KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it:  6/8   = 0.750000
+KITCHEN_SCENE6_put_the_yellow_and_white_mug_in_the_microwave_and_close_it:           8/12  = 0.666667
+KITCHEN_SCENE8_put_both_moka_pots_on_the_stove:                                      24/40 = 0.600000
+LIVING_ROOM_SCENE1_put_both_the_alphabet_soup_and_the_cream_cheese_box_in_the_basket: 4/8  = 0.500000
+LIVING_ROOM_SCENE2_put_both_the_alphabet_soup_and_the_tomato_sauce_in_the_basket:    5/12  = 0.416667
+LIVING_ROOM_SCENE2_put_both_the_cream_cheese_box_and_the_butter_in_the_basket:        20/32 = 0.625000
+LIVING_ROOM_SCENE5_put_the_white_mug_on_the_left_plate_and_put_the_yellow_and_white_mug_on_the_right_plate: 7/14 = 0.500000
+LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate: 8/18 = 0.444444
+STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy:     3/5   = 0.600000
+```
+
+Interpretation:
+
+```text
+The model is very good at average continuous action prediction, but this is not enough for closed-loop LIBERO success.
+The full multitask model misses too many rare exact gripper transition frames.
+Overall gripper sign accuracy is misleading because most frames are non-transition frames.
+Task-5 overfit succeeds because it improves both continuous precision and transition timing.
+The paper direction is not abandoned; the baseline must first execute basic grasp/release timing so memory comparisons are interpretable.
+```
+
+Recommended next options, in priority order:
+
+```text
+1. Implement or configure stronger task-balanced plus transition-balanced sampling for full LIBERO.
+2. Track transition accuracy per task as a primary gate, not just val_loss or overall gripper accuracy.
+3. If transition accuracy remains weak, add stronger task conditioning: task embedding into action head, FiLM, task adapters, or lightweight task-specific heads.
+4. Only train event-gated memory after the reactive baseline uses the improved task/transition protocol.
+5. If improved sampling and conditioning still produce 0% rollout, pivot to ACT/action chunking before diffusion.
+```
