@@ -1869,6 +1869,54 @@ Current ACT log:
 logs/act_chunked_corrected_h20_task_balanced_transition20_20260602.log
 ```
 
+ACT H20 training outcome:
+
+```text
+stopped after epoch 12 because validation degraded while train loss kept decreasing
+best epoch: 4
+best val_loss: 0.291931
+epoch 12 val_loss: 0.560341
+best checkpoint: checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt
+```
+
+ACT H20 offline eval on `best.pt`:
+
+```text
+mse: 28.234738758632115
+mae: 6.950144154684884
+continuous_mse: 0.3000641145876476
+continuous_mae: 0.38405559744153706
+gripper_sign_accuracy: 0.9214285697255816
+offline diagnostics first_action_mse_per_element: 2.0423375430099435
+offline diagnostics first_action_mae_per_element: 0.7068742666134079
+```
+
+ACT H20 task-5 train-init rollout with temporal ensembling:
+
+```text
+task 5: 0/3
+results: results/libero_rollouts_act_chunked_h20_task5.csv
+trace: results/rollout_trace_act_chunked_h20_task5_train3.csv
+videos: results/rollout_videos_act_chunked_h20_task5/
+```
+
+Trace comparison against the same task-5 demos:
+
+```text
+episode 0: first positive gripper action 11 steps late, 0.0216 m from expert grasp pose
+episode 1: first positive gripper action 8 steps early, 0.0366 m from expert grasp pose
+episode 2: first positive gripper action 9 steps late, 0.0445 m from expert grasp pose
+```
+
+Interpretation:
+
+```text
+ACT H20 substantially improved task-5 closed-loop grasp timing and grasp-pose error compared with sliding-window.
+It still failed success, so the remaining issue is likely final grasp/contact geometry, action calibration, or post-grasp/place behavior rather than gross timing.
+The current ACT config overfits quickly on validation; do not run more epochs without changing the setup.
+Next should inspect ACT task-5 videos, then try a smaller/regularized ACT run or task-5-focused ACT diagnostic before full multitask scaling.
+```
+
 Post-training gate:
 
 ```bash

@@ -1998,3 +1998,29 @@ bash libero_rollout_env/run_rollout.sh \
   --video-fps 20 \
   --results-path results/libero_rollouts_act_chunked_h20_task5.csv
 ```
+
+ACT H20 result:
+
+```text
+training stopped after epoch 12 due validation overfitting
+best epoch: 4
+best val_loss: 0.291931
+epoch 12 val_loss: 0.560341
+task 5 rollout with temporal ensembling: 0/3
+```
+
+ACT H20 trace comparison against task-5 demos:
+
+```text
+episode 0: first positive gripper action 11 steps late, 0.0216 m from expert grasp pose
+episode 1: first positive gripper action 8 steps early, 0.0366 m from expert grasp pose
+episode 2: first positive gripper action 9 steps late, 0.0445 m from expert grasp pose
+```
+
+Interpretation:
+
+```text
+ACT H20 greatly improved closed-loop grasp timing and pose error compared with sliding-window but still failed success.
+Do not rerun the same ACT config for more epochs.
+Next inspect ACT task-5 videos and run a smaller/regularized or task-5-focused ACT diagnostic before scaling ACT or adding event-gated memory.
+```

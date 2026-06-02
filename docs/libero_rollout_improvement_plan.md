@@ -612,3 +612,46 @@ Then port event-gated memory onto the chunked-action head for a fair memory comp
 If ACT H20 still misses the book similarly, inspect action scale/temporal ensembling and consider stronger task/object conditioning before diffusion.
 Do not spend more GPU on additional H=1 sliding-window epochs.
 ```
+
+### ACT H20 Result
+
+The ACT H20 run was stopped after epoch 12 because validation degraded while training loss kept decreasing:
+
+```text
+best epoch: 4
+best val_loss: 0.291931
+epoch 12 val_loss: 0.560341
+```
+
+Offline eval on `best.pt`:
+
+```text
+continuous_mse: 0.3000641145876476
+continuous_mae: 0.38405559744153706
+gripper_sign_accuracy: 0.9214285697255816
+first_action_mse_per_element: 2.0423375430099435
+first_action_mae_per_element: 0.7068742666134079
+```
+
+Task-5 train-init rollout with temporal ensembling:
+
+```text
+task 5: 0/3
+```
+
+Trace comparison against the same demos:
+
+```text
+episode 0: first positive gripper action 11 steps late, 0.0216 m from expert grasp pose
+episode 1: first positive gripper action 8 steps early, 0.0366 m from expert grasp pose
+episode 2: first positive gripper action 9 steps late, 0.0445 m from expert grasp pose
+```
+
+Updated interpretation:
+
+```text
+ACT H20 improved closed-loop timing and grasp-pose error a lot compared with sliding-window, but still got 0/3 success.
+The remaining failure is probably contact geometry/action calibration or later task execution, not gross gripper timing.
+Do not simply train ACT H20 longer; this config overfits validation quickly.
+Next inspect videos and run a smaller/regularized or task-5-focused ACT diagnostic before scaling ACT or adding memory.
+```
