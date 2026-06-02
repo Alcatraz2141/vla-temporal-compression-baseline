@@ -11,6 +11,7 @@ data:
     hdf5_glob: "**/*.hdf5"
     samples_per_epoch: 50000
     eval_windows_per_episode: 4
+    load_older_context: false
     task_sample_strategy: balanced_task
     transition_sample_prob: 0.6
     transition_sample_radius: 3
@@ -19,9 +20,9 @@ data:
   image_size: 128
   image_normalization: imagenet
   T_obs: 8
-  T_action: 1
+  T_action: 20
   K_recent: 8
-  H_action: 1
+  H_action: 20
   state_dim: null
   action_dim: null
   num_workers: 8
@@ -34,14 +35,15 @@ data:
     enabled: true
 
 model:
-  baseline: event_gated_memory
-  run_name: event_gated_memory_corrected_h1_task_balanced_transition20
+  baseline: act_chunked
+  run_name: act_chunked_corrected_h20_task_balanced_transition20
   vision_encoder: resnet18
   pretrained_vision: true
   d_model: 256
   n_layers: 4
   n_heads: 4
   dropout: 0.1
+  use_action_history: true
   use_language: true
   language_vocab_size: 1024
   state_hidden_dim: 128
@@ -51,10 +53,10 @@ memory:
   chunk_size: 4
   max_memory_tokens: 16
   gate_type: event
-  query_type: cross_attention
+  query_type: concat
 
 training:
-  batch_size: 48
+  batch_size: 32
   epochs: 20
   max_steps_per_epoch: 50000
   lr: 1.0e-4
@@ -75,9 +77,9 @@ training:
   gripper_transition_loss_weight: 25.0
   gripper_loss_type: bce_sign
   log_every: 500
-  checkpoint_dir: checkpoints/libero_long_corrected_task_balanced_transition20
+  checkpoint_dir: checkpoints/libero_long_corrected_act_chunked_h20
   resume: null
 
 evaluation:
-  batch_size: 48
+  batch_size: 32
   results_path: results/baselines_corrected.csv

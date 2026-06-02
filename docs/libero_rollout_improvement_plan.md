@@ -558,3 +558,57 @@ Stronger milestone:
 - Corrected `sliding_window` gets non-zero held-out success on an easier LIBERO suite.
 - Memory models are language-conditioned and normalized identically.
 - Corrected memory comparison is rerun only after the baseline controller is credible.
+
+## 2026-06-02 Update: ACT Chunking Is Now Active
+
+The task-balanced corrected-H1 sliding-window run completed and remained stable, but it did not solve online execution:
+
+```text
+run_name: sliding_window_corrected_h1_task_balanced_transition20
+best epoch: 19
+best val_loss: 0.056035
+continuous_mse: 0.04575852882117033
+continuous_mae: 0.12684144377708434
+gripper_sign_accuracy: 0.975000011920929
+exact transition accuracy: 104/175 = 0.594286
+train-init rollouts task 0/2/5: 0/3, 0/3, 0/3
+```
+
+Task-5 trace diagnostics showed closed-loop drift before grasp rather than a pure offline gripper-label failure:
+
+```text
+episode 0: first positive gripper action 31 steps late, 0.086 m from expert grasp pose
+episode 1: first positive gripper action 78 steps late, 0.139 m from expert grasp pose
+episode 2: first positive gripper action 68 steps late, 0.116 m from expert grasp pose
+```
+
+Implementation changes now in the repo:
+
+```text
+configs/libero_long_act_chunked_corrected_h20.yaml
+models/vla_baseline.py: act_chunked baseline
+evaluation/libero_rollout.py: --temporal-ensemble and --trace-path
+evaluation/compare_rollout_trace_to_demo.py
+evaluation/per_task_transition_diagnostics.py
+```
+
+Current active training:
+
+```bash
+uv run python train.py --config configs/libero_long_act_chunked_corrected_h20.yaml
+```
+
+Current log:
+
+```text
+logs/act_chunked_corrected_h20_task_balanced_transition20_20260602.log
+```
+
+Decision rule:
+
+```text
+If ACT H20 recovers task-5 train-init grasp or substantially reduces grasp-pose error, continue with ACT as the credible short-context baseline.
+Then port event-gated memory onto the chunked-action head for a fair memory comparison.
+If ACT H20 still misses the book similarly, inspect action scale/temporal ensembling and consider stronger task/object conditioning before diffusion.
+Do not spend more GPU on additional H=1 sliding-window epochs.
+```

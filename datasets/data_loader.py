@@ -76,6 +76,7 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             image_normalization=data_cfg.get("image_normalization", normalization_cfg.get("images")),
             load_older_context=bool(episode_cfg.get("load_older_context", True)),
             task_filter=episode_cfg.get("task_filter"),
+            task_sample_strategy=str(episode_cfg.get("task_sample_strategy", "uniform_episode")),
             transition_sample_prob=float(episode_cfg.get("transition_sample_prob", 0.0)),
             transition_sample_radius=int(episode_cfg.get("transition_sample_radius", 3)),
         )

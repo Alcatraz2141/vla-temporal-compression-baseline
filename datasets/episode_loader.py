@@ -127,6 +127,7 @@ class EpisodeDataset(Dataset):
         image_normalization: str | None = None,
         load_older_context: bool = True,
         task_filter: str | list[str] | None = None,
+        task_sample_strategy: str = "uniform_episode",
         transition_sample_prob: float = 0.0,
         transition_sample_radius: int = 3,
     ) -> None:
@@ -144,6 +145,7 @@ class EpisodeDataset(Dataset):
         self.image_size = int(image_size)
         self.load_older_context = bool(load_older_context)
         self.task_filter = self._normalize_task_filter(task_filter)
+        self.task_sample_strategy = str(task_sample_strategy)
         self.transition_sample_prob = float(transition_sample_prob)
         self.transition_sample_radius = max(int(transition_sample_radius), 0)
         self.action_stats = _read_json(Path(stats_path)) if stats_path else {}
@@ -167,6 +169,17 @@ class EpisodeDataset(Dataset):
             self.records = self.records[: int(max_episodes)]
         if not self.records:
             raise FileNotFoundError(f"No records for source={source}, split={split} in {self.split_dir}")
+        self.records_by_task = self._records_by_task(self.records)
+        self.task_names = sorted(self.records_by_task)
+        if self.task_sample_strategy not in {"uniform_episode", "balanced_task"}:
+            raise ValueError(
+                f"Unsupported task_sample_strategy={self.task_sample_strategy!r}. "
+                "Expected 'uniform_episode' or 'balanced_task'."
+            )
+        self._transition_cache: dict[str, np.ndarray] = {}
+        self.transition_records_by_task: dict[str, list[EpisodeRecord]] = {}
+        if self.split == "train" and self.transition_sample_prob > 0.0:
+            self._build_transition_record_index()
 
     def _make_transform(self, image_size: int, augment: bool, image_normalization: str | None) -> transforms.Compose:
         ops: list[Any] = [transforms.ToPILImage()]
@@ -205,6 +218,24 @@ class EpisodeDataset(Dataset):
             return True
         task = record.path.stem.removesuffix("_demo").lower()
         return any(wanted in task for wanted in self.task_filter)
+
+    def _task_name(self, record: EpisodeRecord) -> str:
+        return record.path.stem.removesuffix("_demo")
+
+    def _records_by_task(self, records: list[EpisodeRecord]) -> dict[str, list[EpisodeRecord]]:
+        out: dict[str, list[EpisodeRecord]] = {}
+        for record in records:
+            out.setdefault(self._task_name(record), []).append(record)
+        return out
+
+    def _build_transition_record_index(self) -> None:
+        for task_name, records in self.records_by_task.items():
+            transition_records = []
+            for record in records:
+                if len(self._transition_indices(record)) > 0:
+                    transition_records.append(record)
+            if transition_records:
+                self.transition_records_by_task[task_name] = transition_records
 
     def _discover_records(self) -> list[EpisodeRecord]:
         if self.source == "libero_long":
@@ -320,10 +351,40 @@ class EpisodeDataset(Dataset):
             return self.samples_per_epoch or len(self.records)
         return len(self.records) * self.eval_windows_per_episode
 
+    def _sample_train_record(self, rng: random.Random, transition_sample: bool) -> EpisodeRecord:
+        if self.task_sample_strategy == "balanced_task":
+            task_name = rng.choice(self.task_names)
+            if transition_sample and task_name in self.transition_records_by_task:
+                return rng.choice(self.transition_records_by_task[task_name])
+            return rng.choice(self.records_by_task[task_name])
+        if transition_sample and self.transition_records_by_task:
+            task_name = rng.choice(sorted(self.transition_records_by_task))
+            return rng.choice(self.transition_records_by_task[task_name])
+        return rng.choice(self.records)
+
+    def _transition_indices(self, record: EpisodeRecord, actions: np.ndarray | None = None) -> np.ndarray:
+        cached = self._transition_cache.get(record.episode_id)
+        if cached is not None:
+            return cached
+        if actions is None:
+            actions = self._load_actions(record)
+        action_sign = np.sign(np.asarray(actions[:, -1], dtype=np.float32))
+        transition_idx = np.flatnonzero(action_sign[1:] != action_sign[:-1]) + 1
+        self._transition_cache[record.episode_id] = transition_idx.astype(np.int64)
+        return self._transition_cache[record.episode_id]
+
+    def _load_actions(self, record: EpisodeRecord) -> np.ndarray:
+        if record.source == "libero_long":
+            with h5py.File(record.path, "r") as h5:
+                return np.asarray(h5[record.demo_key]["actions"]).astype(np.float32)
+        return np.load(record.path / "actions.npy").astype(np.float32)
+
     def __getitem__(self, idx: int) -> dict[str, Any]:
         rng = random.Random(self.seed + idx)
+        transition_sample = False
         if self.split == "train":
-            record = rng.choice(self.records)
+            transition_sample = self.transition_sample_prob > 0.0 and rng.random() < self.transition_sample_prob
+            record = self._sample_train_record(rng, transition_sample)
             eval_anchor = 0
         else:
             record = self.records[(idx // self.eval_windows_per_episode) % len(self.records)]
@@ -336,14 +397,18 @@ class EpisodeDataset(Dataset):
             raise ValueError(f"Episode too short after loading: {record.episode_id}")
         if self.split == "train":
             t = rng.randint(min_t, max_t)
-            if self.transition_sample_prob > 0.0 and rng.random() < self.transition_sample_prob:
-                action_sign = np.sign(np.asarray(episode["actions"][:, -1], dtype=np.float32))
-                transition_idx = np.flatnonzero(action_sign[1:] != action_sign[:-1]) + 1
-                if len(transition_idx) > 0:
-                    center = int(rng.choice(list(transition_idx)))
+            if transition_sample:
+                transition_idx = self._transition_indices(record, episode["actions"])
+                valid_transition_idx = transition_idx[
+                    (transition_idx + self.transition_sample_radius >= min_t)
+                    & (transition_idx - self.transition_sample_radius <= max_t)
+                ]
+                if len(valid_transition_idx) > 0:
+                    center = int(rng.choice(list(valid_transition_idx)))
                     lo = max(min_t, center - self.transition_sample_radius)
                     hi = min(max_t, center + self.transition_sample_radius)
-                    t = rng.randint(lo, hi)
+                    if lo <= hi:
+                        t = rng.randint(lo, hi)
         else:
             t = min_t + round((max_t - min_t) * eval_anchor / max(self.eval_windows_per_episode - 1, 1))
 

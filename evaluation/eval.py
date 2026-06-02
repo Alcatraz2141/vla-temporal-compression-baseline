@@ -152,7 +152,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate a trained VLA baseline checkpoint.")
     parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
     parser.add_argument("--checkpoint", type=Path, default=None)
-    parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "rt1_style", "octo", "event_gated_memory"], default=None)
+    parser.add_argument(
+        "--baseline",
+        choices=[
+            "sliding_window",
+            "no_temporal",
+            "larger_window",
+            "bc_resnet50",
+            "rt1_style",
+            "act_chunked",
+            "octo",
+            "event_gated_memory",
+        ],
+        default=None,
+    )
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--checkpoint-dir", type=Path, default=None)
     args = parser.parse_args()

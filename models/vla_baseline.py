@@ -222,6 +222,114 @@ class RT1StyleBaseline(nn.Module):
         return self.action_head(pooled).view(bsz, self.T_action, self.action_dim)
 
 
+class ACTChunkedBaseline(nn.Module):
+    """ACT-style chunked behavior cloning baseline with learned action queries."""
+
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int,
+        T_obs: int,
+        T_action: int,
+        d_model: int = 256,
+        n_layers: int = 4,
+        n_heads: int = 4,
+        dropout: float = 0.1,
+        pretrained_vision: bool = True,
+        vision_encoder: str = "resnet18",
+        state_hidden_dim: int = 128,
+        action_hidden_dim: int = 256,
+        use_action_history: bool = True,
+        use_language: bool = True,
+        language_vocab_size: int = 1024,
+    ) -> None:
+        super().__init__()
+        self.T_obs = T_obs
+        self.T_action = T_action
+        self.action_dim = action_dim
+        self.use_action_history = use_action_history
+        self.use_language = use_language
+        if vision_encoder != "resnet18":
+            raise ValueError("ACTChunkedBaseline currently supports vision_encoder=resnet18.")
+
+        self.vision, vision_dim = _build_resnet18(pretrained_vision)
+        self.vision_proj = nn.Linear(vision_dim, d_model)
+        self.state_encoder = nn.Sequential(
+            nn.Linear(state_dim, state_hidden_dim),
+            nn.ReLU(),
+            nn.Linear(state_hidden_dim, d_model),
+        )
+        if self.use_action_history:
+            self.action_encoder = nn.Sequential(nn.Linear(action_dim, d_model), nn.GELU(), nn.Linear(d_model, d_model))
+        else:
+            self.action_encoder = None
+        self.language_embedding = nn.Embedding(language_vocab_size, d_model) if self.use_language else None
+        self.context_fusion = nn.Linear(d_model * (3 if self.use_action_history else 2), d_model)
+        self.context_pos_embedding = nn.Parameter(torch.zeros(1, T_obs, d_model))
+        self.query_embedding = nn.Parameter(torch.randn(1, T_action, d_model) * 0.02)
+        self.query_pos_embedding = nn.Parameter(torch.zeros(1, T_action, d_model))
+        self.query_type_embedding = nn.Parameter(torch.zeros(1, 1, d_model))
+
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=n_heads,
+            dim_feedforward=d_model * 4,
+            dropout=dropout,
+            batch_first=True,
+            activation="gelu",
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
+        decoder_layer = nn.TransformerDecoderLayer(
+            d_model=d_model,
+            nhead=n_heads,
+            dim_feedforward=d_model * 4,
+            dropout=dropout,
+            batch_first=True,
+            activation="gelu",
+        )
+        self.decoder = nn.TransformerDecoder(decoder_layer, num_layers=n_layers)
+        self.action_head = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Linear(d_model, action_hidden_dim),
+            nn.GELU(),
+            nn.Linear(action_hidden_dim, action_dim),
+        )
+
+    def forward(
+        self,
+        images: torch.Tensor,
+        states: torch.Tensor,
+        actions: torch.Tensor | None = None,
+        language_ids: torch.Tensor | None = None,
+        **_: Any,
+    ) -> torch.Tensor:
+        bsz, timesteps, channels, height, width = images.shape
+        flat_images = images.view(bsz * timesteps, channels, height, width)
+        if flat_images.is_cuda:
+            flat_images = flat_images.contiguous(memory_format=torch.channels_last)
+        vision_tokens = self.vision_proj(self.vision(flat_images)).view(bsz, timesteps, -1)
+        state_tokens = self.state_encoder(states)
+        pieces = [vision_tokens, state_tokens]
+        if self.use_action_history:
+            if actions is None:
+                actions = torch.zeros(bsz, timesteps, self.action_dim, dtype=states.dtype, device=states.device)
+            pieces.append(self.action_encoder(actions))
+
+        context = self.context_fusion(torch.cat(pieces, dim=-1))
+        if self.language_embedding is not None:
+            if language_ids is None:
+                language_ids = torch.zeros(bsz, dtype=torch.long, device=states.device)
+            context = context + self.language_embedding(language_ids).unsqueeze(1)
+        context = context + self.context_pos_embedding[:, :timesteps]
+        memory = self.encoder(context)
+
+        queries = self.query_embedding.expand(bsz, -1, -1) + self.query_pos_embedding + self.query_type_embedding
+        if self.language_embedding is not None:
+            queries = queries + self.language_embedding(language_ids).unsqueeze(1)
+        decoded = self.decoder(queries, memory)
+        return self.action_head(decoded)
+
+
 class EventGatedMemoryVLA(nn.Module):
     """Long-horizon policy with cheap event-gated summaries over older context."""
 
@@ -462,6 +570,24 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
             dropout=float(model_cfg.get("dropout", 0.1)),
             pretrained_vision=bool(model_cfg.get("pretrained_vision", True)),
             action_hidden_dim=int(model_cfg.get("action_hidden_dim", 256)),
+        )
+    if baseline == "act_chunked":
+        return ACTChunkedBaseline(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            T_obs=T_obs,
+            T_action=T_action,
+            d_model=int(model_cfg.get("d_model", 256)),
+            n_layers=int(model_cfg.get("n_layers", 4)),
+            n_heads=int(model_cfg.get("n_heads", 4)),
+            dropout=float(model_cfg.get("dropout", 0.1)),
+            pretrained_vision=bool(model_cfg.get("pretrained_vision", True)),
+            vision_encoder=model_cfg.get("vision_encoder", "resnet18"),
+            state_hidden_dim=int(model_cfg.get("state_hidden_dim", 128)),
+            action_hidden_dim=int(model_cfg.get("action_hidden_dim", 256)),
+            use_action_history=bool(model_cfg.get("use_action_history", True)),
+            use_language=bool(model_cfg.get("use_language", True)),
+            language_vocab_size=int(model_cfg.get("language_vocab_size", 1024)),
         )
     if baseline == "event_gated_memory":
         memory_cfg = config.get("memory", {})

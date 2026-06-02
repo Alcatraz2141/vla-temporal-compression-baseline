@@ -236,7 +236,20 @@ def validate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the PyTorch VLA baseline.")
     parser.add_argument("--config", type=Path, default=Path("configs/default.yaml"))
-    parser.add_argument("--baseline", choices=["sliding_window", "no_temporal", "larger_window", "bc_resnet50", "rt1_style", "octo", "event_gated_memory"], default=None)
+    parser.add_argument(
+        "--baseline",
+        choices=[
+            "sliding_window",
+            "no_temporal",
+            "larger_window",
+            "bc_resnet50",
+            "rt1_style",
+            "act_chunked",
+            "octo",
+            "event_gated_memory",
+        ],
+        default=None,
+    )
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--checkpoint-dir", type=Path, default=None)
     parser.add_argument("--epochs", type=int, default=None)

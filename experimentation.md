@@ -1779,3 +1779,113 @@ Recommended next options, in priority order:
 4. Only train event-gated memory after the reactive baseline uses the improved task/transition protocol.
 5. If improved sampling and conditioning still produce 0% rollout, pivot to ACT/action chunking before diffusion.
 ```
+
+## 2026-06-02 RunPod Task-Balanced Sliding Window And ACT Pivot
+
+Task-balanced corrected-H1 sliding-window training was run on RunPod:
+
+```bash
+uv run python train.py --config configs/libero_long_sliding_window_corrected_h1.yaml
+```
+
+Run artifacts:
+
+```text
+checkpoint: checkpoints/libero_long_corrected_task_balanced_transition20/sliding_window_corrected_h1_task_balanced_transition20/best.pt
+training log: logs/sliding_window_corrected_h1_task_balanced_transition20_20260602.log
+offline diagnostics: results/offline_diagnostics_task_balanced_transition20.csv
+per-task transition diagnostics: results/per_task_transition_diagnostics_task_balanced_transition20_val.csv
+```
+
+Training was stable and completed 20 epochs:
+
+```text
+best epoch: 19
+best val_loss: 0.056035
+final epoch val_loss: 0.056231
+```
+
+Offline metrics:
+
+```text
+continuous_mse: 0.04575852882117033
+continuous_mae: 0.12684144377708434
+gripper_sign_accuracy: 0.975000011920929
+exact transition accuracy: 104/175 = 0.594286
+near-transition accuracy: 939/1216 = 0.772204
+```
+
+Train-init rollouts:
+
+```text
+task 0: 0/3
+task 2: 0/3
+task 5: 0/3
+```
+
+Task-5 rollout trace comparison showed that the model learned gripper timing on expert frames but fails under closed-loop drift:
+
+```text
+task 5 episode 0: first positive gripper action 31 steps late, 0.086 m from expert grasp pose
+task 5 episode 1: first positive gripper action 78 steps late, 0.139 m from expert grasp pose
+task 5 episode 2: first positive gripper action 68 steps late, 0.116 m from expert grasp pose
+```
+
+Interpretation:
+
+```text
+More epochs are not the right next move.
+The full sliding-window policy is not just missing rare gripper labels; it is accumulating closed-loop pose error before the grasp.
+The failure mode is consistent with reactive H=1 behavior cloning covariate shift.
+The next controlled baseline is ACT/action chunking with temporal ensembling, before diffusion and before event-gated memory retraining.
+```
+
+Implemented ACT/action chunking:
+
+```text
+model baseline: act_chunked
+config: configs/libero_long_act_chunked_corrected_h20.yaml
+chunk horizon: H_action=20
+rollout temporal ensembling flag: --temporal-ensemble
+trace flag: --trace-path
+```
+
+A dataloader boundary bug was fixed for long action chunks:
+
+```text
+When transition sampling with H_action=20, transition anchors near the end of an episode can produce an invalid timestep range.
+The loader now filters transition anchors so the transition sampling window intersects valid target starts.
+```
+
+Current ACT training command:
+
+```bash
+uv run python train.py --config configs/libero_long_act_chunked_corrected_h20.yaml
+```
+
+Current ACT log:
+
+```text
+logs/act_chunked_corrected_h20_task_balanced_transition20_20260602.log
+```
+
+Post-training gate:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_act_chunked_corrected_h20.yaml \
+  --checkpoint checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_act_chunked_corrected_h20.yaml \
+  checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt \
+  --tasks 5 \
+  --episodes-per-task 3 \
+  --max-steps 300 \
+  --split-file splits/libero_long_train.txt \
+  --temporal-ensemble \
+  --video-dir results/rollout_videos_act_chunked_h20_task5 \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_act_chunked_h20_task5.csv
+```

@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from collections import deque
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -343,9 +344,12 @@ def main() -> None:
     parser.add_argument("--clip-action", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--discrete-gripper", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--execute-horizon", type=int, default=1, help="Number of predicted chunk actions to execute before replanning.")
+    parser.add_argument("--temporal-ensemble", action="store_true", help="Average overlapping predicted action chunks, favoring recent predictions.")
+    parser.add_argument("--temporal-ensemble-decay", type=float, default=0.3)
     parser.add_argument("--video-dir", type=Path, default=None, help="Optional directory for rollout MP4 videos.")
     parser.add_argument("--video-fps", type=int, default=20)
     parser.add_argument("--video-every", type=int, default=1, help="Record every N simulator steps when --video-dir is set.")
+    parser.add_argument("--trace-path", type=Path, default=None, help="Optional CSV path for per-step rollout state/action traces.")
     parser.add_argument("--dry-run-selection", action="store_true", help="Print split-selected demo indices and exit before importing LIBERO.")
     args = parser.parse_args()
 
@@ -422,6 +426,7 @@ def main() -> None:
                 frames: list[np.ndarray] = []
                 if args.video_dir is not None:
                     frames.append(obs_to_image(obs, args.camera_key))
+                ensemble_actions: dict[int, list[tuple[int, np.ndarray]]] = defaultdict(list)
                 while steps < args.max_steps and not success:
                     action_chunk = predict_chunk(
                         model,
@@ -433,11 +438,49 @@ def main() -> None:
                         image_normalization,
                         language=task.name,
                     )
-                    for action in action_chunk[: max(int(args.execute_horizon), 1)]:
+                    if args.temporal_ensemble:
+                        for offset, predicted_action in enumerate(action_chunk):
+                            ensemble_actions[steps + offset].append((steps, predicted_action.copy()))
+                        candidates = ensemble_actions.pop(steps, [(steps, action_chunk[0])])
+                        weights = np.asarray(
+                            [np.exp(-float(args.temporal_ensemble_decay) * max(steps - source_step, 0)) for source_step, _ in candidates],
+                            dtype=np.float32,
+                        )
+                        stacked_actions = np.stack([candidate_action for _, candidate_action in candidates], axis=0)
+                        action_sequence = [(stacked_actions * weights[:, None]).sum(axis=0) / weights.sum().clip(min=1e-6)]
+                        if args.clip_action:
+                            action_sequence[0] = np.clip(action_sequence[0], -1.0, 1.0)
+                        if args.discrete_gripper and action_sequence[0].shape[-1] >= 7:
+                            action_sequence[0][-1] = 1.0 if action_sequence[0][-1] >= 0.0 else -1.0
+                    else:
+                        action_sequence = list(action_chunk[: max(int(args.execute_horizon), 1)])
+                    for action in action_sequence:
+                        pre_state = obs_to_state(obs)
                         obs, reward, done, _info = env.step(action)
+                        post_state = obs_to_state(obs)
                         total_reward += float(reward)
                         steps += 1
                         success = success or bool(reward > 0.0)
+                        if args.trace_path is not None:
+                            trace_row = {
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "suite": args.suite,
+                                "run_name": run_name,
+                                "seed": args.seed,
+                                "task_id": task_id,
+                                "task_name": task.name,
+                                "episode_idx": episode_idx,
+                                "step": steps - 1,
+                                "reward": float(reward),
+                                "success": int(success),
+                            }
+                            for dim, value in enumerate(pre_state):
+                                trace_row[f"pre_state_{dim}"] = float(value)
+                            for dim, value in enumerate(post_state):
+                                trace_row[f"post_state_{dim}"] = float(value)
+                            for dim, value in enumerate(action):
+                                trace_row[f"action_{dim}"] = float(value)
+                            append_csv(args.trace_path, trace_row)
                         if args.video_dir is not None and steps % max(args.video_every, 1) == 0:
                             frames.append(obs_to_image(obs, args.camera_key))
                         history.append(obs_to_image(obs, args.camera_key), obs_to_state(obs), action)

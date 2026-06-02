@@ -1926,3 +1926,75 @@ Recommended next work:
 4. Train event-gated memory only after applying the same improved sampling/conditioning protocol to sliding-window.
 5. If improved sampling/conditioning still gives 0% rollout, pivot to ACT/action chunking before considering diffusion.
 ```
+
+## Current ACT Chunking Phase As Of 2026-06-02
+
+The corrected H1 task-balanced sliding-window run completed, but online rollouts stayed at zero success:
+
+```text
+run_name: sliding_window_corrected_h1_task_balanced_transition20
+best epoch: 19
+best val_loss: 0.056035
+continuous_mse: 0.04575852882117033
+continuous_mae: 0.12684144377708434
+gripper_sign_accuracy: 0.975000011920929
+exact transition accuracy: 104/175 = 0.594286
+task 0 train-init rollout: 0/3
+task 2 train-init rollout: 0/3
+task 5 train-init rollout: 0/3
+```
+
+Task-5 trace diagnostics show closed-loop drift before grasp:
+
+```text
+episode 0: first positive gripper action 31 steps late, 0.086 m from expert grasp pose
+episode 1: first positive gripper action 78 steps late, 0.139 m from expert grasp pose
+episode 2: first positive gripper action 68 steps late, 0.116 m from expert grasp pose
+```
+
+Do not spend more GPU on extra H1 sliding-window epochs for this phase. The active next baseline is ACT/action chunking before diffusion and before event-gated-memory retraining.
+
+Implemented ACT files:
+
+```text
+configs/libero_long_act_chunked_corrected_h20.yaml
+models/vla_baseline.py -> baseline: act_chunked
+evaluation/libero_rollout.py -> --temporal-ensemble and --trace-path
+evaluation/compare_rollout_trace_to_demo.py
+evaluation/per_task_transition_diagnostics.py
+```
+
+Current training command:
+
+```bash
+uv run python train.py --config configs/libero_long_act_chunked_corrected_h20.yaml
+```
+
+Current log:
+
+```text
+logs/act_chunked_corrected_h20_task_balanced_transition20_20260602.log
+```
+
+The first ACT launch exposed a dataloader transition-sampling bug for long chunks. `datasets/episode_loader.py` now filters transition anchors so the sampling window intersects valid target starts for `H_action=20`.
+
+After ACT training completes, evaluate and run task-5 rollout:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_act_chunked_corrected_h20.yaml \
+  --checkpoint checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_act_chunked_corrected_h20.yaml \
+  checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt \
+  --tasks 5 \
+  --episodes-per-task 3 \
+  --max-steps 300 \
+  --split-file splits/libero_long_train.txt \
+  --temporal-ensemble \
+  --video-dir results/rollout_videos_act_chunked_h20_task5 \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_act_chunked_h20_task5.csv
+```

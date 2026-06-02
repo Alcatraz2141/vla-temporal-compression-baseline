@@ -375,3 +375,38 @@ Before stopping a non-persistent pod:
 bash scripts/backup_run_artifacts.sh /workspace/run_backups
 uv run huggingface-cli upload Alcatraz1412/vla-run-backups /workspace/run_backups --repo-type dataset
 ```
+
+## Current Run: ACT H20 Corrected LIBERO
+
+As of 2026-06-02, the corrected H1 task-balanced sliding-window baseline is stable offline but still fails train-init rollouts on tasks 0/2/5. The active next baseline is ACT/action chunking, not more H1 epochs.
+
+```bash
+uv run python train.py --config configs/libero_long_act_chunked_corrected_h20.yaml
+```
+
+Log:
+
+```text
+logs/act_chunked_corrected_h20_task_balanced_transition20_20260602.log
+```
+
+After training:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/libero_long_act_chunked_corrected_h20.yaml \
+  --checkpoint checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_act_chunked_corrected_h20.yaml \
+  checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt \
+  --tasks 5 \
+  --episodes-per-task 3 \
+  --max-steps 300 \
+  --split-file splits/libero_long_train.txt \
+  --temporal-ensemble \
+  --video-dir results/rollout_videos_act_chunked_h20_task5 \
+  --video-every 1 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_act_chunked_h20_task5.csv
+```
