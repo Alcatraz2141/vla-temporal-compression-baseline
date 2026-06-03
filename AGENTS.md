@@ -2097,3 +2097,66 @@ configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml
 resume source: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_overfit/last.pt
 goal: extend from epoch 20 to epoch 40 and test whether task-5 train-init rollout can move from 1/3 to 3/3
 ```
+
+## 2026-06-03 ACT Task-5 Placement Diagnostics
+
+The epoch-40 task-5 ACT continuation improved offline continuous action error but did not improve closed-loop consistency.
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_consistency40/best.pt
+offline continuous_mse: 0.027569980311393738
+offline continuous_mae: 0.12052609633207322
+gripper_sign_accuracy: 0.9987725071907043
+task-5 train-init rollout: 1/3
+```
+
+The state-action/proprio-only ACT diagnostic was added to test whether robot proprio and action history were enough without vision.
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_state_action.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_state_action/best.pt
+offline continuous_mse: 0.11776154580116271
+offline continuous_mae: 0.24411540160179138
+gripper_sign_accuracy: 0.9767350002288818
+task-5 train-init rollout: 0/3
+```
+
+Interpretation:
+
+```text
+Proprio/action history alone is worse than vision ACT.
+Vision is helping, but the current ACT policy is not robust enough in placement.
+The failure is not explained by a missing rollout dependency or pure current-state/proprio control.
+```
+
+No-training expert-prefix handoff diagnostics were added to `evaluation/libero_rollout.py` with `--expert-prefix-steps`.
+They replay matching demonstration actions from the selected train-split HDF5 demo, update the online history, then hand control to ACT.
+
+```text
+normal ACT task-5 consistency40: 1/3
+expert prefix 90:  1/3
+expert prefix 130: 2/3
+expert prefix 160: 1/3
+```
+
+Result files:
+
+```text
+results/libero_rollouts_act_chunked_h20_task5_prefix90.csv
+results/libero_rollouts_act_chunked_h20_task5_prefix130.csv
+results/libero_rollouts_act_chunked_h20_task5_prefix160.csv
+results/rollout_trace_act_chunked_h20_task5_prefix90.csv
+results/rollout_trace_act_chunked_h20_task5_prefix130.csv
+results/rollout_trace_act_chunked_h20_task5_prefix160.csv
+```
+
+Current conclusion:
+
+```text
+The videos and handoff diagnostic agree: task 5 is failing mainly around placement/caddy insertion and recovery.
+Prefix 130 helps because it hands off near the useful placement approach state.
+Prefix 160 is not reliably better, so final contact/release behavior is also fragile.
+Do not spend the next run on event memory or generic longer training.
+The next useful work is a placement-focused controller/model change: phase-conditioned ACT, placement-window oversampling/loss, or a separate placement/refinement head.
+```

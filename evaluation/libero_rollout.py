@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import glob
 import json
 import os
 import sys
@@ -335,6 +336,37 @@ def selected_episode_indices(
     return indices[:episodes_per_task]
 
 
+def find_libero_hdf5(data_root: Path, task_name: str) -> Path:
+    candidates = [
+        data_root / "libero_10" / f"{task_name}_demo.hdf5",
+        data_root / f"{task_name}_demo.hdf5",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    matches = [Path(path) for path in glob.glob(str(data_root / "**" / f"{task_name}_demo.hdf5"), recursive=True)]
+    if matches:
+        return matches[0]
+    raise FileNotFoundError(f"Could not find HDF5 demo file for task {task_name!r} under {data_root}.")
+
+
+def load_expert_actions(data_root: Path, task_name: str, episode_idx: int, action_dim: int) -> np.ndarray:
+    try:
+        import h5py
+    except ImportError as exc:
+        raise RuntimeError("Expert-prefix diagnostics require h5py in the rollout environment.") from exc
+
+    hdf5_path = find_libero_hdf5(data_root, task_name)
+    demo_key = f"data/demo_{episode_idx}"
+    with h5py.File(hdf5_path, "r") as h5:
+        if demo_key not in h5:
+            raise KeyError(f"{demo_key} not found in {hdf5_path}.")
+        actions = np.asarray(h5[demo_key]["actions"], dtype=np.float32)
+    if actions.ndim != 2 or actions.shape[-1] != action_dim:
+        raise ValueError(f"Expected expert actions [T,{action_dim}] in {hdf5_path}:{demo_key}, got {actions.shape}.")
+    return actions
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run trained PyTorch policies in the official LIBERO simulator.")
     parser.add_argument("--config", type=Path, required=True)
@@ -362,6 +394,18 @@ def main() -> None:
     parser.add_argument("--video-fps", type=int, default=20)
     parser.add_argument("--video-every", type=int, default=1, help="Record every N simulator steps when --video-dir is set.")
     parser.add_argument("--trace-path", type=Path, default=None, help="Optional CSV path for per-step rollout state/action traces.")
+    parser.add_argument(
+        "--expert-prefix-steps",
+        type=int,
+        default=0,
+        help="Execute this many matching demonstration actions before handing control to the policy.",
+    )
+    parser.add_argument(
+        "--expert-data-root",
+        type=Path,
+        default=None,
+        help="LIBERO HDF5 root for --expert-prefix-steps. Defaults to data.episode_loader.root from the config.",
+    )
     parser.add_argument("--dry-run-selection", action="store_true", help="Print split-selected demo indices and exit before importing LIBERO.")
     args = parser.parse_args()
 
@@ -409,6 +453,7 @@ def main() -> None:
     k_recent = int(cfg["data"].get("K_recent", cfg["data"].get("T_obs", 8)))
     older_len = int(cfg.get("memory", {}).get("chunk_size", 4)) * int(cfg.get("memory", {}).get("max_memory_tokens", 16))
     run_name = cfg["model"].get("run_name", cfg["model"].get("baseline", "policy"))
+    expert_data_root = args.expert_data_root or Path(cfg.get("data", {}).get("episode_loader", {}).get("root", "data/libero_long"))
     successes = 0
     episodes = 0
 
@@ -423,6 +468,9 @@ def main() -> None:
             if args.split_file is not None and not episode_indices:
                 print(f"No init states from {args.split_file} matched task {task_id}: {task.name}", flush=True)
             for episode_idx in episode_indices:
+                expert_actions = None
+                if args.expert_prefix_steps > 0:
+                    expert_actions = load_expert_actions(expert_data_root, task.name, episode_idx, action_dim)
                 obs = env.reset()
                 obs = env.set_init_state(init_states[episode_idx])
                 history = OnlineHistory(
@@ -440,33 +488,40 @@ def main() -> None:
                     frames.append(obs_to_image(obs, args.camera_key))
                 ensemble_actions: dict[int, list[tuple[int, np.ndarray]]] = defaultdict(list)
                 while steps < args.max_steps and not success:
-                    action_chunk = predict_chunk(
-                        model,
-                        history,
-                        device,
-                        args.clip_action,
-                        args.discrete_gripper,
-                        action_stats,
-                        image_normalization,
-                        language=task.name,
-                    )
-                    if args.temporal_ensemble:
-                        for offset, predicted_action in enumerate(action_chunk):
-                            ensemble_actions[steps + offset].append((steps, predicted_action.copy()))
-                        candidates = ensemble_actions.pop(steps, [(steps, action_chunk[0])])
-                        weights = np.asarray(
-                            [np.exp(-float(args.temporal_ensemble_decay) * max(steps - source_step, 0)) for source_step, _ in candidates],
-                            dtype=np.float32,
-                        )
-                        stacked_actions = np.stack([candidate_action for _, candidate_action in candidates], axis=0)
-                        action_sequence = [(stacked_actions * weights[:, None]).sum(axis=0) / weights.sum().clip(min=1e-6)]
-                        if args.clip_action:
-                            action_sequence[0] = np.clip(action_sequence[0], -1.0, 1.0)
-                        if args.discrete_gripper and action_sequence[0].shape[-1] >= 7:
-                            action_sequence[0][-1] = 1.0 if action_sequence[0][-1] >= 0.0 else -1.0
+                    controller = "policy"
+                    if expert_actions is not None and steps < args.expert_prefix_steps and steps < len(expert_actions):
+                        controller = "expert_prefix"
+                        action_sequence = [expert_actions[steps].copy()]
                     else:
-                        action_sequence = list(action_chunk[: max(int(args.execute_horizon), 1)])
+                        action_chunk = predict_chunk(
+                            model,
+                            history,
+                            device,
+                            args.clip_action,
+                            args.discrete_gripper,
+                            action_stats,
+                            image_normalization,
+                            language=task.name,
+                        )
+                        if args.temporal_ensemble:
+                            for offset, predicted_action in enumerate(action_chunk):
+                                ensemble_actions[steps + offset].append((steps, predicted_action.copy()))
+                            candidates = ensemble_actions.pop(steps, [(steps, action_chunk[0])])
+                            weights = np.asarray(
+                                [np.exp(-float(args.temporal_ensemble_decay) * max(steps - source_step, 0)) for source_step, _ in candidates],
+                                dtype=np.float32,
+                            )
+                            stacked_actions = np.stack([candidate_action for _, candidate_action in candidates], axis=0)
+                            action_sequence = [(stacked_actions * weights[:, None]).sum(axis=0) / weights.sum().clip(min=1e-6)]
+                            if args.clip_action:
+                                action_sequence[0] = np.clip(action_sequence[0], -1.0, 1.0)
+                            if args.discrete_gripper and action_sequence[0].shape[-1] >= 7:
+                                action_sequence[0][-1] = 1.0 if action_sequence[0][-1] >= 0.0 else -1.0
+                        else:
+                            action_sequence = list(action_chunk[: max(int(args.execute_horizon), 1)])
                     for action in action_sequence:
+                        if expert_actions is not None and steps >= args.expert_prefix_steps:
+                            controller = "policy"
                         pre_state = obs_to_state(obs)
                         obs, reward, done, _info = env.step(action)
                         post_state = obs_to_state(obs)
@@ -485,6 +540,8 @@ def main() -> None:
                                 "step": steps - 1,
                                 "reward": float(reward),
                                 "success": int(success),
+                                "controller": controller,
+                                "expert_prefix_steps": args.expert_prefix_steps,
                             }
                             for dim, value in enumerate(pre_state):
                                 trace_row[f"pre_state_{dim}"] = float(value)
@@ -520,6 +577,7 @@ def main() -> None:
                     "total_reward": total_reward,
                     "steps": steps,
                     "max_steps": args.max_steps,
+                    "expert_prefix_steps": args.expert_prefix_steps,
                     "video_path": video_path,
                 }
                 append_csv(args.results_path, row)

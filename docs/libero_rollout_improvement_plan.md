@@ -698,4 +698,63 @@ Resume the task-5 ACT run from epoch 20 to epoch 40 in a new run directory.
 Use the epoch-20 last checkpoint as the resume source.
 Keep the model/task setup fixed and treat this as a consistency continuation, not a fresh architecture sweep.
 ```
+
+### 2026-06-03 Placement Diagnostic Update
+
+The epoch-40 consistency continuation completed but stayed at `1/3` task-5 train-init success:
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_consistency40/best.pt
+continuous_mse: 0.027569980311393738
+continuous_mae: 0.12052609633207322
+gripper_sign_accuracy: 0.9987725071907043
+rollout: 1/3
+```
+
+The state-action/proprio-only diagnostic did worse:
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_state_action.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_state_action/best.pt
+continuous_mse: 0.11776154580116271
+continuous_mae: 0.24411540160179138
+gripper_sign_accuracy: 0.9767350002288818
+rollout: 0/3
+```
+
+Expert-prefix handoff was added to `evaluation/libero_rollout.py`:
+
+```text
+--expert-prefix-steps N
+```
+
+This replays the matching HDF5 demo actions for `N` simulator steps, appends them to online history, then hands off to the trained ACT policy.
+
+Handoff results on task 5 train demos `[0, 1, 2]`:
+
+```text
+normal ACT task-5 consistency40: 1/3
+expert prefix 90:  1/3
+expert prefix 130: 2/3
+expert prefix 160: 1/3
+```
+
+Interpretation:
+
+```text
+The current failure is placement/caddy insertion and recovery.
+Expert early motion alone does not solve it.
+Handoff around step 130 helps, so reaching the right placement approach state matters.
+Late handoff is still fragile, so final contact/release also needs better modeling.
+```
+
+Next recommended experiment:
+
+```text
+Do not train event memory next.
+Do not run generic longer ACT training next.
+Use a placement-focused ACT change:
+1. placement-window oversampling and/or higher placement loss as the fastest diagnostic, or
+2. phase-conditioned ACT if a stable phase label can be inferred from demo timestep/state.
 ```

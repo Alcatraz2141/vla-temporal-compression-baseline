@@ -173,6 +173,51 @@ On RTX PRO 4500 Blackwell pods, run rollout policy inference on CPU because the 
 bash libero_rollout_env/run_rollout.sh configs/ablation_gate_age.yaml checkpoints/libero_long/age_gated_memory/best.pt --tasks 5 --episodes-per-task 1 --max-steps 300 --video-dir results/rollout_videos_age_gated_memory_50ep --video-every 1 --video-fps 20 --results-path results/libero_rollouts_age_gated_memory_50ep.csv --device cpu
 ```
 
+## Current ACT Diagnostic Usage
+
+As of 2026-06-03, the active rollout-facing baseline is task-5 ACT/action chunking, not corrected-H1 sliding-window.
+
+Current best task-5 ACT result:
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_consistency40/best.pt
+normal task-5 train-init rollout: 1/3
+```
+
+The rollout script supports expert-prefix handoff diagnostics:
+
+```bash
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml \
+  checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_consistency40/best.pt \
+  --tasks 5 \
+  --episodes-per-task 3 \
+  --max-steps 300 \
+  --split-file splits/libero_long_train.txt \
+  --expert-prefix-steps 130 \
+  --video-dir results/rollout_videos_act_chunked_h20_task5_prefix130 \
+  --video-every 2 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_act_chunked_h20_task5_prefix130.csv \
+  --trace-path results/rollout_trace_act_chunked_h20_task5_prefix130.csv
+```
+
+Observed handoff results:
+
+```text
+expert prefix 90:  1/3
+expert prefix 130: 2/3
+expert prefix 160: 1/3
+```
+
+Interpretation:
+
+```text
+Task 5 is failing mainly around placement/caddy insertion and recovery.
+The next rollout-facing work should target placement behavior, not generic longer training or memory comparison.
+```
+
 ## Pinned Dependencies (known-working, from experimentation.md)
 
 | Package | Version | Why pinned |

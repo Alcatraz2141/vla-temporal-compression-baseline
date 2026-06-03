@@ -2021,3 +2021,120 @@ Use the epoch-20 last checkpoint as the resume source.
 Disable scheduler reload by using constant-lr tail continuation.
 Goal: move task-5 train-init rollout from 1/3 to consistent 3/3 before returning to multitask ACT.
 ```
+
+## 2026-06-03 ACT Task-5 Consistency And Placement Diagnostics
+
+The task-5 ACT continuation completed, but better offline error did not translate into better closed-loop consistency.
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_consistency40/best.pt
+offline row: results/baselines_corrected_task5.csv
+continuous_mse: 0.027569980311393738
+continuous_mae: 0.12052609633207322
+gripper_sign_accuracy: 0.9987725071907043
+task-5 train-init rollout: 1/3
+```
+
+A state-action ACT diagnostic was trained to check whether robot proprio plus action history could solve task 5 without the image stream.
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_state_action.yaml
+log: logs/act_chunked_corrected_h20_task5_state_action_20260603_130000.log
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_state_action/best.pt
+epoch 20 train_loss: 0.097389
+epoch 20 val_loss: 0.088176
+continuous_mse: 0.11776154580116271
+continuous_mae: 0.24411540160179138
+gripper_sign_accuracy: 0.9767350002288818
+task-5 train-init rollout: 0/3
+```
+
+Interpretation:
+
+```text
+State/action history alone is not enough.
+The vision ACT run is meaningfully better, so the issue is not simply missing proprio or a rollout-history bug.
+The videos are consistent with a placement/caddy-insertion bottleneck.
+```
+
+No-training expert-prefix handoff diagnostics were then added to `evaluation/libero_rollout.py`.
+The diagnostic executes the matching HDF5 demo actions for `N` steps, appends those actions to online history, then hands control to ACT.
+
+Commands used:
+
+```bash
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml \
+  checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_consistency40/best.pt \
+  --tasks 5 \
+  --episodes-per-task 3 \
+  --max-steps 300 \
+  --split-file splits/libero_long_train.txt \
+  --expert-prefix-steps 90 \
+  --video-dir results/rollout_videos_act_chunked_h20_task5_prefix90 \
+  --video-every 2 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_act_chunked_h20_task5_prefix90.csv \
+  --trace-path results/rollout_trace_act_chunked_h20_task5_prefix90.csv
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml \
+  checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_consistency40/best.pt \
+  --tasks 5 \
+  --episodes-per-task 3 \
+  --max-steps 300 \
+  --split-file splits/libero_long_train.txt \
+  --expert-prefix-steps 130 \
+  --video-dir results/rollout_videos_act_chunked_h20_task5_prefix130 \
+  --video-every 2 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_act_chunked_h20_task5_prefix130.csv \
+  --trace-path results/rollout_trace_act_chunked_h20_task5_prefix130.csv
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml \
+  checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_consistency40/best.pt \
+  --tasks 5 \
+  --episodes-per-task 3 \
+  --max-steps 300 \
+  --split-file splits/libero_long_train.txt \
+  --expert-prefix-steps 160 \
+  --video-dir results/rollout_videos_act_chunked_h20_task5_prefix160 \
+  --video-every 2 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_act_chunked_h20_task5_prefix160.csv \
+  --trace-path results/rollout_trace_act_chunked_h20_task5_prefix160.csv
+```
+
+Results:
+
+```text
+normal ACT task-5 consistency40: 1/3
+expert prefix 90:  1/3
+expert prefix 130: 2/3
+expert prefix 160: 1/3
+```
+
+Current conclusion:
+
+```text
+The useful direction is now clear enough: task 5 fails around placement and recovery.
+Expert prefix 90 does not help beyond the baseline, so early grasp/lift is not the only problem.
+Expert prefix 130 helps, so getting into the right placement approach state matters.
+Expert prefix 160 falling back to 1/3 means final contact/release remains fragile, not automatically solved by handing off later.
+```
+
+Next work:
+
+```text
+Do not train event memory next.
+Do not run broad ACT epoch sweeps next.
+Implement a placement-focused change and test only task 5 first:
+1. phase-conditioned ACT with an explicit placement phase token inferred from demo/handoff timestep, or
+2. placement-window oversampling plus higher loss on late placement windows, or
+3. a separate placement/refinement policy initialized from the ACT checkpoint.
+
+The fastest next training experiment is option 2, because it does not require changing rollout-time phase inference.
+The more principled next experiment is option 1 if we can derive a stable phase label from the demo timeline.
+```

@@ -475,3 +475,64 @@ uv run python train.py --config configs/libero_long_act_chunked_corrected_h20_ta
 ```
 
 That continuation resumes from the epoch-20 task-5 checkpoint and pushes for 3/3 consistency before scaling back to multitask ACT.
+
+## Current Result: ACT Placement Diagnostics
+
+The epoch-40 task-5 ACT continuation did not improve rollout consistency:
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml
+best checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_consistency40/best.pt
+continuous_mse: 0.027569980311393738
+continuous_mae: 0.12052609633207322
+gripper_sign_accuracy: 0.9987725071907043
+task-5 train-init rollout: 1/3
+```
+
+The state-action diagnostic disabled vision and used only robot proprio plus action history:
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_state_action.yaml
+best checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_state_action/best.pt
+continuous_mse: 0.11776154580116271
+continuous_mae: 0.24411540160179138
+gripper_sign_accuracy: 0.9767350002288818
+task-5 train-init rollout: 0/3
+```
+
+This says vision is still needed; proprio/action history alone does not solve task 5.
+
+The rollout script now has an expert-prefix handoff diagnostic:
+
+```bash
+bash libero_rollout_env/run_rollout.sh \
+  configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml \
+  checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_consistency40/best.pt \
+  --tasks 5 \
+  --episodes-per-task 3 \
+  --max-steps 300 \
+  --split-file splits/libero_long_train.txt \
+  --expert-prefix-steps 130 \
+  --video-dir results/rollout_videos_act_chunked_h20_task5_prefix130 \
+  --video-every 2 \
+  --video-fps 20 \
+  --results-path results/libero_rollouts_act_chunked_h20_task5_prefix130.csv \
+  --trace-path results/rollout_trace_act_chunked_h20_task5_prefix130.csv
+```
+
+Handoff results:
+
+```text
+normal ACT task-5 consistency40: 1/3
+expert prefix 90:  1/3
+expert prefix 130: 2/3
+expert prefix 160: 1/3
+```
+
+Current interpretation:
+
+```text
+The bottleneck is placement/caddy insertion and recovery, not early gross approach alone.
+The next useful experiment should target the placement phase directly: phase-conditioned ACT, placement-window oversampling/loss, or a separate placement/refinement policy.
+Do not move to event memory or generic longer ACT training until the task-5 placement controller is made consistent.
+```
