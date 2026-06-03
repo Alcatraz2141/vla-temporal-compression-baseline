@@ -79,6 +79,9 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             task_sample_strategy=str(episode_cfg.get("task_sample_strategy", "uniform_episode")),
             transition_sample_prob=float(episode_cfg.get("transition_sample_prob", 0.0)),
             transition_sample_radius=int(episode_cfg.get("transition_sample_radius", 3)),
+            placement_sample_prob=float(episode_cfg.get("placement_sample_prob", 0.0)),
+            placement_start_timestep=episode_cfg.get("placement_start_timestep"),
+            placement_start_fraction=episode_cfg.get("placement_start_fraction"),
         )
         generator = torch.Generator()
         generator.manual_seed(int(config.get("seed", 42)))

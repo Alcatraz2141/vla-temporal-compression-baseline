@@ -231,12 +231,23 @@ def predict_chunk(
             **kwargs,
         )
     else:
-        pred = model(
-            images=image_tensor(recent_images, device, image_normalization),
-            states=vector_tensor(recent_states, device),
-            actions=vector_tensor(recent_actions, device),
-            **kwargs,
-        )
+        images = image_tensor(recent_images, device, image_normalization)
+        states = vector_tensor(recent_states, device)
+        actions = vector_tensor(recent_actions, device)
+        if hasattr(model, "sample_actions"):
+            pred = model.sample_actions(
+                images=images,
+                states=states,
+                actions=actions,
+                **kwargs,
+            )
+        else:
+            pred = model(
+                images=images,
+                states=states,
+                actions=actions,
+                **kwargs,
+            )
     actions = pred.squeeze(0).detach().cpu().numpy().astype(np.float32)
     actions = unnormalize_action_chunk(actions, action_stats)
     if clip_action:

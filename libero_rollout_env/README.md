@@ -218,6 +218,35 @@ Task 5 is failing mainly around placement/caddy insertion and recovery.
 The next rollout-facing work should target placement behavior, not generic longer training or memory comparison.
 ```
 
+As of the later 2026-06-03 diagnostics:
+
+```text
+placement-weighted ACT:
+  config: configs/libero_long_act_chunked_corrected_h20_task5_placement_weighted55.yaml
+  checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_placement_weighted55/best.pt
+  rollout: 1/3
+  interpretation: better offline error, no closed-loop improvement
+
+small diffusion policy:
+  config: configs/libero_long_diffusion_task5_h20_small.yaml
+  checkpoint: checkpoints/libero_long_corrected_task5/diffusion_task5_h20_small/best.pt
+  stopped epoch: 35
+  sampled-action continuous_mse: 0.4715414630909697
+  rollout: not run; offline sampled actions are not good enough
+```
+
+Restore the current pod artifact backup from Hugging Face if needed:
+
+```bash
+uv run hf download Alcatraz1412/vla-run-backups \
+  --repo-type dataset \
+  --local-dir /workspace/run_backups \
+  vla_run_artifacts_20260603_161004.tar.gz
+
+tar -xzf /workspace/run_backups/vla_run_artifacts_20260603_161004.tar.gz \
+  -C /root/vla-temporal-compression-baseline
+```
+
 ## Pinned Dependencies (known-working, from experimentation.md)
 
 | Package | Version | Why pinned |

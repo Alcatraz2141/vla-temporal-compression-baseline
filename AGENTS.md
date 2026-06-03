@@ -2160,3 +2160,57 @@ Prefix 160 is not reliably better, so final contact/release behavior is also fra
 Do not spend the next run on event memory or generic longer training.
 The next useful work is a placement-focused controller/model change: phase-conditioned ACT, placement-window oversampling/loss, or a separate placement/refinement head.
 ```
+
+## 2026-06-03 Late State: Placement Weighting And Diffusion
+
+Placement-window oversampling/loss weighting was tested as the fastest placement-focused ACT change.
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_placement_weighted55.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_placement_weighted55/best.pt
+best epoch: 51
+offline continuous_mse: 0.018447628365457058
+offline continuous_mae: 0.10044001704454422
+gripper_sign_accuracy: 0.9980300048828125
+task-5 train-init rollout: 1/3
+```
+
+Interpretation:
+
+```text
+Placement weighting improved offline error but did not improve closed-loop success.
+Failed episodes had worse grasp-pose error, so pure loss weighting can perturb approach/grasp.
+Do not repeat another weighting-only run as the next step.
+```
+
+A separate small diffusion baseline was added without changing ACT/sliding-window behavior.
+
+```text
+baseline: diffusion_policy
+config: configs/libero_long_diffusion_task5_h20_small.yaml
+continuation config: configs/libero_long_diffusion_task5_h20_small_to50.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/diffusion_task5_h20_small/best.pt
+stopped epoch: 35
+best val denoising loss: 0.19332740310662852
+sampled-action continuous_mse: 0.4715414630909697
+sampled-action continuous_mae: 0.44337508891718075
+gripper_sign_accuracy: 0.9636681321710824
+rollout: not run
+```
+
+Interpretation:
+
+```text
+Small diffusion fits on 24 GB VRAM and trains stably.
+It is not rollout-ready yet because sampled actions are still far worse than ACT.
+Next architecture work should be phase-conditioned ACT or a placement/refinement head.
+Only continue diffusion if offline sampled-action quality improves substantially first.
+```
+
+Current artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260603_161004.tar.gz
+HF dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/d57c1138d2700872df6451f2f632b1db3db11a37
+```

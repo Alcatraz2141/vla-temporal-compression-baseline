@@ -2138,3 +2138,100 @@ Implement a placement-focused change and test only task 5 first:
 The fastest next training experiment is option 2, because it does not require changing rollout-time phase inference.
 The more principled next experiment is option 1 if we can derive a stable phase label from the demo timeline.
 ```
+
+## 2026-06-03 Placement-Weighted ACT And Diffusion Diagnostic
+
+A placement-window weighted ACT run was trained as the fastest placement-focused diagnostic.
+This changed the sampler/loss emphasis only; it did not add a new rollout-time phase signal.
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_placement_weighted55.yaml
+log: logs/act_chunked_corrected_h20_task5_placement_weighted55_20260603_143001_quiet.log
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_placement_weighted55/best.pt
+best epoch: 51
+best val_loss: 0.009900518520921468
+offline continuous_mse: 0.018447628365457058
+offline continuous_mae: 0.10044001704454422
+offline gripper_sign_accuracy: 0.9980300048828125
+task-5 train-init rollout: 1/3
+```
+
+Trace comparison:
+
+```text
+episode 0: success, first positive gripper step 71 vs expert 57, grasp-pose error 0.0258 m
+episode 1: fail,    first positive gripper step 70 vs expert 74, grasp-pose error 0.0424 m
+episode 2: fail,    first positive gripper step 77 vs expert 60, grasp-pose error 0.0815 m
+```
+
+Interpretation:
+
+```text
+Placement weighting improved offline action error but did not improve closed-loop success beyond 1/3.
+It also disturbed approach/grasp on failed episodes, so loss weighting alone is not a reliable fix.
+The likely remaining issue is model-level action distribution / multimodality and recovery, not just sample weighting.
+```
+
+A small diffusion-policy baseline was then added as a separate architecture path.
+ACT/sliding-window/event-gated forward paths were left unchanged; diffusion uses its own denoising
+training objective and sampled-action eval path.
+
+```text
+config: configs/libero_long_diffusion_task5_h20_small.yaml
+continuation config: configs/libero_long_diffusion_task5_h20_small_to50.yaml
+logs:
+  logs/diffusion_task5_h20_small_20260603.log
+  logs/diffusion_task5_h20_small_to50_20260603.log
+checkpoint: checkpoints/libero_long_corrected_task5/diffusion_task5_h20_small/best.pt
+stopped after epoch: 35
+best val denoising loss: 0.19332740310662852
+```
+
+Sampled-action eval:
+
+```text
+10 epochs, stochastic sampling:
+  continuous_mse: 0.9775381926149606
+  continuous_mae: 0.740267173360331
+  gripper_sign_accuracy: 0.864237221094747
+
+10 epochs, deterministic zero-init sampling:
+  continuous_mse: 0.6907528010420144
+  continuous_mae: 0.5773632091264755
+  gripper_sign_accuracy: 0.9717551921122372
+
+35 epochs, deterministic zero-init sampling:
+  continuous_mse: 0.4715414630909697
+  continuous_mae: 0.44337508891718075
+  gripper_sign_accuracy: 0.9636681321710824
+```
+
+Interpretation:
+
+```text
+Diffusion fits in 24 GB VRAM and trains stably on the small task-5 H20 setup.
+Denoising loss improves substantially through epoch 35.
+However, sampled action chunks are still far worse than ACT offline, so diffusion is not rollout-ready yet.
+Do not spend rollout time on this checkpoint unless sampled-action MSE improves by another large margin.
+```
+
+Artifact backup:
+
+```text
+local backup: /workspace/run_backups/vla_run_artifacts_20260603_161004.tar.gz
+Hugging Face dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/d57c1138d2700872df6451f2f632b1db3db11a37
+```
+
+Next work:
+
+```text
+1. Stop this pod safely after confirming persistence / HF upload.
+2. Do not treat the current diffusion checkpoint as a policy success.
+3. If continuing diffusion, first improve sampled-action quality offline:
+   - train longer only if denoising loss keeps dropping,
+   - consider a stronger diffusion sampling/objective setup,
+   - compare first-action/per-dim diagnostics before rollout.
+4. For the ACT path, the next principled architecture is phase-conditioned ACT or a placement/refinement head.
+5. Avoid another pure loss-weighting run unless it is paired with diagnostics showing approach/grasp is preserved.
+```

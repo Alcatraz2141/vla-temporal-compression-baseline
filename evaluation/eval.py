@@ -56,12 +56,20 @@ def _model_forward_and_target(
             if bool(getattr(model, "use_language", False)) and "language" in batch:
                 vocab_size = int(getattr(model, "language_embedding").num_embeddings)
                 kwargs["language_ids"] = language_ids(batch["language"], vocab_size, device)
-            pred = model(
-                images=batch["recent_obs"],
-                states=batch["recent_states"],
-                actions=batch["recent_actions"],
-                **kwargs,
-            )
+            if hasattr(model, "sample_actions"):
+                pred = model.sample_actions(
+                    images=batch["recent_obs"],
+                    states=batch["recent_states"],
+                    actions=batch["recent_actions"],
+                    **kwargs,
+                )
+            else:
+                pred = model(
+                    images=batch["recent_obs"],
+                    states=batch["recent_states"],
+                    actions=batch["recent_actions"],
+                    **kwargs,
+                )
         return pred, batch["target_actions"], batch["target_mask"]
     pred = model(images=batch["images"], states=batch["states"])
     return pred, batch["actions"], batch["mask"]
@@ -161,6 +169,7 @@ def main() -> None:
             "bc_resnet50",
             "rt1_style",
             "act_chunked",
+            "diffusion_policy",
             "octo",
             "event_gated_memory",
         ],

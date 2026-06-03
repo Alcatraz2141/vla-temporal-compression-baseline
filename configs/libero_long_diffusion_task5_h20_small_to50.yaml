@@ -1,0 +1,90 @@
+dataset: libero_long
+seed: 42
+device: auto
+
+data:
+  source: unified_episode
+  dataset: libero_long
+  episode_loader:
+    root: data/libero_long
+    split_dir: splits
+    hdf5_glob: "**/*.hdf5"
+    samples_per_epoch: 10000
+    eval_windows_per_episode: 8
+    load_older_context: false
+    task_filter: STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy
+    transition_sample_prob: 0.25
+    transition_sample_radius: 4
+    placement_sample_prob: 0.35
+    placement_start_timestep: 120
+  split: train
+  val_split: train
+  image_size: 128
+  image_normalization: imagenet
+  T_obs: 8
+  T_action: 20
+  K_recent: 8
+  H_action: 20
+  state_dim: null
+  action_dim: null
+  num_workers: 8
+  prefetch_factor: 2
+  normalization:
+    actions: true
+    action_dims: [0, 1, 2, 3, 4, 5]
+    stats_path: results/libero_action_stats_train.json
+  augment:
+    enabled: true
+
+model:
+  baseline: diffusion_policy
+  run_name: diffusion_task5_h20_small
+  vision_encoder: resnet18
+  pretrained_vision: true
+  d_model: 192
+  n_layers: 3
+  n_heads: 4
+  dropout: 0.15
+  use_action_history: true
+  use_language: true
+  language_vocab_size: 1024
+  state_hidden_dim: 128
+  action_hidden_dim: 192
+  diffusion_steps: 32
+  sample_stochastic: false
+  sample_init: zeros
+
+memory:
+  chunk_size: 4
+  max_memory_tokens: 16
+  gate_type: event
+  query_type: concat
+
+training:
+  batch_size: 32
+  epochs: 50
+  max_steps_per_epoch: 10000
+  lr: 1.0e-4
+  optimizer: adamw
+  lr_schedule: constant
+  warmup_steps: 0
+  total_steps: 10000
+  eval_every: 2000
+  save_every: 5000
+  weight_decay: 5.0e-4
+  grad_clip_norm: 1.0
+  amp: true
+  amp_dtype: bfloat16
+  channels_last: true
+  compile: false
+  temporal_smoothness_weight: 0.0
+  gripper_loss_weight: 2.0
+  placement_loss_weight: 1.5
+  disable_tqdm: true
+  log_every: 100
+  checkpoint_dir: checkpoints/libero_long_corrected_task5
+  resume: checkpoints/libero_long_corrected_task5/diffusion_task5_h20_small/best.pt
+
+evaluation:
+  batch_size: 16
+  results_path: results/baselines_corrected_task5.csv

@@ -350,6 +350,203 @@ class ACTChunkedBaseline(nn.Module):
         return self.action_head(decoded)
 
 
+class DiffusionPolicyBaseline(nn.Module):
+    """Small conditional diffusion policy over action chunks.
+
+    This keeps the observation encoder close to ACT, but replaces direct action
+    regression with denoising over a full action chunk.
+    """
+
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int,
+        T_obs: int,
+        T_action: int,
+        d_model: int = 192,
+        n_layers: int = 3,
+        n_heads: int = 4,
+        dropout: float = 0.1,
+        pretrained_vision: bool = True,
+        vision_encoder: str = "resnet18",
+        state_hidden_dim: int = 128,
+        action_hidden_dim: int = 192,
+        use_action_history: bool = True,
+        use_language: bool = True,
+        language_vocab_size: int = 1024,
+        diffusion_steps: int = 32,
+        sample_stochastic: bool = False,
+        sample_init: str = "zeros",
+    ) -> None:
+        super().__init__()
+        if vision_encoder != "resnet18":
+            raise ValueError("DiffusionPolicyBaseline currently supports vision_encoder=resnet18.")
+        self.T_obs = T_obs
+        self.T_action = T_action
+        self.action_dim = action_dim
+        self.use_action_history = use_action_history
+        self.use_language = use_language
+        self.diffusion_steps = int(diffusion_steps)
+        if sample_init not in {"zeros", "normal"}:
+            raise ValueError("sample_init must be 'zeros' or 'normal'.")
+        self.sample_stochastic = sample_stochastic
+        self.sample_init = sample_init
+
+        self.vision, vision_dim = _build_resnet18(pretrained_vision)
+        self.vision_proj = nn.Linear(vision_dim, d_model)
+        self.state_encoder = nn.Sequential(
+            nn.Linear(state_dim, state_hidden_dim),
+            nn.ReLU(),
+            nn.Linear(state_hidden_dim, d_model),
+        )
+        self.action_encoder = nn.Sequential(nn.Linear(action_dim, d_model), nn.GELU(), nn.Linear(d_model, d_model))
+        self.language_embedding = nn.Embedding(language_vocab_size, d_model) if self.use_language else None
+        self.context_fusion = nn.Linear(d_model * (3 if self.use_action_history else 2), d_model)
+        self.context_pos_embedding = nn.Parameter(torch.zeros(1, T_obs, d_model))
+
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=n_heads,
+            dim_feedforward=d_model * 4,
+            dropout=dropout,
+            batch_first=True,
+            activation="gelu",
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
+
+        self.noisy_action_proj = nn.Linear(action_dim, d_model)
+        self.action_pos_embedding = nn.Parameter(torch.zeros(1, T_action, d_model))
+        self.diffusion_time_embedding = nn.Embedding(self.diffusion_steps, d_model)
+        decoder_layer = nn.TransformerDecoderLayer(
+            d_model=d_model,
+            nhead=n_heads,
+            dim_feedforward=d_model * 4,
+            dropout=dropout,
+            batch_first=True,
+            activation="gelu",
+        )
+        self.denoiser = nn.TransformerDecoder(decoder_layer, num_layers=n_layers)
+        self.noise_head = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Linear(d_model, action_hidden_dim),
+            nn.GELU(),
+            nn.Linear(action_hidden_dim, action_dim),
+        )
+
+        betas = torch.linspace(1e-4, 2e-2, self.diffusion_steps)
+        alphas = 1.0 - betas
+        alpha_bars = torch.cumprod(alphas, dim=0)
+        self.register_buffer("betas", betas)
+        self.register_buffer("alphas", alphas)
+        self.register_buffer("alpha_bars", alpha_bars)
+        self.register_buffer("sqrt_alpha_bars", torch.sqrt(alpha_bars))
+        self.register_buffer("sqrt_one_minus_alpha_bars", torch.sqrt(1.0 - alpha_bars))
+
+    def _encode_context(
+        self,
+        images: torch.Tensor,
+        states: torch.Tensor,
+        actions: torch.Tensor | None = None,
+        language_ids: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        bsz, timesteps, channels, height, width = images.shape
+        flat_images = images.view(bsz * timesteps, channels, height, width)
+        if flat_images.is_cuda:
+            flat_images = flat_images.contiguous(memory_format=torch.channels_last)
+        pieces = [
+            self.vision_proj(self.vision(flat_images)).view(bsz, timesteps, -1),
+            self.state_encoder(states),
+        ]
+        if self.use_action_history:
+            if actions is None:
+                actions = torch.zeros(bsz, timesteps, self.action_dim, dtype=states.dtype, device=states.device)
+            pieces.append(self.action_encoder(actions))
+        context = self.context_fusion(torch.cat(pieces, dim=-1))
+        if self.language_embedding is not None:
+            if language_ids is None:
+                language_ids = torch.zeros(bsz, dtype=torch.long, device=states.device)
+            context = context + self.language_embedding(language_ids).unsqueeze(1)
+        context = context + self.context_pos_embedding[:, :timesteps]
+        return self.encoder(context)
+
+    def _predict_noise(self, memory: torch.Tensor, noisy_actions: torch.Tensor, timesteps: torch.Tensor) -> torch.Tensor:
+        tokens = self.noisy_action_proj(noisy_actions)
+        tokens = tokens + self.action_pos_embedding[:, : noisy_actions.size(1)]
+        tokens = tokens + self.diffusion_time_embedding(timesteps).unsqueeze(1)
+        return self.noise_head(self.denoiser(tokens, memory))
+
+    def diffusion_loss(
+        self,
+        images: torch.Tensor,
+        states: torch.Tensor,
+        actions: torch.Tensor | None,
+        target_actions: torch.Tensor,
+        target_mask: torch.Tensor,
+        language_ids: torch.Tensor | None = None,
+        gripper_transition: torch.Tensor | None = None,
+        placement_window: torch.Tensor | None = None,
+        gripper_weight: float = 1.0,
+        placement_weight: float = 1.0,
+        **_: Any,
+    ) -> torch.Tensor:
+        del gripper_transition
+        bsz = target_actions.size(0)
+        memory = self._encode_context(images, states, actions, language_ids)
+        timesteps = torch.randint(0, self.diffusion_steps, (bsz,), device=target_actions.device)
+        noise = torch.randn_like(target_actions)
+        view_shape = (bsz,) + (1,) * (target_actions.ndim - 1)
+        noisy = (
+            self.sqrt_alpha_bars[timesteps].view(view_shape) * target_actions
+            + self.sqrt_one_minus_alpha_bars[timesteps].view(view_shape) * noise
+        )
+        pred_noise = self._predict_noise(memory, noisy, timesteps)
+
+        loss = (pred_noise - noise).pow(2)
+        dim_weights = torch.ones(target_actions.size(-1), dtype=loss.dtype, device=loss.device)
+        if target_actions.size(-1) >= 7 and gripper_weight != 1.0:
+            dim_weights[-1] = gripper_weight
+        step_weights = target_mask.to(loss.dtype)
+        if placement_window is not None and placement_weight != 1.0:
+            placement = placement_window.to(device=loss.device, dtype=loss.dtype)
+            step_weights = torch.where(placement > 0, torch.full_like(step_weights, placement_weight), step_weights)
+        weights = step_weights.unsqueeze(-1) * dim_weights.view(1, 1, -1)
+        return (loss * weights).sum() / weights.sum().clamp_min(1.0)
+
+    @torch.no_grad()
+    def sample_actions(
+        self,
+        images: torch.Tensor,
+        states: torch.Tensor,
+        actions: torch.Tensor | None = None,
+        language_ids: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        memory = self._encode_context(images, states, actions, language_ids)
+        if self.sample_init == "normal":
+            sample = torch.randn(images.size(0), self.T_action, self.action_dim, dtype=states.dtype, device=states.device)
+        else:
+            sample = torch.zeros(images.size(0), self.T_action, self.action_dim, dtype=states.dtype, device=states.device)
+        for step in range(self.diffusion_steps - 1, -1, -1):
+            timestep = torch.full((images.size(0),), step, dtype=torch.long, device=states.device)
+            pred_noise = self._predict_noise(memory, sample, timestep)
+            alpha = self.alphas[step]
+            alpha_bar = self.alpha_bars[step]
+            beta = self.betas[step]
+            sample = (sample - beta / torch.sqrt(1.0 - alpha_bar) * pred_noise) / torch.sqrt(alpha)
+            if step > 0 and self.sample_stochastic:
+                sample = sample + torch.sqrt(beta) * torch.randn_like(sample)
+        return sample
+
+    def forward(
+        self,
+        images: torch.Tensor,
+        states: torch.Tensor,
+        actions: torch.Tensor | None = None,
+        language_ids: torch.Tensor | None = None,
+        **_: Any,
+    ) -> torch.Tensor:
+        return self.sample_actions(images, states, actions, language_ids)
+
+
 class EventGatedMemoryVLA(nn.Module):
     """Long-horizon policy with cheap event-gated summaries over older context."""
 
@@ -609,6 +806,27 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
             use_language=bool(model_cfg.get("use_language", True)),
             language_vocab_size=int(model_cfg.get("language_vocab_size", 1024)),
             input_modalities=str(model_cfg.get("input_modalities", "vision_state_action")),
+        )
+    if baseline == "diffusion_policy":
+        return DiffusionPolicyBaseline(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            T_obs=T_obs,
+            T_action=T_action,
+            d_model=int(model_cfg.get("d_model", 192)),
+            n_layers=int(model_cfg.get("n_layers", 3)),
+            n_heads=int(model_cfg.get("n_heads", 4)),
+            dropout=float(model_cfg.get("dropout", 0.1)),
+            pretrained_vision=bool(model_cfg.get("pretrained_vision", True)),
+            vision_encoder=model_cfg.get("vision_encoder", "resnet18"),
+            state_hidden_dim=int(model_cfg.get("state_hidden_dim", 128)),
+            action_hidden_dim=int(model_cfg.get("action_hidden_dim", 192)),
+            use_action_history=bool(model_cfg.get("use_action_history", True)),
+            use_language=bool(model_cfg.get("use_language", True)),
+            language_vocab_size=int(model_cfg.get("language_vocab_size", 1024)),
+            diffusion_steps=int(model_cfg.get("diffusion_steps", 32)),
+            sample_stochastic=bool(model_cfg.get("sample_stochastic", False)),
+            sample_init=str(model_cfg.get("sample_init", "zeros")),
         )
     if baseline == "event_gated_memory":
         memory_cfg = config.get("memory", {})

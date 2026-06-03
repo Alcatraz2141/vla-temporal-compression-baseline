@@ -420,6 +420,46 @@ best val_loss: 0.291931
 task 5 rollout with temporal ensembling: 0/3
 ```
 
+Latest task-5 architecture diagnostics as of 2026-06-03:
+
+```text
+ACT task-5 overfit:
+  checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_overfit/best.pt
+  rollout: 1/3
+
+ACT task-5 consistency40:
+  checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_consistency40/best.pt
+  rollout: 1/3
+
+ACT placement-weighted55:
+  checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_placement_weighted55/best.pt
+  continuous_mse: 0.018447628365457058
+  rollout: 1/3
+
+Diffusion task5 H20 small:
+  checkpoint: checkpoints/libero_long_corrected_task5/diffusion_task5_h20_small/best.pt
+  stopped epoch: 35
+  best val denoising loss: 0.19332740310662852
+  sampled-action continuous_mse: 0.4715414630909697
+  rollout: not run
+```
+
+Current interpretation:
+
+```text
+Placement weighting improves offline ACT error but does not improve closed-loop success.
+Small diffusion fits on 24 GB VRAM and trains, but sampled actions are still much worse than ACT.
+The next useful architecture direction is phase-conditioned ACT or a placement/refinement head.
+Do not spend rollout time on the current diffusion checkpoint unless sampled-action eval improves substantially.
+```
+
+Current artifact backup:
+
+```text
+/workspace/run_backups/vla_run_artifacts_20260603_161004.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/d57c1138d2700872df6451f2f632b1db3db11a37
+```
+
 Trace comparison shows ACT improved the task-5 grasp timing/pose error versus sliding-window, but not enough for success:
 
 ```text

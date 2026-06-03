@@ -58,6 +58,10 @@ def _unwrap_model(model: torch.nn.Module) -> torch.nn.Module:
     return getattr(model, "_orig_mod", model)
 
 
+def _has_diffusion_loss(model: torch.nn.Module) -> bool:
+    return hasattr(_unwrap_model(model), "diffusion_loss")
+
+
 def infer_dims(loader: torch.utils.data.DataLoader, config: dict[str, Any]) -> tuple[int, int]:
     if config["data"].get("source") == "webdataset":
         if config["data"].get("state_dim") is None or config["data"].get("action_dim") is None:
@@ -109,20 +113,50 @@ def _model_forward_and_target(
     return pred, batch["actions"], batch["mask"]
 
 
+def diffusion_loss_from_batch(model: torch.nn.Module, batch: dict[str, Any], device: torch.device, cfg: dict[str, Any]) -> torch.Tensor:
+    batch = _move_tensor_batch(batch, device)
+    kwargs: dict[str, Any] = {}
+    if bool(getattr(_unwrap_model(model), "use_language", False)) and "language" in batch:
+        vocab_size = int(getattr(_unwrap_model(model), "language_embedding").num_embeddings)
+        kwargs["language_ids"] = language_ids(batch["language"], vocab_size, device)
+    return model.diffusion_loss(
+        images=batch["recent_obs"],
+        states=batch["recent_states"],
+        actions=batch.get("recent_actions"),
+        target_actions=batch["target_actions"],
+        target_mask=batch["target_mask"],
+        gripper_transition=batch.get("gripper_transition"),
+        placement_window=batch.get("placement_window"),
+        gripper_weight=float(cfg["training"].get("gripper_loss_weight", 1.0)),
+        placement_weight=float(cfg["training"].get("placement_loss_weight", 1.0)),
+        **kwargs,
+    )
+
+
 def action_loss(
     pred: torch.Tensor,
     target: torch.Tensor,
     mask: torch.Tensor,
     cfg: dict[str, Any],
     gripper_transition: torch.Tensor | None = None,
+    placement_window: torch.Tensor | None = None,
 ) -> torch.Tensor:
     gripper_loss_type = str(cfg["training"].get("gripper_loss_type", "mse"))
     gripper_weight = float(cfg["training"].get("gripper_loss_weight", 1.0))
     mask_f = mask.to(pred.dtype)
+    step_weights = torch.ones_like(mask_f)
+    placement_weight = float(cfg["training"].get("placement_loss_weight", 1.0))
+    if placement_window is not None and placement_weight != 1.0:
+        placement = placement_window.to(device=pred.device, dtype=pred.dtype)
+        step_weights = torch.where(
+            placement > 0,
+            torch.full_like(step_weights, placement_weight),
+            step_weights,
+        )
 
     if gripper_loss_type == "bce_sign" and pred.size(-1) >= 7:
         continuous_loss = (pred[..., :-1] - target[..., :-1]).pow(2)
-        continuous_mask = mask_f.unsqueeze(-1)
+        continuous_mask = (mask_f * step_weights).unsqueeze(-1)
         continuous_sum = (continuous_loss * continuous_mask).sum()
         continuous_count = (continuous_mask.expand_as(continuous_loss)).sum()
 
@@ -141,7 +175,7 @@ def action_loss(
                 torch.full_like(gripper_weights, transition_weight),
                 gripper_weights,
             )
-        weighted_mask = mask_f * gripper_weights
+        weighted_mask = mask_f * step_weights * gripper_weights
         gripper_sum = (gripper_loss * weighted_mask).sum()
         gripper_count = weighted_mask.sum()
         numerator = continuous_sum + gripper_weight * gripper_sum
@@ -156,7 +190,7 @@ def action_loss(
     if pred.size(-1) >= 7 and gripper_weight != 1.0:
         weights[-1] = gripper_weight
     loss = loss * weights.view(1, 1, -1)
-    mask_expanded = mask_f.unsqueeze(-1)
+    mask_expanded = (mask_f * step_weights).unsqueeze(-1)
     return (loss * mask_expanded).sum() / (mask_expanded * weights.view(1, 1, -1)).sum().clamp_min(1.0)
 
 
@@ -183,18 +217,27 @@ def run_epoch(
     smooth_weight = float(cfg["training"].get("temporal_smoothness_weight", 0.0))
     max_steps = cfg["training"].get("max_steps_per_epoch")
     channels_last = bool(cfg["training"].get("channels_last", False)) and device.type == "cuda"
-    for step, batch in enumerate(tqdm(loader, desc="train", leave=False), start=1):
+    disable_tqdm = bool(cfg["training"].get("disable_tqdm", False))
+    for step, batch in enumerate(tqdm(loader, desc="train", leave=False, disable=disable_tqdm), start=1):
         if max_steps is not None and step > int(max_steps):
             break
         with autocast_context(device, cfg):
-            pred, actions, mask = _model_forward_and_target(model, batch, device)
-            transition = batch.get("gripper_transition")
-            if torch.is_tensor(transition):
-                transition = transition.to(device, non_blocking=True)
+            if _has_diffusion_loss(model):
+                loss = diffusion_loss_from_batch(model, batch, device, cfg)
             else:
-                transition = None
-            loss = action_loss(pred, actions, mask, cfg, transition)
-            if smooth_weight > 0:
+                pred, actions, mask = _model_forward_and_target(model, batch, device)
+                transition = batch.get("gripper_transition")
+                if torch.is_tensor(transition):
+                    transition = transition.to(device, non_blocking=True)
+                else:
+                    transition = None
+                placement = batch.get("placement_window")
+                if torch.is_tensor(placement):
+                    placement = placement.to(device, non_blocking=True)
+                else:
+                    placement = None
+                loss = action_loss(pred, actions, mask, cfg, transition, placement)
+            if smooth_weight > 0 and not _has_diffusion_loss(model):
                 loss = loss + smooth_weight * temporal_smoothness(pred)
 
         optimizer.zero_grad(set_to_none=True)
@@ -220,14 +263,23 @@ def validate(model: torch.nn.Module, loader: torch.utils.data.DataLoader, device
     total = 0.0
     batches = 0
     channels_last = False
-    for batch in tqdm(loader, desc="val", leave=False):
-        pred, actions, mask = _model_forward_and_target(model, batch, device)
-        transition = batch.get("gripper_transition")
-        if torch.is_tensor(transition):
-            transition = transition.to(device, non_blocking=True)
+    disable_tqdm = bool(cfg["training"].get("disable_tqdm", False))
+    for batch in tqdm(loader, desc="val", leave=False, disable=disable_tqdm):
+        if _has_diffusion_loss(model):
+            loss = diffusion_loss_from_batch(model, batch, device, cfg)
         else:
-            transition = None
-        loss = action_loss(pred, actions, mask, cfg, transition)
+            pred, actions, mask = _model_forward_and_target(model, batch, device)
+            transition = batch.get("gripper_transition")
+            if torch.is_tensor(transition):
+                transition = transition.to(device, non_blocking=True)
+            else:
+                transition = None
+            placement = batch.get("placement_window")
+            if torch.is_tensor(placement):
+                placement = placement.to(device, non_blocking=True)
+            else:
+                placement = None
+            loss = action_loss(pred, actions, mask, cfg, transition, placement)
         total += float(loss.cpu())
         batches += 1
     return total / max(batches or _safe_len(loader), 1)
@@ -245,6 +297,7 @@ def main() -> None:
             "bc_resnet50",
             "rt1_style",
             "act_chunked",
+            "diffusion_policy",
             "octo",
             "event_gated_memory",
         ],
@@ -310,12 +363,13 @@ def main() -> None:
     if resume:
         checkpoint = torch.load(resume, map_location=device)
         load_compatible_state_dict(model, checkpoint["model"])
-        optimizer.load_state_dict(checkpoint["optimizer"])
-        if "scaler" in checkpoint:
+        if bool(cfg["training"].get("resume_optimizer", True)):
+            optimizer.load_state_dict(checkpoint["optimizer"])
+        if bool(cfg["training"].get("resume_scaler", bool(cfg["training"].get("resume_optimizer", True)))) and "scaler" in checkpoint:
             scaler.load_state_dict(checkpoint["scaler"])
         start_epoch = int(checkpoint.get("epoch", 0)) + 1
         best_val = float(checkpoint.get("best_val", checkpoint.get("val_mse", best_val)))
-        if scheduler is not None and "scheduler" in checkpoint:
+        if bool(cfg["training"].get("resume_scheduler", bool(cfg["training"].get("resume_optimizer", True)))) and scheduler is not None and "scheduler" in checkpoint:
             scheduler.load_state_dict(checkpoint["scheduler"])
     if bool(cfg["training"].get("compile", False)) and hasattr(torch, "compile"):
         model = torch.compile(model, mode=cfg["training"].get("compile_mode", "reduce-overhead"))

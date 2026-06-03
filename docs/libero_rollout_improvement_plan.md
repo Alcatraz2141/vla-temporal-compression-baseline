@@ -758,3 +758,54 @@ Use a placement-focused ACT change:
 1. placement-window oversampling and/or higher placement loss as the fastest diagnostic, or
 2. phase-conditioned ACT if a stable phase label can be inferred from demo timestep/state.
 ```
+
+### 2026-06-03 Late Update: Placement Weighting And Diffusion
+
+Placement-window weighted ACT was tested first because it was the smallest change.
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_placement_weighted55.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_placement_weighted55/best.pt
+best epoch: 51
+continuous_mse: 0.018447628365457058
+continuous_mae: 0.10044001704454422
+gripper_sign_accuracy: 0.9980300048828125
+task-5 train-init rollout: 1/3
+```
+
+Result:
+
+```text
+The offline metric improved, but closed-loop success did not improve.
+The failed episodes showed worse grasp-pose errors than the success case.
+Conclusion: placement loss weighting alone is not enough and can perturb earlier approach/grasp behavior.
+```
+
+A separate small `diffusion_policy` baseline was added and trained on task 5 H20.
+
+```text
+config: configs/libero_long_diffusion_task5_h20_small.yaml
+continuation: configs/libero_long_diffusion_task5_h20_small_to50.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/diffusion_task5_h20_small/best.pt
+stopped epoch: 35
+best val denoising loss: 0.19332740310662852
+35-epoch sampled-action continuous_mse: 0.4715414630909697
+35-epoch sampled-action continuous_mae: 0.44337508891718075
+35-epoch gripper_sign_accuracy: 0.9636681321710824
+```
+
+Result:
+
+```text
+The small diffusion model fits on 24 GB VRAM and trains stably.
+It is still not rollout-ready: sampled actions are far worse than ACT, even after deterministic sampling and 35 epochs.
+Do not run simulator rollout for this checkpoint unless offline sampled-action metrics improve substantially.
+```
+
+Current direction:
+
+```text
+The best ACT policy remains a 1/3 closed-loop task-5 policy.
+The failure mode still points to placement/recovery and action-distribution quality.
+Next architecture work should be phase-conditioned ACT or a placement/refinement head, not another generic loss-weighting pass.
+```

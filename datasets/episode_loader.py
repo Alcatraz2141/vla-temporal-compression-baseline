@@ -130,6 +130,9 @@ class EpisodeDataset(Dataset):
         task_sample_strategy: str = "uniform_episode",
         transition_sample_prob: float = 0.0,
         transition_sample_radius: int = 3,
+        placement_sample_prob: float = 0.0,
+        placement_start_timestep: int | None = None,
+        placement_start_fraction: float | None = None,
     ) -> None:
         self.source = source
         self.split = split
@@ -148,6 +151,9 @@ class EpisodeDataset(Dataset):
         self.task_sample_strategy = str(task_sample_strategy)
         self.transition_sample_prob = float(transition_sample_prob)
         self.transition_sample_radius = max(int(transition_sample_radius), 0)
+        self.placement_sample_prob = float(placement_sample_prob)
+        self.placement_start_timestep = None if placement_start_timestep is None else int(placement_start_timestep)
+        self.placement_start_fraction = None if placement_start_fraction is None else float(placement_start_fraction)
         self.action_stats = _read_json(Path(stats_path)) if stats_path else {}
         self.normalize_actions = bool(normalize_actions and self.action_stats)
         self.action_normalize_dims = action_normalize_dims
@@ -373,6 +379,16 @@ class EpisodeDataset(Dataset):
         self._transition_cache[record.episode_id] = transition_idx.astype(np.int64)
         return self._transition_cache[record.episode_id]
 
+    def _placement_start(self, length: int) -> int | None:
+        starts: list[int] = []
+        if self.placement_start_timestep is not None:
+            starts.append(self.placement_start_timestep)
+        if self.placement_start_fraction is not None:
+            starts.append(round(max(0.0, min(self.placement_start_fraction, 1.0)) * max(length - 1, 0)))
+        if not starts:
+            return None
+        return max(0, min(min(starts), max(length - 1, 0)))
+
     def _load_actions(self, record: EpisodeRecord) -> np.ndarray:
         if record.source == "libero_long":
             with h5py.File(record.path, "r") as h5:
@@ -382,8 +398,15 @@ class EpisodeDataset(Dataset):
     def __getitem__(self, idx: int) -> dict[str, Any]:
         rng = random.Random(self.seed + idx)
         transition_sample = False
+        placement_sample = False
         if self.split == "train":
-            transition_sample = self.transition_sample_prob > 0.0 and rng.random() < self.transition_sample_prob
+            draw = rng.random()
+            placement_sample = self.placement_sample_prob > 0.0 and draw < self.placement_sample_prob
+            transition_sample = (
+                not placement_sample
+                and self.transition_sample_prob > 0.0
+                and draw < self.placement_sample_prob + self.transition_sample_prob
+            )
             record = self._sample_train_record(rng, transition_sample)
             eval_anchor = 0
         else:
@@ -397,7 +420,12 @@ class EpisodeDataset(Dataset):
             raise ValueError(f"Episode too short after loading: {record.episode_id}")
         if self.split == "train":
             t = rng.randint(min_t, max_t)
-            if transition_sample:
+            placement_start = self._placement_start(length)
+            if placement_sample and placement_start is not None:
+                lo = max(min_t, min(placement_start, max_t))
+                if lo <= max_t:
+                    t = rng.randint(lo, max_t)
+            elif transition_sample:
                 transition_idx = self._transition_indices(record, episode["actions"])
                 valid_transition_idx = transition_idx[
                     (transition_idx + self.transition_sample_radius >= min_t)
@@ -422,6 +450,10 @@ class EpisodeDataset(Dataset):
             older_idx = np.empty(0, dtype=np.int64)
             older_mask = np.empty(0, dtype=np.bool_)
         target_idx, target_mask = _take_or_pad(np.arange(t, t + self.H_action), self.H_action, length - 1)
+        placement_start = self._placement_start(length)
+        target_placement = np.zeros(self.H_action, dtype=np.bool_)
+        if placement_start is not None:
+            target_placement = (target_idx >= placement_start) & target_mask
         target_transition = np.zeros(self.H_action, dtype=np.bool_)
         for out_i, action_i in enumerate(target_idx):
             if not target_mask[out_i]:
@@ -461,6 +493,7 @@ class EpisodeDataset(Dataset):
             "older_mask": torch.from_numpy(older_mask),
             "target_mask": torch.from_numpy(target_mask),
             "gripper_transition": torch.from_numpy(target_transition),
+            "placement_window": torch.from_numpy(target_placement),
         }
 
     def _normalize_actions(self, actions: np.ndarray) -> np.ndarray:
@@ -546,6 +579,7 @@ def episode_collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
         "older_mask",
         "target_mask",
         "gripper_transition",
+        "placement_window",
     )
     for key in tensor_keys:
         out[key] = torch.stack([sample[key] for sample in batch])
