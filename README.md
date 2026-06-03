@@ -429,3 +429,49 @@ episode 2: 9 steps late, 0.0445 m from expert grasp pose
 ```
 
 Next step: inspect ACT videos and run a smaller/regularized or task-5-focused ACT diagnostic. Do not rerun the same ACT config for more epochs.
+
+## Current Run: ACT Task-5 Overfit Diagnostic
+
+The smaller, task-5-only ACT diagnostic has now completed and is the active baseline path.
+
+Config:
+
+```text
+configs/libero_long_act_chunked_corrected_h20_task5_overfit.yaml
+```
+
+Artifacts:
+
+```text
+log: logs/act_chunked_corrected_h20_task5_overfit_20260603_103917.log
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_overfit/best.pt
+eval row: results/baselines_corrected_task5.csv
+rollout csv: results/libero_rollouts_act_chunked_h20_task5_overfit.csv
+rollout trace: results/rollout_trace_act_chunked_h20_task5_overfit_train3.csv
+```
+
+Result summary:
+
+```text
+epoch 20 val_loss: 0.015803
+continuous_mse: 0.029388979223370554
+continuous_mae: 0.12436646746397019
+gripper_sign_accuracy: 0.9982025062561035
+task-5 train-init rollout: 1/3
+```
+
+Interpretation:
+
+```text
+This is the first ACT checkpoint with nonzero closed-loop task-5 success.
+ACT is now validated enough to keep as the lead architecture.
+The remaining failures are mostly post-grasp carry/place consistency, not gross approach or grasp discovery.
+```
+
+Immediate next run:
+
+```bash
+uv run python train.py --config configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml
+```
+
+That continuation resumes from the epoch-20 task-5 checkpoint and pushes for 3/3 consistency before scaling back to multitask ACT.

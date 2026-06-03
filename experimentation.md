@@ -1937,3 +1937,87 @@ bash libero_rollout_env/run_rollout.sh \
   --video-fps 20 \
   --results-path results/libero_rollouts_act_chunked_h20_task5.csv
 ```
+
+## 2026-06-03 ACT Task-5 Overfit Diagnostic
+
+Added task-5-only ACT config:
+
+```text
+configs/libero_long_act_chunked_corrected_h20_task5_overfit.yaml
+```
+
+Key changes versus the multitask ACT H20 run:
+
+```text
+task_filter: STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy
+val_split: train
+d_model: 192
+n_layers: 3
+dropout: 0.2
+lr: 5e-5
+weight_decay: 5e-4
+```
+
+Training outcome:
+
+```text
+log: logs/act_chunked_corrected_h20_task5_overfit_20260603_103917.log
+checkpoint dir: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_overfit
+completed epoch: 20
+epoch 20 val_loss: 0.015803
+best checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_overfit/best.pt
+```
+
+Offline eval on `best.pt`:
+
+```text
+results row: results/baselines_corrected_task5.csv
+continuous_mse: 0.029388979223370554
+continuous_mae: 0.12436646746397019
+gripper_sign_accuracy: 0.9982025062561035
+```
+
+Task-5 train-init rollout on `best.pt`:
+
+```text
+results: results/libero_rollouts_act_chunked_h20_task5_overfit.csv
+trace: results/rollout_trace_act_chunked_h20_task5_overfit_train3.csv
+videos: results/rollout_videos_act_chunked_h20_task5_overfit/
+task 5: 1/3
+episode 0: success in 147 steps
+episode 1: fail at 300 steps
+episode 2: fail at 300 steps
+```
+
+Trace comparison against the same task-5 demos:
+
+```text
+episode 0: first positive gripper action 16 steps late, 0.0453 m from expert grasp pose, success
+episode 1: first positive gripper action 11 steps early, 0.0358 m from expert grasp pose, fail
+episode 2: first positive gripper action 12 steps late, 0.0396 m from expert grasp pose, fail
+```
+
+Interpretation:
+
+```text
+This is the first ACT checkpoint that achieves nonzero closed-loop task-5 success.
+The earlier ACT 0/3 result was not a rollout-stack incompatibility; task-focused fitting matters.
+Success and failures still have similar grasp timing and grasp-pose error, so the remaining issue is mainly post-grasp carry/place consistency rather than coarse book acquisition.
+```
+
+Rollout env fix completed during this phase:
+
+```text
+evaluation/libero_rollout.py no longer imports the offline eval stack for checkpoint loading
+pyproject.toml now declares braceexpand
+libero_rollout_env/bootstrap.sh installs braceexpand in fresh rollout envs
+```
+
+Next run:
+
+```text
+Continue the task-5 ACT run from epoch 20 to epoch 40 in a new run directory.
+Use the epoch-20 last checkpoint as the resume source.
+Disable scheduler reload by using constant-lr tail continuation.
+Goal: move task-5 train-init rollout from 1/3 to consistent 3/3 before returning to multitask ACT.
+```

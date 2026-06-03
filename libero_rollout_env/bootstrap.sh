@@ -71,6 +71,7 @@ pip_install \
     "mujoco==3.8.1" \
     "robosuite==1.4.0" \
     "bddl==1.0.1" \
+    "braceexpand>=0.1.7" \
     "gym==0.25.2" \
     "robomimic==0.2.0" \
     "h5py>=3.14.0" \

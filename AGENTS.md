@@ -2024,3 +2024,76 @@ ACT H20 greatly improved closed-loop grasp timing and pose error compared with s
 Do not rerun the same ACT config for more epochs.
 Next inspect ACT task-5 videos and run a smaller/regularized or task-5-focused ACT diagnostic before scaling ACT or adding event-gated memory.
 ```
+
+## 2026-06-03 ACT Task-5 Overfit Update
+
+The task-5-focused ACT diagnostic has now been completed and is the current lead result.
+
+Config:
+
+```text
+configs/libero_long_act_chunked_corrected_h20_task5_overfit.yaml
+```
+
+Training outcome:
+
+```text
+log: logs/act_chunked_corrected_h20_task5_overfit_20260603_103917.log
+checkpoint dir: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_overfit
+completed epoch: 20
+epoch 20 val_loss: 0.015803
+best checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_overfit/best.pt
+```
+
+Offline eval:
+
+```text
+results file: results/baselines_corrected_task5.csv
+continuous_mse: 0.029388979223370554
+continuous_mae: 0.12436646746397019
+gripper_sign_accuracy: 0.9982025062561035
+```
+
+Task-5 train-init rollout on `best.pt`:
+
+```text
+results file: results/libero_rollouts_act_chunked_h20_task5_overfit.csv
+trace file: results/rollout_trace_act_chunked_h20_task5_overfit_train3.csv
+task 5: 1/3
+episode 0: success in 147 steps
+episode 1: fail in 300 steps
+episode 2: fail in 300 steps
+```
+
+Trace comparison versus demos:
+
+```text
+episode 0: +16 steps vs expert first positive gripper, 0.0453 m grasp-pose error, success
+episode 1: -11 steps, 0.0358 m, fail
+episode 2: +12 steps, 0.0396 m, fail
+```
+
+Interpretation:
+
+```text
+This is the first ACT checkpoint with nonzero task-5 closed-loop success.
+ACT is therefore the credible short-context baseline family for the next phase.
+The remaining issue is not gross approach; it is post-grasp carry/place consistency.
+Do not pivot back to H1 sliding-window.
+```
+
+Rollout env repair completed in the same phase:
+
+```text
+evaluation/libero_rollout.py now loads checkpoints without importing evaluation/eval.py
+pyproject.toml declares braceexpand
+libero_rollout_env/bootstrap.sh installs braceexpand
+```
+
+Active next run:
+
+```text
+configs/libero_long_act_chunked_corrected_h20_task5_consistency40.yaml
+resume source: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_overfit/last.pt
+goal: extend from epoch 20 to epoch 40 and test whether task-5 train-init rollout can move from 1/3 to 3/3
+```

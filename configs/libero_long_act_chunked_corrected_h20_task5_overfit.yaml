@@ -1,0 +1,85 @@
+dataset: libero_long
+seed: 42
+device: auto
+
+data:
+  source: unified_episode
+  dataset: libero_long
+  episode_loader:
+    root: data/libero_long
+    split_dir: splits
+    hdf5_glob: "**/*.hdf5"
+    samples_per_epoch: 20000
+    eval_windows_per_episode: 16
+    load_older_context: false
+    task_filter: STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy
+    transition_sample_prob: 0.35
+    transition_sample_radius: 4
+  split: train
+  val_split: train
+  image_size: 128
+  image_normalization: imagenet
+  T_obs: 8
+  T_action: 20
+  K_recent: 8
+  H_action: 20
+  state_dim: null
+  action_dim: null
+  num_workers: 8
+  prefetch_factor: 2
+  normalization:
+    actions: true
+    action_dims: [0, 1, 2, 3, 4, 5]
+    stats_path: results/libero_action_stats_train.json
+  augment:
+    enabled: true
+
+model:
+  baseline: act_chunked
+  run_name: act_chunked_corrected_h20_task5_overfit
+  vision_encoder: resnet18
+  pretrained_vision: true
+  d_model: 192
+  n_layers: 3
+  n_heads: 4
+  dropout: 0.2
+  use_action_history: true
+  use_language: true
+  language_vocab_size: 1024
+  state_hidden_dim: 128
+  action_hidden_dim: 192
+
+memory:
+  chunk_size: 4
+  max_memory_tokens: 16
+  gate_type: event
+  query_type: concat
+
+training:
+  batch_size: 32
+  epochs: 20
+  max_steps_per_epoch: 20000
+  lr: 5.0e-5
+  optimizer: adamw
+  lr_schedule: cosine
+  warmup_steps: 500
+  total_steps: 20000
+  eval_every: 2000
+  save_every: 5000
+  weight_decay: 5.0e-4
+  grad_clip_norm: 1.0
+  amp: true
+  amp_dtype: bfloat16
+  channels_last: true
+  compile: false
+  temporal_smoothness_weight: 0.0
+  gripper_loss_weight: 5.0
+  gripper_transition_loss_weight: 25.0
+  gripper_loss_type: bce_sign
+  log_every: 250
+  checkpoint_dir: checkpoints/libero_long_corrected_task5
+  resume: null
+
+evaluation:
+  batch_size: 32
+  results_path: results/baselines_corrected_task5.csv

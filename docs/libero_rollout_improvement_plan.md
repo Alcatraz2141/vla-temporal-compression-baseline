@@ -654,4 +654,48 @@ ACT H20 improved closed-loop timing and grasp-pose error a lot compared with sli
 The remaining failure is probably contact geometry/action calibration or later task execution, not gross gripper timing.
 Do not simply train ACT H20 longer; this config overfits validation quickly.
 Next inspect videos and run a smaller/regularized or task-5-focused ACT diagnostic before scaling ACT or adding memory.
+
+### 2026-06-03 Task-5 ACT Diagnostic Result
+
+The task-5-focused ACT diagnostic was run with a smaller and more regularized model:
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_overfit.yaml
+log: logs/act_chunked_corrected_h20_task5_overfit_20260603_103917.log
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_overfit/best.pt
+```
+
+Outcome:
+
+```text
+epoch 20 val_loss: 0.015803
+continuous_mse: 0.029388979223370554
+continuous_mae: 0.12436646746397019
+gripper_sign_accuracy: 0.9982025062561035
+task-5 train-init rollout: 1/3
+```
+
+Trace summary:
+
+```text
+episode 0: +16 steps vs expert first positive gripper, 0.0453 m grasp-pose error, success
+episode 1: -11 steps, 0.0358 m, fail
+episode 2: +12 steps, 0.0396 m, fail
+```
+
+Meaning:
+
+```text
+ACT can now solve task 5 in closed loop, so the previous ACT 0/3 result was not a rollout-interface dead end.
+The remaining variance is mostly late carry/place behavior rather than initial approach.
+The next milestone is consistency: push task-5 ACT from 1/3 to 3/3 before scaling back to multitask ACT.
+```
+
+Next experiment:
+
+```text
+Resume the task-5 ACT run from epoch 20 to epoch 40 in a new run directory.
+Use the epoch-20 last checkpoint as the resume source.
+Keep the model/task setup fixed and treat this as a consistency continuation, not a fresh architecture sweep.
+```
 ```

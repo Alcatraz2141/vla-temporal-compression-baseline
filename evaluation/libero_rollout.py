@@ -19,13 +19,25 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from models.vla_baseline import EventGatedMemoryVLA, build_model
-from evaluation.eval import load_compatible_state_dict
 from utils.config import load_config
 from utils.language import language_ids
 from utils.seed import resolve_device, set_seed
 
 IMAGENET_MEAN = np.asarray([0.485, 0.456, 0.406], dtype=np.float32)
 IMAGENET_STD = np.asarray([0.229, 0.224, 0.225], dtype=np.float32)
+
+
+def load_compatible_state_dict(model: torch.nn.Module, state_dict: dict[str, torch.Tensor]) -> None:
+    model_state = model.state_dict()
+    patched = dict(state_dict)
+    gate_key = "gate.0.weight"
+    if gate_key in patched and gate_key in model_state and patched[gate_key].shape != model_state[gate_key].shape:
+        old_weight = patched[gate_key]
+        new_weight = model_state[gate_key].clone()
+        cols = min(old_weight.shape[1], new_weight.shape[1])
+        new_weight[:, :cols] = old_weight[:, :cols]
+        patched[gate_key] = new_weight
+    model.load_state_dict(patched)
 
 
 def _patch_torch_load_for_libero_init_states() -> None:
