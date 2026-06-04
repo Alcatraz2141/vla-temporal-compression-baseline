@@ -2282,3 +2282,81 @@ local: /workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz
 HF dataset: Alcatraz1412/vla-run-backups
 HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/83ba81224f5b6918ab4ffb55c245e8dc86c45ef4
 ```
+
+## 2026-06-04 Event-Gated ACT Phase-Memory Positive Result
+
+The controlled phase ACT vs phase + event-gated memory ACT comparison completed on task 5.
+
+```text
+config: configs/libero_long_event_gated_act_h20_task5_phase_memory.yaml
+baseline: event_gated_act
+checkpoint dir: checkpoints/libero_long_corrected_task5/event_gated_act_h20_task5_phase_memory
+best checkpoint: checkpoints/libero_long_corrected_task5/event_gated_act_h20_task5_phase_memory/best.pt
+best epoch: 72
+best val_loss: 0.008460610160976649
+stopped at epoch: 75
+```
+
+Implementation notes:
+
+```text
+ACT controller and phase conditioning were kept.
+Object-signal conditioning was dropped.
+Older trajectory context is compressed into event-gated memory tokens.
+LIBERO HDF5 loading now supports opt-in per-worker episode RAM cache:
+  data.episode_loader.cache_episodes
+  data.episode_loader.cache_max_episodes
+```
+
+Offline eval on `best.pt`:
+
+```text
+continuous_mse:        0.013256419223546981
+continuous_mae:        0.08408326748609543
+gripper_sign_accuracy: 0.9983475049972534
+```
+
+Controlled rollout result:
+
+```text
+phase ACT:        10/20
+object-signals:   10/20
+event-gated ACT:  17/20
+
+event-gated breakdown:
+  train10: 8/10
+  val5:    4/5
+  test5:   5/5
+```
+
+Failed event-gated ACT episodes:
+
+```text
+train ep8
+train ep10
+val ep45
+```
+
+Interpretation:
+
+```text
+This clears the >= 13/20 decision rule for memory helping.
+The result is a real positive under the current task-5 controlled protocol.
+Do not make another model change before inspecting the failed traces/videos and running a larger confirmation rollout.
+```
+
+Next confirmation:
+
+```text
+task-5 train: 20
+task-5 val:   10
+task-5 test:  10
+```
+
+Current artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260604_192156.tar.gz
+HF dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4c4b12c0befdcd2a5dd3e9e142b74dcf3f3f5ec0
+```

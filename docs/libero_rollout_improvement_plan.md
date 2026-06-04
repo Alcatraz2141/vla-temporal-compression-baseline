@@ -2,6 +2,45 @@
 
 Date: 2026-05-30
 
+## 2026-06-04 Event-Gated ACT Result
+
+The controlled memory comparison is now positive.
+
+```text
+baseline: event_gated_act
+config: configs/libero_long_event_gated_act_h20_task5_phase_memory.yaml
+best checkpoint: checkpoints/libero_long_corrected_task5/event_gated_act_h20_task5_phase_memory/best.pt
+best epoch: 72
+best val_loss: 0.008460610160976649
+offline continuous_mse: 0.013256419223546981
+offline continuous_mae: 0.08408326748609543
+gripper_sign_accuracy: 0.9983475049972534
+```
+
+Rollout comparison under the same task-5 train10 / val5 / test5 protocol:
+
+```text
+phase ACT:        4/10 train, 3/5 val, 3/5 test = 10/20
+object-signals:   5/10 train, 3/5 val, 2/5 test = 10/20
+event-gated ACT:  8/10 train, 4/5 val, 5/5 test = 17/20
+```
+
+Decision:
+
+```text
+The memory criterion was >= 13/20.
+Event-gated ACT reached 17/20, so memory is helping under this controlled task-5 protocol.
+Event-gated ACT is the current best task-5 controller, pending larger confirmation.
+```
+
+Do next:
+
+```text
+1. Inspect failed event-memory episodes: train ep8, train ep10, val ep45.
+2. Run larger confirmation rollout: train20 / val10 / test10.
+3. Do not add another model change until the larger rollout confirms or weakens this result.
+```
+
 ## 2026-06-04 Current Decision Point
 
 The current rollout-facing controller baseline is phase-conditioned ACT on task 5.

@@ -39,7 +39,14 @@ def load_compatible_state_dict(model: torch.nn.Module, state_dict: dict[str, tor
         new_weight[:, :cols] = old_weight[:, :cols]
         patched[gate_key] = new_weight
     result = model.load_state_dict(patched, strict=False)
-    allowed_prefixes = ("phase_embedding.", "secured_embedding.", "placement_ready_embedding.")
+    allowed_prefixes = (
+        "phase_embedding.",
+        "secured_embedding.",
+        "placement_ready_embedding.",
+        "memory_pos_embedding",
+        "memory_pool_query",
+        "memory_gate.",
+    )
     unexpected = [key for key in result.unexpected_keys if not key.startswith(allowed_prefixes)]
     missing = [key for key in result.missing_keys if not key.startswith(allowed_prefixes)]
     if unexpected or missing:
@@ -327,20 +334,33 @@ def predict_chunk(
             "current_placement_ready": 0,
             "target_placement_ready": np.zeros(int(getattr(model, "T_action", 1)), dtype=np.int64),
         }
-    if isinstance(model, EventGatedMemoryVLA):
+    if isinstance(model, EventGatedMemoryVLA) or bool(getattr(model, "use_event_memory", False)):
         older_images, older_states, older_actions, older_mask = history.older()
         older_actions = normalize_actions(older_actions, action_stats, history.action_dim)
-        pred = model(
-            recent_obs=image_tensor(recent_images, device, image_normalization),
-            recent_actions=vector_tensor(recent_actions, device),
-            recent_states=vector_tensor(recent_states, device),
-            older_obs=image_tensor(older_images, device, image_normalization),
-            older_actions=vector_tensor(older_actions, device),
-            older_states=vector_tensor(older_states, device),
-            recent_mask=mask_tensor(recent_mask, device),
-            older_mask=mask_tensor(older_mask, device),
-            **kwargs,
-        )
+        if isinstance(model, EventGatedMemoryVLA):
+            pred = model(
+                recent_obs=image_tensor(recent_images, device, image_normalization),
+                recent_actions=vector_tensor(recent_actions, device),
+                recent_states=vector_tensor(recent_states, device),
+                older_obs=image_tensor(older_images, device, image_normalization),
+                older_actions=vector_tensor(older_actions, device),
+                older_states=vector_tensor(older_states, device),
+                recent_mask=mask_tensor(recent_mask, device),
+                older_mask=mask_tensor(older_mask, device),
+                **kwargs,
+            )
+        else:
+            pred = model(
+                images=image_tensor(recent_images, device, image_normalization),
+                states=vector_tensor(recent_states, device),
+                actions=vector_tensor(recent_actions, device),
+                older_obs=image_tensor(older_images, device, image_normalization),
+                older_actions=vector_tensor(older_actions, device),
+                older_states=vector_tensor(older_states, device),
+                recent_mask=mask_tensor(recent_mask, device),
+                older_mask=mask_tensor(older_mask, device),
+                **kwargs,
+            )
     else:
         images = image_tensor(recent_images, device, image_normalization)
         states = vector_tensor(recent_states, device)

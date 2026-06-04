@@ -91,6 +91,8 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             placement_ready_pose_stability_threshold=float(episode_cfg.get("placement_ready_pose_stability_threshold", 0.06)),
             placement_ready_action_stability_threshold=float(episode_cfg.get("placement_ready_action_stability_threshold", 0.75)),
             placement_ready_stability_window=int(episode_cfg.get("placement_ready_stability_window", 4)),
+            cache_episodes=bool(episode_cfg.get("cache_episodes", False)),
+            cache_max_episodes=int(episode_cfg.get("cache_max_episodes", 32)),
         )
         generator = torch.Generator()
         generator.manual_seed(int(config.get("seed", 42)))

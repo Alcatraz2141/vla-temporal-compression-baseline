@@ -190,7 +190,16 @@ This includes the optional SmolVLA/LeRobot external baseline path.
 Latest RunPod rollout-facing state as of 2026-06-04:
 
 ```text
-Current frozen controller baseline:
+Current best task-5 controller:
+  phase + event-gated memory ACT
+  config: configs/libero_long_event_gated_act_h20_task5_phase_memory.yaml
+  checkpoint: checkpoints/libero_long_corrected_task5/event_gated_act_h20_task5_phase_memory/best.pt
+  best epoch: 72
+  offline continuous_mse: 0.013256419223546981
+  rollout protocol: task-5 train10 / val5 / test5
+  result: 17/20 total
+
+Frozen controller baseline:
   phase-conditioned ACT
   config: configs/libero_long_act_chunked_corrected_h20_task5_phase_conditioned.yaml
   checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_phase_conditioned/best.pt
@@ -205,30 +214,27 @@ Object-signal diagnostic:
   conclusion: do not include object-signal conditioning in the main comparison
 
 Next controlled comparison:
-  phase ACT baseline
-  vs
-  phase + event-gated memory ACT
+  larger confirmation rollout for event-gated ACT
+  task-5 train20 / val10 / test10
 
 Decision rule:
-  >= 13/20: memory helps
-  ~10/20: memory is not the current bottleneck
-  <10/20: memory integration is adding noise or undertraining
+  event-gated ACT already cleared the >=13/20 memory-helping threshold.
+  next step is confirmation, not another model change.
 ```
 
 Current artifact backup:
 
 ```text
-/workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz
-https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/83ba81224f5b6918ab4ffb55c245e8dc86c45ef4
+/workspace/run_backups/vla_run_artifacts_20260604_192156.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4c4b12c0befdcd2a5dd3e9e142b74dcf3f3f5ec0
 ```
 
-Keep the rollout trace instrumentation active. Run cheap gripper execution ablations before or alongside the event-memory training:
+Keep the rollout trace instrumentation active. Inspect failed event-gated ACT episodes before another model change:
 
 ```text
-current temporal ensemble
-no gripper ensembling
-first-action gripper only
-hysteresis threshold
+train ep8
+train ep10
+val ep45
 ```
 
 Latest local diagnostic update as of 2026-06-02:

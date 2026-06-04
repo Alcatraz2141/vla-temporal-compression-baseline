@@ -203,6 +203,128 @@ Hugging Face dataset: Alcatraz1412/vla-run-backups
 HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/83ba81224f5b6918ab4ffb55c245e8dc86c45ef4
 ```
 
+## 2026-06-04 Event-Gated ACT Phase-Memory Result
+
+The controlled memory comparison was implemented as an opt-in ACT variant:
+
+```text
+baseline: event_gated_act
+config: configs/libero_long_event_gated_act_h20_task5_phase_memory.yaml
+run_name: event_gated_act_h20_task5_phase_memory
+checkpoint dir: checkpoints/libero_long_corrected_task5/event_gated_act_h20_task5_phase_memory
+resume source: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_phase_conditioned/best.pt
+```
+
+Design:
+
+```text
+kept:
+  ACT chunked controller
+  phase conditioning
+  language conditioning
+  action history
+
+added:
+  event-gated memory tokens over older trajectory context
+  per-worker LIBERO episode RAM cache for HDF5 speed
+
+dropped:
+  secured / placement_ready object-signal embeddings
+```
+
+The run was stopped at epoch 75 for time. The best checkpoint is epoch 72:
+
+```text
+best.pt epoch: 72
+best val_loss: 0.008460610160976649
+last.pt epoch: 75
+last val_loss: 0.008538633823394775
+```
+
+Offline eval on `best.pt`:
+
+```text
+continuous_mse:        0.013256419223546981
+continuous_mae:        0.08408326748609543
+gripper_sign_accuracy: 0.9983475049972534
+```
+
+Comparison against previous task-5 ACT variants:
+
+```text
+phase ACT continuous_mse:          0.019623747254908085
+object-signals ACT continuous_mse: 0.01562450560182333
+event-gated ACT continuous_mse:    0.013256419223546981
+```
+
+Controlled rollout protocol:
+
+```text
+task: 5
+train split: 10 episodes
+val split:   5 episodes
+test split:  5 episodes
+max steps:   300
+temporal ensembling: enabled
+same split files as phase ACT
+```
+
+Rollout results:
+
+```text
+phase ACT:        4/10 train, 3/5 val, 3/5 test = 10/20
+object-signals:   5/10 train, 3/5 val, 2/5 test = 10/20
+event-gated ACT:  8/10 train, 4/5 val, 5/5 test = 17/20
+```
+
+Failed event-gated ACT episodes:
+
+```text
+train ep8
+train ep10
+val ep45
+test: none
+```
+
+Relevant result files:
+
+```text
+results/libero_rollouts_event_gated_act_h20_task5_phase_memory_train10.csv
+results/libero_rollouts_event_gated_act_h20_task5_phase_memory_val5.csv
+results/libero_rollouts_event_gated_act_h20_task5_phase_memory_test5.csv
+results/rollout_trace_event_gated_act_h20_task5_phase_memory_train10.csv
+results/rollout_trace_event_gated_act_h20_task5_phase_memory_val5.csv
+results/rollout_trace_event_gated_act_h20_task5_phase_memory_test5.csv
+```
+
+Interpretation:
+
+```text
+This clears the pre-registered decision rule.
+The threshold for memory helping was >= 13/20; event-gated ACT got 17/20.
+The improvement is both offline and closed-loop, unlike the object-signal run.
+Treat event-gated ACT as the current best task-5 controller, pending larger confirmation.
+```
+
+Next step before another model change:
+
+```text
+1. Inspect failed event-memory videos/traces: train ep8, train ep10, val ep45.
+2. Run a larger confirmation rollout, for example:
+   task-5 train: 20
+   task-5 val:   10
+   task-5 test:  10
+3. If success remains clearly above phase ACT, document event-gated ACT as a real positive memory result.
+```
+
+Artifact backup after event-gated ACT rollout:
+
+```text
+local backup: /workspace/run_backups/vla_run_artifacts_20260604_192156.tar.gz
+Hugging Face dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4c4b12c0befdcd2a5dd3e9e142b74dcf3f3f5ec0
+```
+
 ## Scope
 
 This log records the first LIBERO-Long milestone checkpoint runs for the offline action-prediction benchmark. These are not simulator rollout results. Success rate and rollout consistency are unavailable and are logged as `nan`.

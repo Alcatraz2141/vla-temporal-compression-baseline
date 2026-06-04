@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import random
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -142,6 +143,8 @@ class EpisodeDataset(Dataset):
         placement_ready_pose_stability_threshold: float = 0.06,
         placement_ready_action_stability_threshold: float = 0.75,
         placement_ready_stability_window: int = 4,
+        cache_episodes: bool = False,
+        cache_max_episodes: int = 32,
     ) -> None:
         self.source = source
         self.split = split
@@ -172,6 +175,9 @@ class EpisodeDataset(Dataset):
         self.placement_ready_pose_stability_threshold = float(placement_ready_pose_stability_threshold)
         self.placement_ready_action_stability_threshold = float(placement_ready_action_stability_threshold)
         self.placement_ready_stability_window = max(int(placement_ready_stability_window), 1)
+        self.cache_episodes = bool(cache_episodes)
+        self.cache_max_episodes = max(int(cache_max_episodes), 1)
+        self._episode_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self.action_stats = _read_json(Path(stats_path)) if stats_path else {}
         self.normalize_actions = bool(normalize_actions and self.action_stats)
         self.action_normalize_dims = action_normalize_dims
@@ -455,6 +461,9 @@ class EpisodeDataset(Dataset):
 
     def _load_actions(self, record: EpisodeRecord) -> np.ndarray:
         if record.source == "libero_long":
+            cached = self._cached_episode(record)
+            if cached is not None:
+                return np.asarray(cached["actions"], dtype=np.float32)
             with h5py.File(record.path, "r") as h5:
                 return np.asarray(h5[record.demo_key]["actions"]).astype(np.float32)
         return np.load(record.path / "actions.npy").astype(np.float32)
@@ -597,6 +606,30 @@ class EpisodeDataset(Dataset):
             return self._load_libero_episode(record)
         return self._load_local_episode(record)
 
+    def _episode_cache_key(self, record: EpisodeRecord) -> str:
+        demo_key = record.demo_key or ""
+        return f"{record.path.resolve()}::{demo_key}"
+
+    def _cached_episode(self, record: EpisodeRecord) -> dict[str, Any] | None:
+        if not self.cache_episodes:
+            return None
+        key = self._episode_cache_key(record)
+        episode = self._episode_cache.get(key)
+        if episode is None:
+            return None
+        self._episode_cache.move_to_end(key)
+        return episode
+
+    def _store_cached_episode(self, record: EpisodeRecord, episode: dict[str, Any]) -> dict[str, Any]:
+        if not self.cache_episodes:
+            return episode
+        key = self._episode_cache_key(record)
+        self._episode_cache[key] = episode
+        self._episode_cache.move_to_end(key)
+        while len(self._episode_cache) > self.cache_max_episodes:
+            self._episode_cache.popitem(last=False)
+        return episode
+
     def _load_local_episode(self, record: EpisodeRecord) -> dict[str, Any]:
         image_paths = sorted((record.path / "images").glob("*"))
         metadata = _read_json(record.path / "metadata.json")
@@ -608,6 +641,9 @@ class EpisodeDataset(Dataset):
         }
 
     def _load_libero_episode(self, record: EpisodeRecord) -> dict[str, Any]:
+        cached = self._cached_episode(record)
+        if cached is not None:
+            return cached
         with h5py.File(record.path, "r") as h5:
             demo = h5[record.demo_key]
             obs = demo["obs"]
@@ -617,7 +653,13 @@ class EpisodeDataset(Dataset):
             actions = np.asarray(demo["actions"]).astype(np.float32)
             language = self._language(h5, demo, record)
         length = min(len(images), len(states), len(actions))
-        return {"images": images[:length], "states": states[:length], "actions": actions[:length], "language": language}
+        episode = {
+            "images": np.asarray(images[:length], dtype=np.uint8),
+            "states": np.asarray(states[:length], dtype=np.float32),
+            "actions": np.asarray(actions[:length], dtype=np.float32),
+            "language": language,
+        }
+        return self._store_cached_episode(record, episode)
 
     def _language(self, h5: Any, demo: Any, record: EpisodeRecord) -> str:
         for source in (demo.attrs, h5.attrs):

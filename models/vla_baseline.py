@@ -246,6 +246,10 @@ class ACTChunkedBaseline(nn.Module):
         use_phase: bool = False,
         phase_vocab_size: int = 4,
         use_object_signals: bool = False,
+        use_event_memory: bool = False,
+        memory_chunk_size: int = 8,
+        max_memory_tokens: int = 8,
+        gate_type: str = "event",
     ) -> None:
         super().__init__()
         self.T_obs = T_obs
@@ -255,6 +259,12 @@ class ACTChunkedBaseline(nn.Module):
         self.use_language = use_language
         self.use_phase = use_phase
         self.use_object_signals = use_object_signals
+        self.use_event_memory = use_event_memory
+        self.memory_chunk_size = max(int(memory_chunk_size), 1)
+        self.max_memory_tokens = max(int(max_memory_tokens), 1)
+        if gate_type not in {"event", "age_based"}:
+            raise ValueError("gate_type must be 'event' or 'age_based'.")
+        self.gate_type = gate_type
         self.input_modalities = input_modalities
         allowed_modalities = {"vision_state_action", "vision_state", "state_action", "state"}
         if self.input_modalities not in allowed_modalities:
@@ -292,6 +302,13 @@ class ACTChunkedBaseline(nn.Module):
             raise ValueError("ACTChunkedBaseline needs at least one input modality.")
         self.context_fusion = nn.Linear(d_model * fusion_inputs, d_model)
         self.context_pos_embedding = nn.Parameter(torch.zeros(1, T_obs, d_model))
+        self.memory_pos_embedding = nn.Parameter(torch.zeros(1, self.max_memory_tokens, d_model))
+        self.memory_pool_query = nn.Parameter(torch.randn(d_model) * 0.02)
+        self.memory_gate = nn.Sequential(
+            nn.Linear(d_model * 3 + 1, d_model),
+            nn.GELU(),
+            nn.Linear(d_model, 1),
+        )
         self.query_embedding = nn.Parameter(torch.randn(1, T_action, d_model) * 0.02)
         self.query_pos_embedding = nn.Parameter(torch.zeros(1, T_action, d_model))
         self.query_type_embedding = nn.Parameter(torch.zeros(1, 1, d_model))
@@ -321,23 +338,20 @@ class ACTChunkedBaseline(nn.Module):
             nn.Linear(action_hidden_dim, action_dim),
         )
 
-    def forward(
+    def _encode_context_tokens(
         self,
         images: torch.Tensor,
         states: torch.Tensor,
         actions: torch.Tensor | None = None,
         language_ids: torch.Tensor | None = None,
-        recent_phase_ids: torch.Tensor | None = None,
-        target_phase_ids: torch.Tensor | None = None,
-        recent_secured_ids: torch.Tensor | None = None,
-        target_secured_ids: torch.Tensor | None = None,
-        recent_placement_ready_ids: torch.Tensor | None = None,
-        target_placement_ready_ids: torch.Tensor | None = None,
-        **_: Any,
+        phase_ids: torch.Tensor | None = None,
+        secured_ids: torch.Tensor | None = None,
+        placement_ready_ids: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        bsz, timesteps, channels, height, width = images.shape
+        bsz, timesteps = states.shape[:2]
         pieces = []
         if self.use_vision:
+            _, _, channels, height, width = images.shape
             flat_images = images.view(bsz * timesteps, channels, height, width)
             if flat_images.is_cuda:
                 flat_images = flat_images.contiguous(memory_format=torch.channels_last)
@@ -355,19 +369,106 @@ class ACTChunkedBaseline(nn.Module):
                 language_ids = torch.zeros(bsz, dtype=torch.long, device=states.device)
             context = context + self.language_embedding(language_ids).unsqueeze(1)
         if self.phase_embedding is not None:
-            if recent_phase_ids is None:
-                recent_phase_ids = torch.zeros(bsz, timesteps, dtype=torch.long, device=states.device)
-            recent_phase_ids = recent_phase_ids.clamp(0, self.phase_embedding.num_embeddings - 1)
-            context = context + self.phase_embedding(recent_phase_ids)
+            if phase_ids is None:
+                phase_ids = torch.zeros(bsz, timesteps, dtype=torch.long, device=states.device)
+            context = context + self.phase_embedding(phase_ids.clamp(0, self.phase_embedding.num_embeddings - 1))
         if self.use_object_signals:
-            if recent_secured_ids is None:
-                recent_secured_ids = torch.zeros(bsz, timesteps, dtype=torch.long, device=states.device)
-            if recent_placement_ready_ids is None:
-                recent_placement_ready_ids = torch.zeros(bsz, timesteps, dtype=torch.long, device=states.device)
-            context = context + self.secured_embedding(recent_secured_ids.clamp(0, 1))
-            context = context + self.placement_ready_embedding(recent_placement_ready_ids.clamp(0, 1))
+            if secured_ids is None:
+                secured_ids = torch.zeros(bsz, timesteps, dtype=torch.long, device=states.device)
+            if placement_ready_ids is None:
+                placement_ready_ids = torch.zeros(bsz, timesteps, dtype=torch.long, device=states.device)
+            context = context + self.secured_embedding(secured_ids.clamp(0, 1))
+            context = context + self.placement_ready_embedding(placement_ready_ids.clamp(0, 1))
+        return context
+
+    def _event_memory_tokens(self, tokens: torch.Tensor, mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        bsz, timesteps, dim = tokens.shape
+        chunk_count = max((timesteps + self.memory_chunk_size - 1) // self.memory_chunk_size, 1)
+        padded_steps = chunk_count * self.memory_chunk_size
+        pad = padded_steps - timesteps
+        if pad:
+            tokens = torch.cat([tokens, tokens.new_zeros(bsz, pad, dim)], dim=1)
+            mask = torch.cat([mask, torch.zeros(bsz, pad, dtype=torch.bool, device=mask.device)], dim=1)
+
+        chunk_tokens = tokens.view(bsz, chunk_count, self.memory_chunk_size, dim)
+        chunk_mask = mask.view(bsz, chunk_count, self.memory_chunk_size)
+
+        attn_logits = torch.einsum("bcsd,d->bcs", chunk_tokens, self.memory_pool_query)
+        attn_logits = attn_logits.masked_fill(~chunk_mask, -1e4)
+        attn = torch.softmax(attn_logits, dim=-1) * chunk_mask.to(tokens.dtype)
+        attn = attn / attn.sum(dim=-1, keepdim=True).clamp_min(1e-6)
+        summaries = torch.einsum("bcs,bcsd->bcd", attn, chunk_tokens)
+
+        pair_mask = chunk_mask[:, :, 1:] & chunk_mask[:, :, :-1]
+        pair_counts = pair_mask.sum(dim=-1).clamp_min(1).to(tokens.dtype).unsqueeze(-1)
+        pair_mask_f = pair_mask.to(tokens.dtype).unsqueeze(-1)
+        deltas = (chunk_tokens.diff(dim=2).abs() * pair_mask_f).sum(dim=2) / pair_counts
+        chunk_mean = (chunk_tokens * chunk_mask.to(tokens.dtype).unsqueeze(-1)).sum(dim=2)
+        chunk_mean = chunk_mean / chunk_mask.sum(dim=-1).clamp_min(1).to(tokens.dtype).unsqueeze(-1)
+        age = torch.linspace(0.0, 1.0, chunk_count, device=tokens.device).view(1, chunk_count, 1).expand(bsz, -1, -1)
+        if self.gate_type == "age_based":
+            gate_score = age.clamp_min(1.0 / max(chunk_count, 1))
+        else:
+            gate_score = torch.sigmoid(self.memory_gate(torch.cat([summaries, deltas, chunk_mean, age], dim=-1)))
+        memory_tokens = summaries * gate_score
+        memory_mask = chunk_mask.any(dim=-1)
+        if memory_tokens.size(1) > self.max_memory_tokens:
+            memory_tokens = memory_tokens[:, -self.max_memory_tokens :]
+            memory_mask = memory_mask[:, -self.max_memory_tokens :]
+        empty_memory = ~memory_mask.any(dim=1)
+        if empty_memory.any():
+            memory_tokens = memory_tokens.clone()
+            memory_mask = memory_mask.clone()
+            memory_tokens[empty_memory, 0] = 0
+            memory_mask[empty_memory, 0] = True
+        return memory_tokens, memory_mask
+
+    def forward(
+        self,
+        images: torch.Tensor,
+        states: torch.Tensor,
+        actions: torch.Tensor | None = None,
+        older_obs: torch.Tensor | None = None,
+        older_states: torch.Tensor | None = None,
+        older_actions: torch.Tensor | None = None,
+        recent_mask: torch.Tensor | None = None,
+        older_mask: torch.Tensor | None = None,
+        language_ids: torch.Tensor | None = None,
+        recent_phase_ids: torch.Tensor | None = None,
+        target_phase_ids: torch.Tensor | None = None,
+        recent_secured_ids: torch.Tensor | None = None,
+        target_secured_ids: torch.Tensor | None = None,
+        recent_placement_ready_ids: torch.Tensor | None = None,
+        target_placement_ready_ids: torch.Tensor | None = None,
+        **_: Any,
+    ) -> torch.Tensor:
+        bsz, timesteps = states.shape[:2]
+        context = self._encode_context_tokens(
+            images,
+            states,
+            actions,
+            language_ids=language_ids,
+            phase_ids=recent_phase_ids,
+            secured_ids=recent_secured_ids,
+            placement_ready_ids=recent_placement_ready_ids,
+        )
         context = context + self.context_pos_embedding[:, :timesteps]
-        memory = self.encoder(context)
+        context_mask = recent_mask.to(torch.bool) if recent_mask is not None else torch.ones(bsz, timesteps, dtype=torch.bool, device=states.device)
+
+        if self.use_event_memory and older_obs is not None and older_states is not None:
+            older_context = self._encode_context_tokens(
+                older_obs,
+                older_states,
+                older_actions,
+                language_ids=language_ids,
+            )
+            if older_mask is None:
+                older_mask = torch.ones(older_context.shape[:2], dtype=torch.bool, device=older_context.device)
+            memory_tokens, memory_mask = self._event_memory_tokens(older_context, older_mask.to(torch.bool))
+            memory_tokens = memory_tokens + self.memory_pos_embedding[:, : memory_tokens.size(1)]
+            context = torch.cat([memory_tokens, context], dim=1)
+            context_mask = torch.cat([memory_mask, context_mask], dim=1)
+        memory = self.encoder(context, src_key_padding_mask=~context_mask)
 
         queries = self.query_embedding.expand(bsz, -1, -1) + self.query_pos_embedding + self.query_type_embedding
         if self.language_embedding is not None:
@@ -826,7 +927,8 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
             pretrained_vision=bool(model_cfg.get("pretrained_vision", True)),
             action_hidden_dim=int(model_cfg.get("action_hidden_dim", 256)),
         )
-    if baseline == "act_chunked":
+    if baseline in {"act_chunked", "event_gated_act"}:
+        memory_cfg = config.get("memory", {})
         return ACTChunkedBaseline(
             state_dim=state_dim,
             action_dim=action_dim,
@@ -847,6 +949,10 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
             use_phase=bool(model_cfg.get("use_phase", False)),
             phase_vocab_size=int(model_cfg.get("phase_vocab_size", 4)),
             use_object_signals=bool(model_cfg.get("use_object_signals", False)),
+            use_event_memory=baseline == "event_gated_act",
+            memory_chunk_size=int(memory_cfg.get("chunk_size", 8)),
+            max_memory_tokens=int(memory_cfg.get("max_memory_tokens", 8)),
+            gate_type=memory_cfg.get("gate_type", "event"),
         )
     if baseline == "diffusion_policy":
         return DiffusionPolicyBaseline(

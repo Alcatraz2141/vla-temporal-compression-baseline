@@ -32,7 +32,14 @@ def load_compatible_state_dict(model: torch.nn.Module, state_dict: dict[str, tor
         new_weight[:, :cols] = old_weight[:, :cols]
         patched[gate_key] = new_weight
     result = model.load_state_dict(patched, strict=False)
-    allowed_prefixes = ("phase_embedding.", "secured_embedding.", "placement_ready_embedding.")
+    allowed_prefixes = (
+        "phase_embedding.",
+        "secured_embedding.",
+        "placement_ready_embedding.",
+        "memory_pos_embedding",
+        "memory_pool_query",
+        "memory_gate.",
+    )
     unexpected = [key for key in result.unexpected_keys if not key.startswith(allowed_prefixes)]
     missing = [key for key in result.missing_keys if not key.startswith(allowed_prefixes)]
     if unexpected or missing:
@@ -87,6 +94,11 @@ def _model_forward_and_target(
                     images=batch["recent_obs"],
                     states=batch["recent_states"],
                     actions=batch["recent_actions"],
+                    older_obs=batch.get("older_obs") if bool(getattr(model, "use_event_memory", False)) else None,
+                    older_states=batch.get("older_states") if bool(getattr(model, "use_event_memory", False)) else None,
+                    older_actions=batch.get("older_actions") if bool(getattr(model, "use_event_memory", False)) else None,
+                    recent_mask=batch.get("recent_mask") if bool(getattr(model, "use_event_memory", False)) else None,
+                    older_mask=batch.get("older_mask") if bool(getattr(model, "use_event_memory", False)) else None,
                     **kwargs,
                 )
         return pred, batch["target_actions"], batch["target_mask"]
@@ -188,6 +200,7 @@ def main() -> None:
             "bc_resnet50",
             "rt1_style",
             "act_chunked",
+            "event_gated_act",
             "diffusion_policy",
             "octo",
             "event_gated_memory",

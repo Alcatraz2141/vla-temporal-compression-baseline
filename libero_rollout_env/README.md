@@ -250,15 +250,20 @@ object-signal ACT:
   interpretation: offline improved, rollout did not; drop object-signal conditioning from the main comparison
 ```
 
-Next controlled rollout comparison:
+As of the event-gated ACT run later on 2026-06-04:
 
 ```text
-phase ACT baseline
-vs
-phase + event-gated memory ACT
+event-gated ACT:
+  config: configs/libero_long_event_gated_act_h20_task5_phase_memory.yaml
+  checkpoint: checkpoints/libero_long_corrected_task5/event_gated_act_h20_task5_phase_memory/best.pt
+  best epoch: 72
+  offline continuous_mse: 0.013256419223546981
+  task-5 train10 / val5 / test5: 8/10, 4/5, 5/5 = 17/20
+  interpretation: clears the >=13/20 memory-helping decision rule
 
-same task-5 train10 / val5 / test5 protocol
-decision rule: >=13/20 means memory helps; around 10/20 means memory is not the current bottleneck
+next:
+  inspect train ep8, train ep10, val ep45
+  run larger confirmation rollout: train20 / val10 / test10
 ```
 
 Restore the current pod artifact backup from Hugging Face if needed:
