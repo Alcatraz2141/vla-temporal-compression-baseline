@@ -2207,10 +2207,78 @@ Next architecture work should be phase-conditioned ACT or a placement/refinement
 Only continue diffusion if offline sampled-action quality improves substantially first.
 ```
 
-Current artifact backup:
+Previous artifact backup:
 
 ```text
 local: /workspace/run_backups/vla_run_artifacts_20260603_161004.tar.gz
 HF dataset: Alcatraz1412/vla-run-backups
 HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/d57c1138d2700872df6451f2f632b1db3db11a37
+```
+
+## 2026-06-04 Phase ACT Baseline And Next Memory Comparison
+
+Phase-conditioned ACT is now the frozen task-5 controller baseline.
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_phase_conditioned.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_phase_conditioned/best.pt
+best epoch: 58
+offline continuous_mse: 0.019623747254908085
+offline continuous_mae: 0.10296388152837753
+gripper_sign_accuracy: 0.9973975031852722
+task-5 train10 rollout: 4/10
+task-5 val5 rollout:   3/5
+task-5 test5 rollout:  3/5
+total:                 10/20
+```
+
+Object-signal ACT was tested under the same larger rollout protocol.
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_object_signals.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_object_signals/best.pt
+best epoch: 69
+offline continuous_mse: 0.01562450560182333
+offline continuous_mae: 0.09162709747552872
+gripper_sign_accuracy: 0.9983525047302246
+task-5 train10 rollout: 5/10
+task-5 val5 rollout:   3/5
+task-5 test5 rollout:  2/5
+total:                 10/20
+```
+
+Interpretation:
+
+```text
+The object-signal heuristic is a clean negative rollout result: offline improved, rollout did not.
+Do not include secured / placement_ready embeddings in the main comparison.
+Keep trace instrumentation, but use phase conditioning only for the next controlled memory run.
+```
+
+Next controlled research comparison:
+
+```text
+phase ACT baseline
+vs
+phase + event-gated memory ACT
+
+same task: task 5
+same protocol: train10 / val5 / test5
+same rollout settings unless doing explicit gripper execution ablations
+```
+
+Decision rule:
+
+```text
+>= 13/20: memory is helping; continue.
+~ 10/20: memory is not the current bottleneck; report phase ACT as controller baseline.
+< 10/20: memory integration is adding noise or undertraining.
+```
+
+Current artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz
+HF dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/83ba81224f5b6918ab4ffb55c245e8dc86c45ef4
 ```

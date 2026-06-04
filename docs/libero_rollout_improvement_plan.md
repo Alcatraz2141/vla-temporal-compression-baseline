@@ -2,6 +2,84 @@
 
 Date: 2026-05-30
 
+## 2026-06-04 Current Decision Point
+
+The current rollout-facing controller baseline is phase-conditioned ACT on task 5.
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_phase_conditioned.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_phase_conditioned/best.pt
+best epoch: 58
+continuous_mse: 0.019623747254908085
+continuous_mae: 0.10296388152837753
+gripper_sign_accuracy: 0.9973975031852722
+task-5 rollout protocol: train10 / val5 / test5
+task-5 rollout result: 4/10 train, 3/5 val, 3/5 test, 10/20 total
+```
+
+The derived object-signal ACT run is a negative result:
+
+```text
+config: configs/libero_long_act_chunked_corrected_h20_task5_object_signals.yaml
+checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_object_signals/best.pt
+best epoch: 69
+continuous_mse: 0.01562450560182333
+continuous_mae: 0.09162709747552872
+gripper_sign_accuracy: 0.9983525047302246
+task-5 rollout result: 5/10 train, 3/5 val, 2/5 test, 10/20 total
+```
+
+Interpretation:
+
+```text
+Offline action prediction improved with secured/placement_ready embeddings.
+Closed-loop success did not improve.
+The current object-signal heuristic should not be part of the main comparison.
+Keep the trace instrumentation, but drop object-signal conditioning for the next run.
+```
+
+Next controlled research comparison:
+
+```text
+phase ACT baseline
+vs
+phase + event-gated memory ACT
+```
+
+Use the exact same task-5 rollout protocol:
+
+```text
+train-init: 10 episodes
+val:        5 episodes
+test:       5 episodes
+max steps:  300
+same split files and rollout settings
+```
+
+Decision rule:
+
+```text
+event-memory phase ACT >= 13/20:
+  memory is helping; continue.
+
+event-memory phase ACT around 10/20:
+  memory is not the current bottleneck; report phase ACT as controller baseline and stop this detour.
+
+event-memory phase ACT below 10/20:
+  memory integration is adding noise or undertraining.
+```
+
+Run cheap rollout-only gripper execution ablations before or alongside the memory training:
+
+```text
+current temporal ensemble
+no gripper ensembling
+first-action gripper only
+hysteresis threshold
+```
+
+Do not run another object-signal model before a trace shows a concrete fix.
+
 This note summarizes the current diagnosis for why offline LIBERO action-prediction metrics show signal while online LIBERO rollouts remain at zero success. The goal is to separate fixable implementation/evaluation issues from true behavior-cloning limitations before spending more GPU budget.
 
 ## 2026-05-31 Local Progress Update

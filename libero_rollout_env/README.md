@@ -235,15 +235,41 @@ small diffusion policy:
   rollout: not run; offline sampled actions are not good enough
 ```
 
+As of 2026-06-04, phase-conditioned ACT is the frozen task-5 rollout baseline:
+
+```text
+phase ACT:
+  config: configs/libero_long_act_chunked_corrected_h20_task5_phase_conditioned.yaml
+  checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_phase_conditioned/best.pt
+  task-5 train10 / val5 / test5: 4/10, 3/5, 3/5 = 10/20
+
+object-signal ACT:
+  config: configs/libero_long_act_chunked_corrected_h20_task5_object_signals.yaml
+  checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_object_signals/best.pt
+  task-5 train10 / val5 / test5: 5/10, 3/5, 2/5 = 10/20
+  interpretation: offline improved, rollout did not; drop object-signal conditioning from the main comparison
+```
+
+Next controlled rollout comparison:
+
+```text
+phase ACT baseline
+vs
+phase + event-gated memory ACT
+
+same task-5 train10 / val5 / test5 protocol
+decision rule: >=13/20 means memory helps; around 10/20 means memory is not the current bottleneck
+```
+
 Restore the current pod artifact backup from Hugging Face if needed:
 
 ```bash
 uv run hf download Alcatraz1412/vla-run-backups \
   --repo-type dataset \
   --local-dir /workspace/run_backups \
-  vla_run_artifacts_20260603_161004.tar.gz
+  vla_run_artifacts_20260604_124932.tar.gz
 
-tar -xzf /workspace/run_backups/vla_run_artifacts_20260603_161004.tar.gz \
+tar -xzf /workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz \
   -C /root/vla-temporal-compression-baseline
 ```
 

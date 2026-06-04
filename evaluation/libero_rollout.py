@@ -38,7 +38,12 @@ def load_compatible_state_dict(model: torch.nn.Module, state_dict: dict[str, tor
         cols = min(old_weight.shape[1], new_weight.shape[1])
         new_weight[:, :cols] = old_weight[:, :cols]
         patched[gate_key] = new_weight
-    model.load_state_dict(patched)
+    result = model.load_state_dict(patched, strict=False)
+    allowed_prefixes = ("phase_embedding.", "secured_embedding.", "placement_ready_embedding.")
+    unexpected = [key for key in result.unexpected_keys if not key.startswith(allowed_prefixes)]
+    missing = [key for key in result.missing_keys if not key.startswith(allowed_prefixes)]
+    if unexpected or missing:
+        raise RuntimeError(f"Incompatible checkpoint keys. missing={missing}, unexpected={unexpected}")
 
 
 def _patch_torch_load_for_libero_init_states() -> None:
@@ -96,6 +101,68 @@ def vector_tensor(vectors: list[np.ndarray], device: torch.device) -> torch.Tens
 
 def mask_tensor(mask: list[bool], device: torch.device) -> torch.Tensor:
     return torch.tensor(mask, dtype=torch.bool, device=device).unsqueeze(0)
+
+
+def _phase_boundaries_from_config(cfg: dict[str, Any]) -> list[int]:
+    episode_cfg = cfg.get("data", {}).get("episode_loader", {})
+    boundaries = episode_cfg.get("phase_boundaries")
+    if boundaries is None:
+        placement_start = episode_cfg.get("placement_start_timestep")
+        boundaries = [] if placement_start is None else [placement_start]
+    return sorted(int(boundary) for boundary in boundaries)
+
+
+def _phase_ids(indices: np.ndarray, boundaries: list[int], device: torch.device) -> torch.Tensor:
+    phases = np.zeros(indices.shape, dtype=np.int64)
+    for boundary in boundaries:
+        phases += indices >= boundary
+    return torch.from_numpy(phases).unsqueeze(0).to(device)
+
+
+def _derived_signal_arrays(
+    actions: list[np.ndarray],
+    states: list[np.ndarray],
+    indices: np.ndarray,
+    boundaries: list[int],
+    cfg: dict[str, Any],
+) -> tuple[np.ndarray, np.ndarray]:
+    episode_cfg = cfg.get("data", {}).get("episode_loader", {})
+    secured_delay = max(int(episode_cfg.get("secured_delay_steps", 8)), 0)
+    secured_min_positive = max(int(episode_cfg.get("secured_min_positive_steps", 4)), 1)
+    secured_window = max(int(episode_cfg.get("secured_history_window", 8)), 1)
+    ready_phase = max(int(episode_cfg.get("placement_ready_phase", 1)), 0)
+    ready_delay = max(int(episode_cfg.get("placement_ready_delay_steps", 20)), 0)
+    pose_threshold = float(episode_cfg.get("placement_ready_pose_stability_threshold", 0.06))
+    action_threshold = float(episode_cfg.get("placement_ready_action_stability_threshold", 0.75))
+    stability_window = max(int(episode_cfg.get("placement_ready_stability_window", 4)), 1)
+
+    action_arr = np.asarray(actions, dtype=np.float32)
+    state_arr = np.asarray(states, dtype=np.float32)
+    positive = action_arr[:, -1] >= 0.0
+    positive_steps = np.flatnonzero(positive)
+    first_positive = int(positive_steps[0]) if positive_steps.size else None
+    secured = np.zeros(indices.shape, dtype=np.int64)
+    ready = np.zeros(indices.shape, dtype=np.int64)
+    phases = np.zeros(indices.shape, dtype=np.int64)
+    for boundary in boundaries:
+        phases += indices >= boundary
+    for out_i, raw_index in enumerate(indices):
+        if first_positive is None:
+            continue
+        index = min(max(int(raw_index), 0), len(action_arr) - 1)
+        history_start = max(0, index - secured_window + 1)
+        positive_count = int(positive[history_start : index + 1].sum())
+        is_secured = index >= first_positive + secured_delay and positive_count >= secured_min_positive
+        secured[out_i] = int(is_secured)
+        if not is_secured:
+            continue
+        stable_start = max(0, index - stability_window + 1)
+        state_deltas = np.linalg.norm(np.diff(state_arr[stable_start : index + 1, :3], axis=0), axis=-1)
+        action_norms = np.linalg.norm(action_arr[stable_start : index + 1, :6], axis=-1)
+        pose_stable = state_deltas.size == 0 or float(state_deltas.max()) <= pose_threshold
+        action_stable = action_norms.size == 0 or float(action_norms.mean()) <= action_threshold
+        ready[out_i] = int(phases[out_i] >= ready_phase and index >= first_positive + ready_delay and pose_stable and action_stable)
+    return secured, ready
 
 
 def _load_action_stats(cfg: dict[str, Any]) -> dict[str, Any] | None:
@@ -209,13 +276,57 @@ def predict_chunk(
     action_stats: dict[str, Any] | None = None,
     image_normalization: str | None = None,
     language: str | None = None,
-) -> np.ndarray:
+    cfg: dict[str, Any] | None = None,
+) -> tuple[np.ndarray, dict[str, Any]]:
     recent_images, recent_states, recent_actions, recent_mask = history.recent()
     recent_actions = normalize_actions(recent_actions, action_stats, history.action_dim)
     kwargs: dict[str, Any] = {}
     if bool(getattr(model, "use_language", False)):
         vocab_size = int(getattr(model, "language_embedding").num_embeddings)
         kwargs["language_ids"] = language_ids([language or ""], vocab_size, device)
+    if bool(getattr(model, "use_phase", False)):
+        boundaries = _phase_boundaries_from_config(cfg or {})
+        current_step = len(history.images) - 1
+        raw_recent = np.arange(max(0, current_step - history.k_recent + 1), current_step + 1, dtype=np.int64)
+        pad = history.k_recent - len(raw_recent)
+        if pad > 0:
+            recent_indices = np.concatenate([np.zeros(pad, dtype=np.int64), raw_recent])
+        else:
+            recent_indices = raw_recent[-history.k_recent :]
+        target_indices = current_step + np.arange(int(getattr(model, "T_action", 1)), dtype=np.int64)
+        recent_phase_ids = _phase_ids(recent_indices, boundaries, device)
+        target_phase_ids = _phase_ids(target_indices, boundaries, device)
+        kwargs["recent_phase_ids"] = recent_phase_ids
+        kwargs["target_phase_ids"] = target_phase_ids
+        if bool(getattr(model, "use_object_signals", False)):
+            recent_secured, recent_ready = _derived_signal_arrays(history.prev_actions, history.states, recent_indices, boundaries, cfg or {})
+            target_secured, target_ready = _derived_signal_arrays(history.prev_actions, history.states, target_indices, boundaries, cfg or {})
+            kwargs["recent_secured_ids"] = torch.from_numpy(recent_secured).unsqueeze(0).to(device)
+            kwargs["target_secured_ids"] = torch.from_numpy(target_secured).unsqueeze(0).to(device)
+            kwargs["recent_placement_ready_ids"] = torch.from_numpy(recent_ready).unsqueeze(0).to(device)
+            kwargs["target_placement_ready_ids"] = torch.from_numpy(target_ready).unsqueeze(0).to(device)
+        else:
+            recent_secured = np.zeros_like(recent_indices, dtype=np.int64)
+            target_secured = np.zeros_like(target_indices, dtype=np.int64)
+            recent_ready = np.zeros_like(recent_indices, dtype=np.int64)
+            target_ready = np.zeros_like(target_indices, dtype=np.int64)
+        signal_info = {
+            "current_phase_id": int(recent_phase_ids[0, -1].detach().cpu()),
+            "target_phase_ids": target_phase_ids.squeeze(0).detach().cpu().numpy().astype(np.int64),
+            "current_secured": int(recent_secured[-1]),
+            "target_secured": target_secured.astype(np.int64),
+            "current_placement_ready": int(recent_ready[-1]),
+            "target_placement_ready": target_ready.astype(np.int64),
+        }
+    else:
+        signal_info = {
+            "current_phase_id": 0,
+            "target_phase_ids": np.zeros(int(getattr(model, "T_action", 1)), dtype=np.int64),
+            "current_secured": 0,
+            "target_secured": np.zeros(int(getattr(model, "T_action", 1)), dtype=np.int64),
+            "current_placement_ready": 0,
+            "target_placement_ready": np.zeros(int(getattr(model, "T_action", 1)), dtype=np.int64),
+        }
     if isinstance(model, EventGatedMemoryVLA):
         older_images, older_states, older_actions, older_mask = history.older()
         older_actions = normalize_actions(older_actions, action_stats, history.action_dim)
@@ -250,11 +361,13 @@ def predict_chunk(
             )
     actions = pred.squeeze(0).detach().cpu().numpy().astype(np.float32)
     actions = unnormalize_action_chunk(actions, action_stats)
+    raw_actions = actions.copy()
     if clip_action:
         actions = np.clip(actions, -1.0, 1.0)
     if discrete_gripper and actions.shape[-1] >= 7:
         actions[:, -1] = np.where(actions[:, -1] >= 0.0, 1.0, -1.0)
-    return actions
+    signal_info["raw_actions"] = raw_actions
+    return actions, signal_info
 
 
 def append_csv(path: Path, row: dict[str, Any]) -> None:
@@ -480,7 +593,7 @@ def main() -> None:
                 print(f"No init states from {args.split_file} matched task {task_id}: {task.name}", flush=True)
             for episode_idx in episode_indices:
                 expert_actions = None
-                if args.expert_prefix_steps > 0:
+                if args.expert_prefix_steps > 0 or args.trace_path is not None:
                     expert_actions = load_expert_actions(expert_data_root, task.name, episode_idx, action_dim)
                 obs = env.reset()
                 obs = env.set_init_state(init_states[episode_idx])
@@ -498,13 +611,19 @@ def main() -> None:
                 if args.video_dir is not None:
                     frames.append(obs_to_image(obs, args.camera_key))
                 ensemble_actions: dict[int, list[tuple[int, np.ndarray]]] = defaultdict(list)
+                ensemble_raw_actions: dict[int, list[tuple[int, np.ndarray]]] = defaultdict(list)
+                ensemble_signal_info: dict[int, list[tuple[int, dict[str, Any], int]]] = defaultdict(list)
                 while steps < args.max_steps and not success:
                     controller = "policy"
+                    pred_gripper_raw = float("nan")
+                    pred_gripper_sign = ""
+                    signal_info_for_step: dict[str, Any] = {}
+                    signal_offset = 0
                     if expert_actions is not None and steps < args.expert_prefix_steps and steps < len(expert_actions):
                         controller = "expert_prefix"
                         action_sequence = [expert_actions[steps].copy()]
                     else:
-                        action_chunk = predict_chunk(
+                        action_chunk, prediction_info = predict_chunk(
                             model,
                             history,
                             device,
@@ -513,23 +632,43 @@ def main() -> None:
                             action_stats,
                             image_normalization,
                             language=task.name,
+                            cfg=cfg,
                         )
+                        raw_chunk = prediction_info["raw_actions"]
                         if args.temporal_ensemble:
                             for offset, predicted_action in enumerate(action_chunk):
                                 ensemble_actions[steps + offset].append((steps, predicted_action.copy()))
+                                ensemble_raw_actions[steps + offset].append((steps, raw_chunk[offset].copy()))
+                                ensemble_signal_info[steps + offset].append((steps, prediction_info, offset))
                             candidates = ensemble_actions.pop(steps, [(steps, action_chunk[0])])
+                            raw_candidates = ensemble_raw_actions.pop(steps, [(steps, raw_chunk[0])])
+                            signal_candidates = ensemble_signal_info.pop(steps, [(steps, prediction_info, 0)])
                             weights = np.asarray(
                                 [np.exp(-float(args.temporal_ensemble_decay) * max(steps - source_step, 0)) for source_step, _ in candidates],
                                 dtype=np.float32,
                             )
                             stacked_actions = np.stack([candidate_action for _, candidate_action in candidates], axis=0)
                             action_sequence = [(stacked_actions * weights[:, None]).sum(axis=0) / weights.sum().clip(min=1e-6)]
+                            raw_weights = np.asarray(
+                                [np.exp(-float(args.temporal_ensemble_decay) * max(steps - source_step, 0)) for source_step, _ in raw_candidates],
+                                dtype=np.float32,
+                            )
+                            stacked_raw_actions = np.stack([candidate_action for _, candidate_action in raw_candidates], axis=0)
+                            raw_action = (stacked_raw_actions * raw_weights[:, None]).sum(axis=0) / raw_weights.sum().clip(min=1e-6)
+                            signal_info_for_step = signal_candidates[-1][1]
+                            signal_offset = signal_candidates[-1][2]
                             if args.clip_action:
                                 action_sequence[0] = np.clip(action_sequence[0], -1.0, 1.0)
                             if args.discrete_gripper and action_sequence[0].shape[-1] >= 7:
                                 action_sequence[0][-1] = 1.0 if action_sequence[0][-1] >= 0.0 else -1.0
+                            pred_gripper_raw = float(raw_action[-1]) if raw_action.shape[-1] >= 7 else float("nan")
+                            pred_gripper_sign = "positive" if pred_gripper_raw >= 0.0 else "negative"
                         else:
                             action_sequence = list(action_chunk[: max(int(args.execute_horizon), 1)])
+                            signal_info_for_step = prediction_info
+                            signal_offset = 0
+                            pred_gripper_raw = float(raw_chunk[0, -1]) if raw_chunk.shape[-1] >= 7 else float("nan")
+                            pred_gripper_sign = "positive" if pred_gripper_raw >= 0.0 else "negative"
                     for action in action_sequence:
                         if expert_actions is not None and steps >= args.expert_prefix_steps:
                             controller = "policy"
@@ -553,6 +692,22 @@ def main() -> None:
                                 "success": int(success),
                                 "controller": controller,
                                 "expert_prefix_steps": args.expert_prefix_steps,
+                                "current_phase_id": int(signal_info_for_step.get("current_phase_id", 0)),
+                                "current_secured": int(signal_info_for_step.get("current_secured", 0)),
+                                "current_placement_ready": int(signal_info_for_step.get("current_placement_ready", 0)),
+                                "target_phase_id": int(np.asarray(signal_info_for_step.get("target_phase_ids", [0]))[min(signal_offset, len(np.asarray(signal_info_for_step.get("target_phase_ids", [0]))) - 1)]),
+                                "target_secured": int(np.asarray(signal_info_for_step.get("target_secured", [0]))[min(signal_offset, len(np.asarray(signal_info_for_step.get("target_secured", [0]))) - 1)]),
+                                "target_placement_ready": int(np.asarray(signal_info_for_step.get("target_placement_ready", [0]))[min(signal_offset, len(np.asarray(signal_info_for_step.get("target_placement_ready", [0]))) - 1)]),
+                                "pred_gripper_raw": pred_gripper_raw,
+                                "pred_gripper_sign": pred_gripper_sign,
+                                "executed_gripper": float(action[-1]) if len(action) >= 7 else float("nan"),
+                                "expert_gripper_if_available": (
+                                    float(expert_actions[steps, -1])
+                                    if expert_actions is not None and steps < len(expert_actions)
+                                    else float("nan")
+                                ),
+                                "eef_delta_norm": float(np.linalg.norm(post_state[:3] - pre_state[:3])),
+                                "action_delta_norm": float(np.linalg.norm(action[:6])),
                             }
                             for dim, value in enumerate(pre_state):
                                 trace_row[f"pre_state_{dim}"] = float(value)

@@ -133,6 +133,15 @@ class EpisodeDataset(Dataset):
         placement_sample_prob: float = 0.0,
         placement_start_timestep: int | None = None,
         placement_start_fraction: float | None = None,
+        phase_boundaries: list[int] | None = None,
+        secured_delay_steps: int = 8,
+        secured_min_positive_steps: int = 4,
+        secured_history_window: int = 8,
+        placement_ready_phase: int = 1,
+        placement_ready_delay_steps: int = 20,
+        placement_ready_pose_stability_threshold: float = 0.06,
+        placement_ready_action_stability_threshold: float = 0.75,
+        placement_ready_stability_window: int = 4,
     ) -> None:
         self.source = source
         self.split = split
@@ -154,6 +163,15 @@ class EpisodeDataset(Dataset):
         self.placement_sample_prob = float(placement_sample_prob)
         self.placement_start_timestep = None if placement_start_timestep is None else int(placement_start_timestep)
         self.placement_start_fraction = None if placement_start_fraction is None else float(placement_start_fraction)
+        self.phase_boundaries = tuple(sorted(int(boundary) for boundary in (phase_boundaries or [])))
+        self.secured_delay_steps = max(int(secured_delay_steps), 0)
+        self.secured_min_positive_steps = max(int(secured_min_positive_steps), 1)
+        self.secured_history_window = max(int(secured_history_window), 1)
+        self.placement_ready_phase = max(int(placement_ready_phase), 0)
+        self.placement_ready_delay_steps = max(int(placement_ready_delay_steps), 0)
+        self.placement_ready_pose_stability_threshold = float(placement_ready_pose_stability_threshold)
+        self.placement_ready_action_stability_threshold = float(placement_ready_action_stability_threshold)
+        self.placement_ready_stability_window = max(int(placement_ready_stability_window), 1)
         self.action_stats = _read_json(Path(stats_path)) if stats_path else {}
         self.normalize_actions = bool(normalize_actions and self.action_stats)
         self.action_normalize_dims = action_normalize_dims
@@ -389,6 +407,52 @@ class EpisodeDataset(Dataset):
             return None
         return max(0, min(min(starts), max(length - 1, 0)))
 
+    def _phase_ids(self, indices: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        phases = np.zeros(len(indices), dtype=np.int64)
+        for boundary in self.phase_boundaries:
+            phases += indices >= boundary
+        phases[~mask] = 0
+        return phases
+
+    def _derived_signal_ids(
+        self,
+        actions: np.ndarray,
+        states: np.ndarray,
+        indices: np.ndarray,
+        mask: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        positive = np.asarray(actions[:, -1] >= 0.0, dtype=np.bool_)
+        positive_steps = np.flatnonzero(positive)
+        first_positive = int(positive_steps[0]) if positive_steps.size else None
+        secured = np.zeros(len(indices), dtype=np.int64)
+        placement_ready = np.zeros(len(indices), dtype=np.int64)
+        phases = self._phase_ids(indices, mask)
+        for out_i, raw_index in enumerate(indices):
+            if not mask[out_i] or first_positive is None:
+                continue
+            index = int(raw_index)
+            history_start = max(0, index - self.secured_history_window + 1)
+            positive_count = int(positive[history_start : index + 1].sum())
+            is_secured = (
+                index >= first_positive + self.secured_delay_steps
+                and positive_count >= self.secured_min_positive_steps
+            )
+            secured[out_i] = int(is_secured)
+            if not is_secured:
+                continue
+            stable_start = max(0, index - self.placement_ready_stability_window + 1)
+            state_deltas = np.linalg.norm(np.diff(states[stable_start : index + 1, :3], axis=0), axis=-1)
+            action_norms = np.linalg.norm(actions[stable_start : index + 1, :6], axis=-1)
+            pose_stable = state_deltas.size == 0 or float(state_deltas.max()) <= self.placement_ready_pose_stability_threshold
+            action_stable = action_norms.size == 0 or float(action_norms.mean()) <= self.placement_ready_action_stability_threshold
+            placement_ready[out_i] = int(
+                phases[out_i] >= self.placement_ready_phase
+                and index >= first_positive + self.placement_ready_delay_steps
+                and pose_stable
+                and action_stable
+            )
+        return secured, placement_ready
+
     def _load_actions(self, record: EpisodeRecord) -> np.ndarray:
         if record.source == "libero_long":
             with h5py.File(record.path, "r") as h5:
@@ -450,6 +514,14 @@ class EpisodeDataset(Dataset):
             older_idx = np.empty(0, dtype=np.int64)
             older_mask = np.empty(0, dtype=np.bool_)
         target_idx, target_mask = _take_or_pad(np.arange(t, t + self.H_action), self.H_action, length - 1)
+        recent_phase_ids = self._phase_ids(recent_idx, recent_mask)
+        target_phase_ids = self._phase_ids(target_idx, target_mask)
+        recent_secured_ids, recent_placement_ready_ids = self._derived_signal_ids(
+            episode["actions"], episode["states"], recent_idx, recent_mask
+        )
+        target_secured_ids, target_placement_ready_ids = self._derived_signal_ids(
+            episode["actions"], episode["states"], target_idx, target_mask
+        )
         placement_start = self._placement_start(length)
         target_placement = np.zeros(self.H_action, dtype=np.bool_)
         if placement_start is not None:
@@ -494,6 +566,12 @@ class EpisodeDataset(Dataset):
             "target_mask": torch.from_numpy(target_mask),
             "gripper_transition": torch.from_numpy(target_transition),
             "placement_window": torch.from_numpy(target_placement),
+            "recent_phase_ids": torch.from_numpy(recent_phase_ids),
+            "target_phase_ids": torch.from_numpy(target_phase_ids),
+            "recent_secured_ids": torch.from_numpy(recent_secured_ids),
+            "target_secured_ids": torch.from_numpy(target_secured_ids),
+            "recent_placement_ready_ids": torch.from_numpy(recent_placement_ready_ids),
+            "target_placement_ready_ids": torch.from_numpy(target_placement_ready_ids),
         }
 
     def _normalize_actions(self, actions: np.ndarray) -> np.ndarray:
@@ -580,6 +658,12 @@ def episode_collate_fn(batch: list[dict[str, Any]]) -> dict[str, Any]:
         "target_mask",
         "gripper_transition",
         "placement_window",
+        "recent_phase_ids",
+        "target_phase_ids",
+        "recent_secured_ids",
+        "target_secured_ids",
+        "recent_placement_ready_ids",
+        "target_placement_ready_ids",
     )
     for key in tensor_keys:
         out[key] = torch.stack([sample[key] for sample in batch])

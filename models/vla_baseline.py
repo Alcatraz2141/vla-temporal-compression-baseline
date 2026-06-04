@@ -243,6 +243,9 @@ class ACTChunkedBaseline(nn.Module):
         use_language: bool = True,
         language_vocab_size: int = 1024,
         input_modalities: str = "vision_state_action",
+        use_phase: bool = False,
+        phase_vocab_size: int = 4,
+        use_object_signals: bool = False,
     ) -> None:
         super().__init__()
         self.T_obs = T_obs
@@ -250,6 +253,8 @@ class ACTChunkedBaseline(nn.Module):
         self.action_dim = action_dim
         self.use_action_history = use_action_history
         self.use_language = use_language
+        self.use_phase = use_phase
+        self.use_object_signals = use_object_signals
         self.input_modalities = input_modalities
         allowed_modalities = {"vision_state_action", "vision_state", "state_action", "state"}
         if self.input_modalities not in allowed_modalities:
@@ -279,6 +284,9 @@ class ACTChunkedBaseline(nn.Module):
         else:
             self.action_encoder = None
         self.language_embedding = nn.Embedding(language_vocab_size, d_model) if self.use_language else None
+        self.phase_embedding = nn.Embedding(phase_vocab_size, d_model) if self.use_phase else None
+        self.secured_embedding = nn.Embedding(2, d_model) if self.use_object_signals else None
+        self.placement_ready_embedding = nn.Embedding(2, d_model) if self.use_object_signals else None
         fusion_inputs = int(self.use_vision) + int(self.use_state) + int(self.use_action_history)
         if fusion_inputs < 1:
             raise ValueError("ACTChunkedBaseline needs at least one input modality.")
@@ -319,6 +327,12 @@ class ACTChunkedBaseline(nn.Module):
         states: torch.Tensor,
         actions: torch.Tensor | None = None,
         language_ids: torch.Tensor | None = None,
+        recent_phase_ids: torch.Tensor | None = None,
+        target_phase_ids: torch.Tensor | None = None,
+        recent_secured_ids: torch.Tensor | None = None,
+        target_secured_ids: torch.Tensor | None = None,
+        recent_placement_ready_ids: torch.Tensor | None = None,
+        target_placement_ready_ids: torch.Tensor | None = None,
         **_: Any,
     ) -> torch.Tensor:
         bsz, timesteps, channels, height, width = images.shape
@@ -340,12 +354,36 @@ class ACTChunkedBaseline(nn.Module):
             if language_ids is None:
                 language_ids = torch.zeros(bsz, dtype=torch.long, device=states.device)
             context = context + self.language_embedding(language_ids).unsqueeze(1)
+        if self.phase_embedding is not None:
+            if recent_phase_ids is None:
+                recent_phase_ids = torch.zeros(bsz, timesteps, dtype=torch.long, device=states.device)
+            recent_phase_ids = recent_phase_ids.clamp(0, self.phase_embedding.num_embeddings - 1)
+            context = context + self.phase_embedding(recent_phase_ids)
+        if self.use_object_signals:
+            if recent_secured_ids is None:
+                recent_secured_ids = torch.zeros(bsz, timesteps, dtype=torch.long, device=states.device)
+            if recent_placement_ready_ids is None:
+                recent_placement_ready_ids = torch.zeros(bsz, timesteps, dtype=torch.long, device=states.device)
+            context = context + self.secured_embedding(recent_secured_ids.clamp(0, 1))
+            context = context + self.placement_ready_embedding(recent_placement_ready_ids.clamp(0, 1))
         context = context + self.context_pos_embedding[:, :timesteps]
         memory = self.encoder(context)
 
         queries = self.query_embedding.expand(bsz, -1, -1) + self.query_pos_embedding + self.query_type_embedding
         if self.language_embedding is not None:
             queries = queries + self.language_embedding(language_ids).unsqueeze(1)
+        if self.phase_embedding is not None:
+            if target_phase_ids is None:
+                target_phase_ids = torch.zeros(bsz, self.T_action, dtype=torch.long, device=states.device)
+            target_phase_ids = target_phase_ids.clamp(0, self.phase_embedding.num_embeddings - 1)
+            queries = queries + self.phase_embedding(target_phase_ids)
+        if self.use_object_signals:
+            if target_secured_ids is None:
+                target_secured_ids = torch.zeros(bsz, self.T_action, dtype=torch.long, device=states.device)
+            if target_placement_ready_ids is None:
+                target_placement_ready_ids = torch.zeros(bsz, self.T_action, dtype=torch.long, device=states.device)
+            queries = queries + self.secured_embedding(target_secured_ids.clamp(0, 1))
+            queries = queries + self.placement_ready_embedding(target_placement_ready_ids.clamp(0, 1))
         decoded = self.decoder(queries, memory)
         return self.action_head(decoded)
 
@@ -806,6 +844,9 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
             use_language=bool(model_cfg.get("use_language", True)),
             language_vocab_size=int(model_cfg.get("language_vocab_size", 1024)),
             input_modalities=str(model_cfg.get("input_modalities", "vision_state_action")),
+            use_phase=bool(model_cfg.get("use_phase", False)),
+            phase_vocab_size=int(model_cfg.get("phase_vocab_size", 4)),
+            use_object_signals=bool(model_cfg.get("use_object_signals", False)),
         )
     if baseline == "diffusion_policy":
         return DiffusionPolicyBaseline(

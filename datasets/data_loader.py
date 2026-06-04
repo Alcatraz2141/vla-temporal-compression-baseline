@@ -82,6 +82,15 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             placement_sample_prob=float(episode_cfg.get("placement_sample_prob", 0.0)),
             placement_start_timestep=episode_cfg.get("placement_start_timestep"),
             placement_start_fraction=episode_cfg.get("placement_start_fraction"),
+            phase_boundaries=episode_cfg.get("phase_boundaries"),
+            secured_delay_steps=int(episode_cfg.get("secured_delay_steps", 8)),
+            secured_min_positive_steps=int(episode_cfg.get("secured_min_positive_steps", 4)),
+            secured_history_window=int(episode_cfg.get("secured_history_window", 8)),
+            placement_ready_phase=int(episode_cfg.get("placement_ready_phase", 1)),
+            placement_ready_delay_steps=int(episode_cfg.get("placement_ready_delay_steps", 20)),
+            placement_ready_pose_stability_threshold=float(episode_cfg.get("placement_ready_pose_stability_threshold", 0.06)),
+            placement_ready_action_stability_threshold=float(episode_cfg.get("placement_ready_action_stability_threshold", 0.75)),
+            placement_ready_stability_window=int(episode_cfg.get("placement_ready_stability_window", 4)),
         )
         generator = torch.Generator()
         generator.manual_seed(int(config.get("seed", 42)))

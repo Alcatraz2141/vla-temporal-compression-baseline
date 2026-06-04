@@ -187,6 +187,50 @@ This includes the optional SmolVLA/LeRobot external baseline path.
 
 ## Current LIBERO Handoff
 
+Latest RunPod rollout-facing state as of 2026-06-04:
+
+```text
+Current frozen controller baseline:
+  phase-conditioned ACT
+  config: configs/libero_long_act_chunked_corrected_h20_task5_phase_conditioned.yaml
+  checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_phase_conditioned/best.pt
+  rollout protocol: task-5 train10 / val5 / test5
+  result: 10/20 total
+
+Object-signal diagnostic:
+  config: configs/libero_long_act_chunked_corrected_h20_task5_object_signals.yaml
+  checkpoint: checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_object_signals/best.pt
+  offline metrics improved
+  rollout result: 10/20 total
+  conclusion: do not include object-signal conditioning in the main comparison
+
+Next controlled comparison:
+  phase ACT baseline
+  vs
+  phase + event-gated memory ACT
+
+Decision rule:
+  >= 13/20: memory helps
+  ~10/20: memory is not the current bottleneck
+  <10/20: memory integration is adding noise or undertraining
+```
+
+Current artifact backup:
+
+```text
+/workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/83ba81224f5b6918ab4ffb55c245e8dc86c45ef4
+```
+
+Keep the rollout trace instrumentation active. Run cheap gripper execution ablations before or alongside the event-memory training:
+
+```text
+current temporal ensemble
+no gripper ensembling
+first-action gripper only
+hysteresis threshold
+```
+
 Latest local diagnostic update as of 2026-06-02:
 
 ```text
@@ -453,7 +497,7 @@ The next useful architecture direction is phase-conditioned ACT or a placement/r
 Do not spend rollout time on the current diffusion checkpoint unless sampled-action eval improves substantially.
 ```
 
-Current artifact backup:
+Previous artifact backup:
 
 ```text
 /workspace/run_backups/vla_run_artifacts_20260603_161004.tar.gz

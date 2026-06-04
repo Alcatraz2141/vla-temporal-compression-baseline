@@ -2,6 +2,207 @@
 
 Date: 2026-05-19
 
+## 2026-06-04 Phase ACT And Object-Signal Rollout Check
+
+This update records the current task-5 ACT controller baseline and the object-signal diagnostic result. These are online LIBERO rollout results on task 5, not broad LIBERO-Long claims.
+
+### Phase-Conditioned ACT Baseline
+
+Config:
+
+```text
+configs/libero_long_act_chunked_corrected_h20_task5_phase_conditioned.yaml
+```
+
+Checkpoint:
+
+```text
+checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_phase_conditioned/best.pt
+```
+
+Training/eval:
+
+```text
+best epoch: 58
+best val_loss: 0.012874678014963866
+continuous_mse: 0.019623747254908085
+continuous_mae: 0.10296388152837753
+gripper_sign_accuracy: 0.9973975031852722
+```
+
+Rollout protocol:
+
+```text
+task: 5
+train split: 10 episodes
+val split:   5 episodes
+test split:  5 episodes
+max steps:   300
+temporal ensembling: enabled
+```
+
+Rollout result:
+
+```text
+train10: 4/10
+val5:    3/5
+test5:   3/5
+total:   10/20 = 50%
+```
+
+Relevant result files:
+
+```text
+results/libero_rollouts_act_chunked_h20_task5_phase_conditioned_train10.csv
+results/libero_rollouts_act_chunked_h20_task5_phase_conditioned_val5.csv
+results/libero_rollouts_act_chunked_h20_task5_phase_conditioned_test5.csv
+results/phase_conditioned_rollout_trace_summary.csv
+```
+
+Interpretation:
+
+```text
+Phase conditioning is the current frozen task-5 controller baseline.
+It improves closed-loop behavior enough to be worth using as the comparison point.
+The measured baseline for the next controlled memory experiment is 10/20.
+```
+
+### Object-Signal ACT Diagnostic
+
+Config:
+
+```text
+configs/libero_long_act_chunked_corrected_h20_task5_object_signals.yaml
+```
+
+Checkpoint:
+
+```text
+checkpoints/libero_long_corrected_task5/act_chunked_corrected_h20_task5_object_signals/best.pt
+```
+
+Training/eval:
+
+```text
+best epoch: 69
+best val_loss: 0.009249644946306944
+continuous_mse: 0.01562450560182333
+continuous_mae: 0.09162709747552872
+gripper_sign_accuracy: 0.9983525047302246
+```
+
+Rollout result under the same task-5 protocol:
+
+```text
+train10: 5/10
+val5:    3/5
+test5:   2/5
+total:   10/20 = 50%
+```
+
+Relevant result files:
+
+```text
+results/libero_rollouts_act_chunked_h20_task5_object_signals_train10.csv
+results/libero_rollouts_act_chunked_h20_task5_object_signals_val5.csv
+results/libero_rollouts_act_chunked_h20_task5_object_signals_test5.csv
+results/object_signals_rollout_trace_summary.csv
+```
+
+Interpretation:
+
+```text
+The object-signal heuristic is a clean negative result.
+Offline action prediction improved, but closed-loop success did not improve.
+The signal is probably noisy, mistimed, or not measuring the right rollout-side state.
+Do not include object-signal embeddings in the main memory comparison.
+```
+
+### Trace Instrumentation
+
+Rollout traces now log phase/object signal state and gripper/action diagnostics:
+
+```text
+current_phase_id
+target_phase_id
+current_secured
+target_secured
+current_placement_ready
+target_placement_ready
+pred_gripper_raw
+pred_gripper_sign
+executed_gripper
+expert_gripper_if_available
+eef_delta_norm
+action_delta_norm
+```
+
+Targeted diagnostic traces:
+
+```text
+results/diagnostic_trace_object_signals_train_ep3.csv
+results/diagnostic_trace_object_signals_test_ep14.csv
+results/diagnostic_trace_object_signals_test_ep39.csv
+results/diagnostic_trace_phase_act_train_ep9.csv
+```
+
+Key findings:
+
+```text
+object-signals train ep3 failed before the secured/placement_ready signals could help.
+Its predicted gripper stayed open; raw gripper max was still negative.
+phase-ACT train ep9 reproduced a failure despite near-correct gripper timing.
+Some targeted reruns differ from larger-batch outcomes, so 20-episode checks are more trustworthy than isolated episodes.
+```
+
+### Next Controlled Experiment
+
+Freeze phase ACT as the baseline and run:
+
+```text
+phase ACT
+vs
+phase + event-gated memory ACT
+```
+
+Protocol:
+
+```text
+task-5 train-init: 10 episodes
+task-5 val:        5 episodes
+task-5 test:       5 episodes
+same data split
+same rollout max steps
+same temporal ensemble/controller settings unless explicitly ablated
+keep phase conditioning
+drop object-signal embedding from the main comparison
+```
+
+Decision rule:
+
+```text
+>= 13/20: memory is helping; continue.
+~ 10/20: memory is not the current bottleneck; report phase ACT as controller baseline.
+< 10/20: memory integration is adding noise or needs more careful training.
+```
+
+Also run cheap rollout-only gripper execution ablations before or alongside training:
+
+```text
+current temporal ensemble
+no gripper ensembling
+first-action gripper only
+hysteresis threshold
+```
+
+Artifact backup after this handoff:
+
+```text
+local backup: /workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz
+Hugging Face dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/83ba81224f5b6918ab4ffb55c245e8dc86c45ef4
+```
+
 ## Scope
 
 This log records the first LIBERO-Long milestone checkpoint runs for the offline action-prediction benchmark. These are not simulator rollout results. Success rate and rollout consistency are unavailable and are logged as `nan`.

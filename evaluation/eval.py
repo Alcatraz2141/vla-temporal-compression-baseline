@@ -31,7 +31,12 @@ def load_compatible_state_dict(model: torch.nn.Module, state_dict: dict[str, tor
         cols = min(old_weight.shape[1], new_weight.shape[1])
         new_weight[:, :cols] = old_weight[:, :cols]
         patched[gate_key] = new_weight
-    model.load_state_dict(patched)
+    result = model.load_state_dict(patched, strict=False)
+    allowed_prefixes = ("phase_embedding.", "secured_embedding.", "placement_ready_embedding.")
+    unexpected = [key for key in result.unexpected_keys if not key.startswith(allowed_prefixes)]
+    missing = [key for key in result.missing_keys if not key.startswith(allowed_prefixes)]
+    if unexpected or missing:
+        raise RuntimeError(f"Incompatible checkpoint keys. missing={missing}, unexpected={unexpected}")
 
 
 def _move_tensor_batch(batch: dict[str, object], device: torch.device) -> dict[str, object]:
@@ -56,6 +61,20 @@ def _model_forward_and_target(
             if bool(getattr(model, "use_language", False)) and "language" in batch:
                 vocab_size = int(getattr(model, "language_embedding").num_embeddings)
                 kwargs["language_ids"] = language_ids(batch["language"], vocab_size, device)
+            if bool(getattr(model, "use_phase", False)):
+                if "recent_phase_ids" in batch:
+                    kwargs["recent_phase_ids"] = batch["recent_phase_ids"]
+                if "target_phase_ids" in batch:
+                    kwargs["target_phase_ids"] = batch["target_phase_ids"]
+            if bool(getattr(model, "use_object_signals", False)):
+                for key in (
+                    "recent_secured_ids",
+                    "target_secured_ids",
+                    "recent_placement_ready_ids",
+                    "target_placement_ready_ids",
+                ):
+                    if key in batch:
+                        kwargs[key] = batch[key]
             if hasattr(model, "sample_actions"):
                 pred = model.sample_actions(
                     images=batch["recent_obs"],
