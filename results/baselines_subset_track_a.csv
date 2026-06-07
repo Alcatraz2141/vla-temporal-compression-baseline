@@ -1,0 +1,2 @@
+timestamp,baseline,checkpoint,seed,mse,mae,continuous_mse,continuous_mae,gripper_sign_accuracy,pred_temporal_smoothness,success_rate,rollout_consistency
+2026-06-07T16:36:16.854905+00:00,act_chunked_h20_subset124_phase_conditioned,checkpoints/libero_long_subset_track_a/act_chunked_h20_subset124_phase_conditioned/last.pt,42,68.72036361694336,10.140313339233398,0.36372560262680054,0.4136500895023346,0.9315624952316284,0.16811040937900543,nan,nan

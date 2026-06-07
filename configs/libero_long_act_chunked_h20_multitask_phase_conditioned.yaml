@@ -1,0 +1,92 @@
+dataset: libero_long
+seed: 42
+device: auto
+
+data:
+  source: unified_episode
+  dataset: libero_long
+  episode_loader:
+    root: data/libero_long
+    split_dir: splits
+    hdf5_glob: "**/*.hdf5"
+    samples_per_epoch: 50000
+    eval_windows_per_episode: 4
+    load_older_context: false
+    task_sample_strategy: balanced_task
+    transition_sample_prob: 0.6
+    transition_sample_radius: 3
+    phase_boundaries: [120, 160]
+  split: train
+  val_split: val
+  image_size: 128
+  image_normalization: imagenet
+  T_obs: 8
+  T_action: 20
+  K_recent: 8
+  H_action: 20
+  state_dim: null
+  action_dim: null
+  num_workers: 8
+  prefetch_factor: 2
+  normalization:
+    actions: true
+    action_dims: [0, 1, 2, 3, 4, 5]
+    stats_path: results/libero_action_stats_train.json
+  augment:
+    enabled: true
+
+model:
+  baseline: act_chunked
+  run_name: act_chunked_h20_multitask_phase_conditioned
+  vision_encoder: resnet18
+  pretrained_vision: true
+  d_model: 256
+  n_layers: 4
+  n_heads: 4
+  dropout: 0.1
+  use_action_history: true
+  use_language: true
+  language_vocab_size: 1024
+  use_phase: true
+  phase_vocab_size: 3
+  state_hidden_dim: 128
+  action_hidden_dim: 256
+
+memory:
+  chunk_size: 4
+  max_memory_tokens: 16
+  gate_type: event
+  query_type: concat
+
+training:
+  batch_size: 32
+  epochs: 40
+  max_steps_per_epoch: 50000
+  lr: 5.0e-5
+  optimizer: adamw
+  lr_schedule: constant
+  warmup_steps: 0
+  total_steps: 50000
+  eval_every: 5000
+  save_every: 10000
+  weight_decay: 5.0e-4
+  grad_clip_norm: 1.0
+  amp: true
+  amp_dtype: bfloat16
+  channels_last: true
+  compile: false
+  temporal_smoothness_weight: 0.0
+  gripper_loss_weight: 5.0
+  gripper_transition_loss_weight: 25.0
+  gripper_loss_type: bce_sign
+  disable_tqdm: true
+  log_every: 250
+  checkpoint_dir: checkpoints/libero_long_multitask_track_a
+  resume: checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt
+  resume_optimizer: false
+  resume_scaler: false
+  resume_scheduler: false
+
+evaluation:
+  batch_size: 32
+  results_path: results/baselines_multitask_track_a.csv

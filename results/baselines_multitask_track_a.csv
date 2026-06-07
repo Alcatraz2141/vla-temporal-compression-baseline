@@ -1,0 +1,2 @@
+timestamp,baseline,checkpoint,seed,mse,mae,continuous_mse,continuous_mae,gripper_sign_accuracy,pred_temporal_smoothness,success_rate,rollout_consistency
+2026-06-07T15:38:24.140894+00:00,act_chunked_h20_multitask_phase_conditioned,checkpoints/libero_long_multitask_track_a/act_chunked_h20_multitask_phase_conditioned/last.pt,42,104.82586778913226,11.703962189810616,0.26775041222572327,0.34758521403585163,0.9363839200564793,0.21107316549335206,nan,nan

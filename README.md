@@ -229,6 +229,46 @@ Current artifact backup:
 https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4c4b12c0befdcd2a5dd3e9e142b74dcf3f3f5ec0
 ```
 
+## Current Multi-Task Handoff
+
+Latest RunPod state as of 2026-06-07:
+
+```text
+Task-5 pilot:
+  event-gated ACT was warm-started from phase ACT.
+  defensible claim: phase ACT checkpoint -> event-gated memory fine-tuning improved task-5
+  rollout from 10/20 to 17/20; object-signal fine-tuning stayed at 10/20.
+
+Full LIBERO-10 phase ACT:
+  config: configs/libero_long_act_chunked_h20_multitask_phase_conditioned.yaml
+  checkpoint: checkpoints/libero_long_multitask_track_a/act_chunked_h20_multitask_phase_conditioned/last.pt
+  rollouts: train3 9/30, val1 0/10, test1 0/10
+  conclusion: not a credible full-suite baseline yet.
+
+Subset 1/2/4 phase ACT:
+  config: configs/libero_long_act_chunked_h20_subset124_phase_conditioned.yaml
+  checkpoint: checkpoints/libero_long_subset_track_a/act_chunked_h20_subset124_phase_conditioned/last.pt
+  rollouts: train5 3/15, val3 1/9, test3 0/9
+  conclusion: still too weak for a clean event-memory comparison.
+```
+
+Latest artifact backups:
+
+```text
+/workspace/run_backups/vla_run_artifacts_20260607_155315.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/df50d8d23b8eb785437fa5f59b588561ba916969
+
+/workspace/run_backups/vla_run_artifacts_20260607_164317.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/2b15a797510ccde40aec6bcc605599c71dc32627
+```
+
+Before terminating the current pod, create one final artifact backup after documentation changes:
+
+```bash
+bash scripts/backup_run_artifacts.sh /workspace/run_backups
+uv run hf upload Alcatraz1412/vla-run-backups /workspace/run_backups/<latest>.tar.gz <latest>.tar.gz --repo-type dataset
+```
+
 Keep the rollout trace instrumentation active. Inspect failed event-gated ACT episodes before another model change:
 
 ```text

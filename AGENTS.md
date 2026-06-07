@@ -2360,3 +2360,152 @@ local: /workspace/run_backups/vla_run_artifacts_20260604_192156.tar.gz
 HF dataset: Alcatraz1412/vla-run-backups
 HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4c4b12c0befdcd2a5dd3e9e142b74dcf3f3f5ec0
 ```
+
+## 2026-06-07 Multi-Task Track-A ACT Checks
+
+The task-5 event-gated ACT result remains a useful pilot, but the next question was whether the
+Track-A warm-start comparison can scale beyond task 5.
+
+Important interpretation update:
+
+```text
+The task-5 event-gated ACT result was warm-started from the phase ACT checkpoint.
+The defensible claim is:
+  starting from the same phase ACT checkpoint, event-gated memory improved task-5 rollout
+  from 10/20 to 17/20, while object-signal fine-tuning stayed at 10/20.
+Do not describe that run as an independently trained event-gated ACT model beating phase ACT.
+```
+
+### Full LIBERO-10 Phase-ACT Continuation
+
+Config:
+
+```text
+configs/libero_long_act_chunked_h20_multitask_phase_conditioned.yaml
+```
+
+Run:
+
+```text
+resume source: checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt
+checkpoint dir: checkpoints/libero_long_multitask_track_a/act_chunked_h20_multitask_phase_conditioned
+log: logs/act_chunked_h20_multitask_phase_conditioned_20260607.log
+```
+
+Training outcome:
+
+```text
+epoch 5:  train_loss 0.135971, val_loss 0.312455
+epoch 20: train_loss 0.072473, val_loss 0.599964
+epoch 40: train_loss 0.048861, val_loss 0.782534
+```
+
+No new `best.pt` was written because the resumed checkpoint carried a lower historical
+`best_val`. Offline eval on `last.pt`:
+
+```text
+continuous_mse:        0.26775041222572327
+continuous_mae:        0.34758521403585163
+gripper_sign_accuracy: 0.9363839200564793
+```
+
+Rollouts:
+
+```text
+phase ACT train1 all tasks: 4/10
+phase ACT train3 all tasks: 9/30
+phase ACT val1 all tasks:   0/10
+phase ACT test1 all tasks:  0/10
+
+original multitask ACT train1 all tasks: 0/10
+```
+
+Interpretation:
+
+```text
+Phase conditioning created nonzero train-init behavior, but held-out val/test stayed at zero.
+Full LIBERO-10 phase ACT is not a credible baseline for a multi-task event-memory comparison yet.
+Do not spend on a full multitask event-gated ACT run from this baseline as a paper result.
+```
+
+### Three-Task Subset Phase-ACT Check
+
+Subset:
+
+```text
+task 1: LIVING_ROOM_SCENE2_put_both_the_cream_cheese_box_and_the_butter_in_the_basket
+task 2: KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+task 4: LIVING_ROOM_SCENE5_put_the_white_mug_on_the_left_plate_and_put_the_yellow_and_white_mug_on_the_right_plate
+```
+
+Config:
+
+```text
+configs/libero_long_act_chunked_h20_subset124_phase_conditioned.yaml
+```
+
+Run:
+
+```text
+resume source: checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt
+checkpoint dir: checkpoints/libero_long_subset_track_a/act_chunked_h20_subset124_phase_conditioned
+log: logs/act_chunked_h20_subset124_phase_conditioned_20260607.log
+```
+
+Training outcome:
+
+```text
+epoch 5:  train_loss 0.146971, val_loss 0.303671
+epoch 6:  train_loss 0.129322, val_loss 0.302540
+epoch 24: train_loss 0.068019, val_loss 0.503927
+```
+
+Offline eval on `last.pt`:
+
+```text
+continuous_mse:        0.36372560262680054
+continuous_mae:        0.4136500895023346
+gripper_sign_accuracy: 0.9315624952316284
+```
+
+Rollouts:
+
+```text
+train5: 3/15
+  task 1: 1/5
+  task 2: 2/5
+  task 4: 0/5
+
+val3: 1/9
+  task 1: 0/3
+  task 2: 1/3
+  task 4: 0/3
+
+test3: 0/9
+  task 1: 0/3
+  task 2: 0/3
+  task 4: 0/3
+```
+
+Interpretation:
+
+```text
+The selected subset is still not a credible baseline for event-gated memory.
+The only held-out signal is weak and comes from task 2.
+Task selection should be based on held-out rollout success, not train-init success.
+Next useful direction is either:
+  1. focus on task 2 as a single nonzero held-out diagnostic, or
+  2. search for an easier 2-3 task subset with nonzero val/test phase-ACT success before training event memory.
+```
+
+Artifact backups after these runs:
+
+```text
+full multitask/initial subset backup:
+  /workspace/run_backups/vla_run_artifacts_20260607_155315.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/df50d8d23b8eb785437fa5f59b588561ba916969
+
+subset eval/rollout backup:
+  /workspace/run_backups/vla_run_artifacts_20260607_164317.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/2b15a797510ccde40aec6bcc605599c71dc32627
+```

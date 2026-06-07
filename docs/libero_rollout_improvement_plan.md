@@ -41,6 +41,77 @@ Do next:
 3. Do not add another model change until the larger rollout confirms or weakens this result.
 ```
 
+## 2026-06-07 Multi-Task Track-A Result
+
+After checkpoint/log inspection, the task-5 event-gated ACT result should be framed as a
+warm-start result:
+
+```text
+Starting from the same phase ACT checkpoint, event-gated memory fine-tuning improved task-5
+rollout from 10/20 to 17/20. Object-signal fine-tuning from that checkpoint stayed at 10/20.
+```
+
+Full LIBERO-10 phase-conditioned ACT was tested as a possible multi-task baseline:
+
+```text
+config: configs/libero_long_act_chunked_h20_multitask_phase_conditioned.yaml
+checkpoint: checkpoints/libero_long_multitask_track_a/act_chunked_h20_multitask_phase_conditioned/last.pt
+offline continuous_mse: 0.26775041222572327
+offline continuous_mae: 0.34758521403585163
+gripper_sign_accuracy: 0.9363839200564793
+rollouts:
+  train1 all tasks: 4/10
+  train3 all tasks: 9/30
+  val1 all tasks:   0/10
+  test1 all tasks:  0/10
+```
+
+This is not a credible full-suite baseline yet because held-out rollout success is zero.
+
+A three-task subset was also tested:
+
+```text
+tasks: 1, 2, 4
+config: configs/libero_long_act_chunked_h20_subset124_phase_conditioned.yaml
+checkpoint: checkpoints/libero_long_subset_track_a/act_chunked_h20_subset124_phase_conditioned/last.pt
+offline continuous_mse: 0.36372560262680054
+offline continuous_mae: 0.4136500895023346
+gripper_sign_accuracy: 0.9315624952316284
+rollouts:
+  train5: 3/15
+  val3:   1/9
+  test3:  0/9
+```
+
+Interpretation:
+
+```text
+The selected subset is still too weak for a clean event-memory comparison.
+The only held-out success came from task 2 on val; test stayed zero.
+Do not spend on full multitask event-gated memory as a paper result until phase ACT has nonzero
+held-out rollout on the chosen task set.
+```
+
+Recommended next options:
+
+```text
+1. Use task 2 alone as a minimal nonzero held-out diagnostic for phase ACT vs event memory.
+2. Search for a different 2-3 task subset with nonzero val/test phase-ACT success.
+3. Improve ACT generalization before adding memory.
+```
+
+Latest uploaded artifacts:
+
+```text
+full multitask / initial subset backup:
+  /workspace/run_backups/vla_run_artifacts_20260607_155315.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/df50d8d23b8eb785437fa5f59b588561ba916969
+
+subset eval / rollout backup:
+  /workspace/run_backups/vla_run_artifacts_20260607_164317.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/2b15a797510ccde40aec6bcc605599c71dc32627
+```
+
 ## 2026-06-04 Current Decision Point
 
 The current rollout-facing controller baseline is phase-conditioned ACT on task 5.

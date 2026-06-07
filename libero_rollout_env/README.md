@@ -291,3 +291,46 @@ tar -xzf /workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz \
 | gym | 0.25.2 | robosuite uses old gym API |
 
 The main project uses torch 2.11+, numpy 2.x, gymnasium, etc. — those stay untouched.
+
+## Current Multi-Task Rollout State
+
+As of 2026-06-07, the task-5 event-gated ACT result should be framed as a warm-start result:
+
+```text
+Starting from the same phase ACT checkpoint, event-gated memory fine-tuning improved task-5
+rollout from 10/20 to 17/20. Object-signal fine-tuning from that checkpoint stayed at 10/20.
+```
+
+The full LIBERO-10 phase ACT continuation is not a credible held-out baseline yet:
+
+```text
+config: configs/libero_long_act_chunked_h20_multitask_phase_conditioned.yaml
+checkpoint: checkpoints/libero_long_multitask_track_a/act_chunked_h20_multitask_phase_conditioned/last.pt
+train3 all tasks: 9/30
+val1 all tasks:   0/10
+test1 all tasks:  0/10
+```
+
+The three-task subset check is also too weak for a clean memory comparison:
+
+```text
+config: configs/libero_long_act_chunked_h20_subset124_phase_conditioned.yaml
+checkpoint: checkpoints/libero_long_subset_track_a/act_chunked_h20_subset124_phase_conditioned/last.pt
+tasks: 1, 2, 4
+train5: 3/15
+val3:   1/9
+test3:  0/9
+```
+
+Do not run a full multi-task event-gated ACT rollout campaign as a paper comparison until the
+phase-ACT baseline has nonzero held-out rollout on the chosen task set.
+
+Latest artifact backups:
+
+```text
+/workspace/run_backups/vla_run_artifacts_20260607_155315.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/df50d8d23b8eb785437fa5f59b588561ba916969
+
+/workspace/run_backups/vla_run_artifacts_20260607_164317.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/2b15a797510ccde40aec6bcc605599c71dc32627
+```
