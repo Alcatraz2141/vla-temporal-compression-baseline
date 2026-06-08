@@ -187,7 +187,51 @@ This includes the optional SmolVLA/LeRobot external baseline path.
 
 ## Current LIBERO Handoff
 
-Latest RunPod rollout-facing state as of 2026-06-04:
+Latest RunPod rollout-facing state as of 2026-06-08:
+
+```text
+Confirmed per-task protocol:
+  1. train phase-conditioned ACT single-task
+  2. run split-aware rollouts
+  3. train event-gated ACT from that task's phase ACT checkpoint
+  4. run the same rollouts
+  5. compare offline metrics and online success
+
+Task 5 confirmation:
+  phase ACT train20 / val5 / test5:        15/20 total, 8/10 held-out
+  event-gated ACT train20 / val5 / test5:  29/30 total, 9/10 held-out
+  summary: results/task5_event_memory_confirmation_20260608.md
+
+Task 2 result:
+  phase ACT train10 / val5 / test5:        15/20 total, 6/10 held-out
+  event-gated ACT train10 / val5 / test5:  19/20 total, 9/10 held-out
+  offline continuous_mse:                  0.033583 -> 0.022641
+  offline continuous_mae:                  0.132092 -> 0.107986
+  summary: results/task2_event_memory_comparison_20260608.md
+
+Current interpretation:
+  event-gated ACT has positive evidence on task 5 and task 2.
+  task 2 test-only is tied at 4/5, so do not overclaim every split.
+  the next decision should be whether to repeat this protocol on another task
+  or run larger/multi-seed confirmation before broader ablations.
+```
+
+Diagnostic task-2 videos were generated after the measured rollouts:
+
+```text
+phase videos:
+results/rollout_videos_phase_act_task2_diagnostics/act_chunked_corrected_h20_task2_phase_conditioned/
+
+event-gated videos:
+results/rollout_videos_event_gated_act_task2_diagnostics/event_gated_act_h20_task2_phase_memory/
+
+episodes:
+6, 7, 20, 29, 40, 41
+```
+
+Use those videos for qualitative inspection only. Some diagnostic rerun outcomes changed, which indicates rollout nondeterminism or context sensitivity; the measured rollout tables remain the primary results.
+
+Previous RunPod rollout-facing state as of 2026-06-04:
 
 ```text
 Current best task-5 controller:
@@ -225,48 +269,15 @@ Decision rule:
 Current artifact backup:
 
 ```text
-/workspace/run_backups/vla_run_artifacts_20260604_192156.tar.gz
-https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4c4b12c0befdcd2a5dd3e9e142b74dcf3f3f5ec0
+/workspace/run_backups/vla_run_artifacts_20260608_132450.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3ef40e83472fc207cac83303bfa969dda647995f
 ```
 
-## Current Multi-Task Handoff
-
-Latest RunPod state as of 2026-06-07:
+Previous artifact backup:
 
 ```text
-Task-5 pilot:
-  event-gated ACT was warm-started from phase ACT.
-  defensible claim: phase ACT checkpoint -> event-gated memory fine-tuning improved task-5
-  rollout from 10/20 to 17/20; object-signal fine-tuning stayed at 10/20.
-
-Full LIBERO-10 phase ACT:
-  config: configs/libero_long_act_chunked_h20_multitask_phase_conditioned.yaml
-  checkpoint: checkpoints/libero_long_multitask_track_a/act_chunked_h20_multitask_phase_conditioned/last.pt
-  rollouts: train3 9/30, val1 0/10, test1 0/10
-  conclusion: not a credible full-suite baseline yet.
-
-Subset 1/2/4 phase ACT:
-  config: configs/libero_long_act_chunked_h20_subset124_phase_conditioned.yaml
-  checkpoint: checkpoints/libero_long_subset_track_a/act_chunked_h20_subset124_phase_conditioned/last.pt
-  rollouts: train5 3/15, val3 1/9, test3 0/9
-  conclusion: still too weak for a clean event-memory comparison.
-```
-
-Latest artifact backups:
-
-```text
-/workspace/run_backups/vla_run_artifacts_20260607_155315.tar.gz
-https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/df50d8d23b8eb785437fa5f59b588561ba916969
-
-/workspace/run_backups/vla_run_artifacts_20260607_164317.tar.gz
-https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/2b15a797510ccde40aec6bcc605599c71dc32627
-```
-
-Before terminating the current pod, create one final artifact backup after documentation changes:
-
-```bash
-bash scripts/backup_run_artifacts.sh /workspace/run_backups
-uv run hf upload Alcatraz1412/vla-run-backups /workspace/run_backups/<latest>.tar.gz <latest>.tar.gz --repo-type dataset
+/workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/83ba81224f5b6918ab4ffb55c245e8dc86c45ef4
 ```
 
 Keep the rollout trace instrumentation active. Inspect failed event-gated ACT episodes before another model change:

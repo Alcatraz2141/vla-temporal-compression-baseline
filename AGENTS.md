@@ -2353,159 +2353,105 @@ task-5 val:   10
 task-5 test:  10
 ```
 
+## 2026-06-08 Current Per-Task Event-Memory State
+
+The active protocol is now per-task ACT comparison:
+
+```text
+1. Train phase-conditioned ACT single-task on the task's demos.
+2. Run split-aware online rollouts.
+3. Train event-gated ACT from that task's phase ACT checkpoint.
+4. Run the same split-aware rollouts.
+5. Compare offline continuous action metrics and online success.
+```
+
+Task 5 confirmation:
+
+```text
+phase ACT train20 / val5 / test5:
+  15/20, 4/5, 4/5 = 23/30
+  held-out val+test: 8/10
+
+event-gated ACT train20 / val5 / test5:
+  20/20, 4/5, 5/5 = 29/30
+  held-out val+test: 9/10
+
+summary:
+  results/task5_event_memory_confirmation_20260608.md
+  results/task5_confirm_trace_case_summary.csv
+```
+
+Task 2 result:
+
+```text
+task:
+  KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+
+phase ACT:
+  config: configs/libero_long_act_chunked_corrected_h20_task2_phase_conditioned.yaml
+  checkpoint: checkpoints/libero_long_corrected_task2/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+  stopped epoch: 30
+  best epoch: 29
+  continuous_mse: 0.033583113986253736
+  continuous_mae: 0.13209211629629136
+  gripper_sign_accuracy: 0.984755000114441
+  train10 / val5 / test5: 9/10, 2/5, 4/5 = 15/20
+  held-out val+test: 6/10
+
+event-gated ACT:
+  config: configs/libero_long_event_gated_act_h20_task2_phase_memory.yaml
+  checkpoint: checkpoints/libero_long_corrected_task2/event_gated_act_h20_task2_phase_memory/best.pt
+  stopped epoch: 50
+  best epoch: 50
+  continuous_mse: 0.022640780751407148
+  continuous_mae: 0.10798589040040969
+  gripper_sign_accuracy: 0.9899350004196167
+  train10 / val5 / test5: 10/10, 5/5, 4/5 = 19/20
+  held-out val+test: 9/10
+
+summary:
+  results/task2_event_memory_comparison_20260608.md
+  results/baselines_corrected_task2.csv
+```
+
+Task-2 video diagnostics:
+
+```text
+split file:
+  splits/libero_long_task2_video_diagnostics.txt
+
+episodes:
+  6, 7, 20, 29, 40, 41
+
+phase videos:
+  results/rollout_videos_phase_act_task2_diagnostics/act_chunked_corrected_h20_task2_phase_conditioned/
+
+event-gated videos:
+  results/rollout_videos_event_gated_act_task2_diagnostics/event_gated_act_h20_task2_phase_memory/
+```
+
+Use the task-2 videos only for qualitative inspection. They were generated as reruns after the
+measured rollout table, and some outcomes changed on rerun:
+
+```text
+phase episodes 40 and 41 succeeded on video rerun but failed in the original val5 run.
+event episode 20 succeeded on video rerun but failed in the original test5 run.
+```
+
+Current interpretation:
+
+```text
+Event-gated ACT is now positive on task 5 and task 2 under the per-task protocol.
+Task 2 has a tied test-only subset at 4/5, so the exact claim is aggregate split-aware
+improvement plus offline metric improvement, not universal held-out dominance.
+Next work should either repeat the same protocol on another task or run larger/multi-seed
+confirmation for tasks 2 and 5 before adding broad ablations.
+```
+
 Current artifact backup:
 
 ```text
-local: /workspace/run_backups/vla_run_artifacts_20260604_192156.tar.gz
+local: /workspace/run_backups/vla_run_artifacts_20260608_132450.tar.gz
 HF dataset: Alcatraz1412/vla-run-backups
-HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4c4b12c0befdcd2a5dd3e9e142b74dcf3f3f5ec0
-```
-
-## 2026-06-07 Multi-Task Track-A ACT Checks
-
-The task-5 event-gated ACT result remains a useful pilot, but the next question was whether the
-Track-A warm-start comparison can scale beyond task 5.
-
-Important interpretation update:
-
-```text
-The task-5 event-gated ACT result was warm-started from the phase ACT checkpoint.
-The defensible claim is:
-  starting from the same phase ACT checkpoint, event-gated memory improved task-5 rollout
-  from 10/20 to 17/20, while object-signal fine-tuning stayed at 10/20.
-Do not describe that run as an independently trained event-gated ACT model beating phase ACT.
-```
-
-### Full LIBERO-10 Phase-ACT Continuation
-
-Config:
-
-```text
-configs/libero_long_act_chunked_h20_multitask_phase_conditioned.yaml
-```
-
-Run:
-
-```text
-resume source: checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt
-checkpoint dir: checkpoints/libero_long_multitask_track_a/act_chunked_h20_multitask_phase_conditioned
-log: logs/act_chunked_h20_multitask_phase_conditioned_20260607.log
-```
-
-Training outcome:
-
-```text
-epoch 5:  train_loss 0.135971, val_loss 0.312455
-epoch 20: train_loss 0.072473, val_loss 0.599964
-epoch 40: train_loss 0.048861, val_loss 0.782534
-```
-
-No new `best.pt` was written because the resumed checkpoint carried a lower historical
-`best_val`. Offline eval on `last.pt`:
-
-```text
-continuous_mse:        0.26775041222572327
-continuous_mae:        0.34758521403585163
-gripper_sign_accuracy: 0.9363839200564793
-```
-
-Rollouts:
-
-```text
-phase ACT train1 all tasks: 4/10
-phase ACT train3 all tasks: 9/30
-phase ACT val1 all tasks:   0/10
-phase ACT test1 all tasks:  0/10
-
-original multitask ACT train1 all tasks: 0/10
-```
-
-Interpretation:
-
-```text
-Phase conditioning created nonzero train-init behavior, but held-out val/test stayed at zero.
-Full LIBERO-10 phase ACT is not a credible baseline for a multi-task event-memory comparison yet.
-Do not spend on a full multitask event-gated ACT run from this baseline as a paper result.
-```
-
-### Three-Task Subset Phase-ACT Check
-
-Subset:
-
-```text
-task 1: LIVING_ROOM_SCENE2_put_both_the_cream_cheese_box_and_the_butter_in_the_basket
-task 2: KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
-task 4: LIVING_ROOM_SCENE5_put_the_white_mug_on_the_left_plate_and_put_the_yellow_and_white_mug_on_the_right_plate
-```
-
-Config:
-
-```text
-configs/libero_long_act_chunked_h20_subset124_phase_conditioned.yaml
-```
-
-Run:
-
-```text
-resume source: checkpoints/libero_long_corrected_act_chunked_h20/act_chunked_corrected_h20_task_balanced_transition20/best.pt
-checkpoint dir: checkpoints/libero_long_subset_track_a/act_chunked_h20_subset124_phase_conditioned
-log: logs/act_chunked_h20_subset124_phase_conditioned_20260607.log
-```
-
-Training outcome:
-
-```text
-epoch 5:  train_loss 0.146971, val_loss 0.303671
-epoch 6:  train_loss 0.129322, val_loss 0.302540
-epoch 24: train_loss 0.068019, val_loss 0.503927
-```
-
-Offline eval on `last.pt`:
-
-```text
-continuous_mse:        0.36372560262680054
-continuous_mae:        0.4136500895023346
-gripper_sign_accuracy: 0.9315624952316284
-```
-
-Rollouts:
-
-```text
-train5: 3/15
-  task 1: 1/5
-  task 2: 2/5
-  task 4: 0/5
-
-val3: 1/9
-  task 1: 0/3
-  task 2: 1/3
-  task 4: 0/3
-
-test3: 0/9
-  task 1: 0/3
-  task 2: 0/3
-  task 4: 0/3
-```
-
-Interpretation:
-
-```text
-The selected subset is still not a credible baseline for event-gated memory.
-The only held-out signal is weak and comes from task 2.
-Task selection should be based on held-out rollout success, not train-init success.
-Next useful direction is either:
-  1. focus on task 2 as a single nonzero held-out diagnostic, or
-  2. search for an easier 2-3 task subset with nonzero val/test phase-ACT success before training event memory.
-```
-
-Artifact backups after these runs:
-
-```text
-full multitask/initial subset backup:
-  /workspace/run_backups/vla_run_artifacts_20260607_155315.tar.gz
-  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/df50d8d23b8eb785437fa5f59b588561ba916969
-
-subset eval/rollout backup:
-  /workspace/run_backups/vla_run_artifacts_20260607_164317.tar.gz
-  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/2b15a797510ccde40aec6bcc605599c71dc32627
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3ef40e83472fc207cac83303bfa969dda647995f
 ```

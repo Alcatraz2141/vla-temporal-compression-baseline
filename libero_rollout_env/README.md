@@ -278,6 +278,69 @@ tar -xzf /workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz \
   -C /root/vla-temporal-compression-baseline
 ```
 
+## 2026-06-08 Task-2 And Task-5 Rollout Artifacts
+
+Current per-task event-memory protocol:
+
+```text
+phase ACT single-task -> split-aware rollout
+event-gated ACT warm-started from that phase checkpoint -> same split-aware rollout
+```
+
+Task 5 confirmation:
+
+```text
+phase ACT:
+  train20 / val5 / test5 = 15/20, 4/5, 4/5 = 23/30
+  held-out val+test = 8/10
+
+event-gated ACT:
+  train20 / val5 / test5 = 20/20, 4/5, 5/5 = 29/30
+  held-out val+test = 9/10
+```
+
+Task 2 result:
+
+```text
+phase ACT:
+  config: configs/libero_long_act_chunked_corrected_h20_task2_phase_conditioned.yaml
+  checkpoint: checkpoints/libero_long_corrected_task2/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+  train10 / val5 / test5 = 9/10, 2/5, 4/5 = 15/20
+
+event-gated ACT:
+  config: configs/libero_long_event_gated_act_h20_task2_phase_memory.yaml
+  checkpoint: checkpoints/libero_long_corrected_task2/event_gated_act_h20_task2_phase_memory/best.pt
+  train10 / val5 / test5 = 10/10, 5/5, 4/5 = 19/20
+```
+
+Task-2 diagnostic videos:
+
+```text
+diagnostic split:
+  splits/libero_long_task2_video_diagnostics.txt
+
+episodes:
+  6, 7, 20, 29, 40, 41
+
+phase video dir:
+  results/rollout_videos_phase_act_task2_diagnostics/act_chunked_corrected_h20_task2_phase_conditioned/
+
+event-gated video dir:
+  results/rollout_videos_event_gated_act_task2_diagnostics/event_gated_act_h20_task2_phase_memory/
+
+video rerun CSVs:
+  results/libero_rollouts_phase_act_task2_video_diagnostics.csv
+  results/libero_rollouts_event_gated_act_task2_video_diagnostics.csv
+```
+
+Video-rerun caveat:
+
+```text
+The task-2 videos were generated after the measured rollout table. Use them for qualitative
+inspection only. Phase episodes 40 and 41, and event episode 20, changed outcome on video
+rerun, so the original rollout CSVs remain the measured counts.
+```
+
 ## Pinned Dependencies (known-working, from experimentation.md)
 
 | Package | Version | Why pinned |
@@ -291,46 +354,3 @@ tar -xzf /workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz \
 | gym | 0.25.2 | robosuite uses old gym API |
 
 The main project uses torch 2.11+, numpy 2.x, gymnasium, etc. — those stay untouched.
-
-## Current Multi-Task Rollout State
-
-As of 2026-06-07, the task-5 event-gated ACT result should be framed as a warm-start result:
-
-```text
-Starting from the same phase ACT checkpoint, event-gated memory fine-tuning improved task-5
-rollout from 10/20 to 17/20. Object-signal fine-tuning from that checkpoint stayed at 10/20.
-```
-
-The full LIBERO-10 phase ACT continuation is not a credible held-out baseline yet:
-
-```text
-config: configs/libero_long_act_chunked_h20_multitask_phase_conditioned.yaml
-checkpoint: checkpoints/libero_long_multitask_track_a/act_chunked_h20_multitask_phase_conditioned/last.pt
-train3 all tasks: 9/30
-val1 all tasks:   0/10
-test1 all tasks:  0/10
-```
-
-The three-task subset check is also too weak for a clean memory comparison:
-
-```text
-config: configs/libero_long_act_chunked_h20_subset124_phase_conditioned.yaml
-checkpoint: checkpoints/libero_long_subset_track_a/act_chunked_h20_subset124_phase_conditioned/last.pt
-tasks: 1, 2, 4
-train5: 3/15
-val3:   1/9
-test3:  0/9
-```
-
-Do not run a full multi-task event-gated ACT rollout campaign as a paper comparison until the
-phase-ACT baseline has nonzero held-out rollout on the chosen task set.
-
-Latest artifact backups:
-
-```text
-/workspace/run_backups/vla_run_artifacts_20260607_155315.tar.gz
-https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/df50d8d23b8eb785437fa5f59b588561ba916969
-
-/workspace/run_backups/vla_run_artifacts_20260607_164317.tar.gz
-https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/2b15a797510ccde40aec6bcc605599c71dc32627
-```

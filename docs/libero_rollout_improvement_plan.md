@@ -997,3 +997,80 @@ The best ACT policy remains a 1/3 closed-loop task-5 policy.
 The failure mode still points to placement/recovery and action-distribution quality.
 Next architecture work should be phase-conditioned ACT or a placement/refinement head, not another generic loss-weighting pass.
 ```
+
+### 2026-06-08 Update: Event-Memory Is Now Positive On Two Per-Task ACT Runs
+
+This plan has been superseded by the phase-conditioned ACT and event-gated ACT results.
+The useful comparison is now per-task:
+
+```text
+phase-conditioned ACT single-task
+vs
+event-gated ACT warm-started from that task's phase ACT checkpoint
+```
+
+Task 5 confirmation:
+
+```text
+phase ACT:
+  train20: 15/20
+  val5:     4/5
+  test5:    4/5
+  total:   23/30
+  held-out val+test: 8/10
+
+event-gated ACT:
+  train20: 20/20
+  val5:     4/5
+  test5:    5/5
+  total:   29/30
+  held-out val+test: 9/10
+```
+
+Task 2 result:
+
+```text
+task:
+  KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+
+phase ACT:
+  continuous_mse: 0.033583113986253736
+  continuous_mae: 0.13209211629629136
+  train10 / val5 / test5: 9/10, 2/5, 4/5 = 15/20
+  held-out val+test: 6/10
+
+event-gated ACT:
+  continuous_mse: 0.022640780751407148
+  continuous_mae: 0.10798589040040969
+  train10 / val5 / test5: 10/10, 5/5, 4/5 = 19/20
+  held-out val+test: 9/10
+```
+
+Interpretation:
+
+```text
+The old concern that memory should not be tried before the controller was stable is resolved
+for these per-task ACT runs. Event-gated memory has now improved task 5 and task 2.
+
+Task 2 test-only is tied at 4/5, so the claim should stay precise:
+event memory improves offline prediction and aggregate split-aware rollout success, but
+additional tasks / seeds are needed before broad generalization claims.
+```
+
+Current best next steps:
+
+```text
+1. Repeat the same protocol on another LIBERO-Long task.
+2. Run larger or multi-seed confirmation on tasks 2 and 5.
+3. Then add ACT-memory ablations:
+   - age gate
+   - concat query
+   - memory-token count
+```
+
+Relevant summaries:
+
+```text
+results/task5_event_memory_confirmation_20260608.md
+results/task2_event_memory_comparison_20260608.md
+```
