@@ -2414,6 +2414,31 @@ summary:
   results/baselines_corrected_task2.csv
 ```
 
+Task 2 controls completed after the first event-gated result:
+
+```text
+phase ACT continued20:
+  config: configs/libero_long_act_chunked_corrected_h20_task2_phase_continued20.yaml
+  checkpoint: checkpoints/libero_long_corrected_task2/act_chunked_corrected_h20_task2_phase_continued20/best.pt
+  same phase checkpoint warm start
+  train10 / val5 / test5: 6/10, 3/5, 3/5 = 12/20
+  held-out val+test: 6/10
+
+age-gated ACT continued20:
+  config: configs/libero_long_age_gated_act_h20_task2_phase_memory20.yaml
+  checkpoint: checkpoints/libero_long_corrected_task2/age_gated_act_h20_task2_phase_memory20/last.pt
+  same phase checkpoint warm start
+  gate_type: age_based
+  train10 / val5 / test5: 3/10, 2/5, 0/5 = 5/20
+  held-out val+test: 2/10
+
+corrected held-out offline eval:
+  results/task2_fixed_split_offline_eval_20260608.csv
+
+final audit:
+  results/task2_final_control_audit_20260608.md
+```
+
 Task-2 video diagnostics:
 
 ```text
@@ -2442,8 +2467,11 @@ Current interpretation:
 
 ```text
 Event-gated ACT is now positive on task 5 and task 2 under the per-task protocol.
-Task 2 has a tied test-only subset at 4/5, so the exact claim is aggregate split-aware
-improvement plus offline metric improvement, not universal held-out dominance.
+Task 2 is not explained by longer phase-ACT training alone or by age/recency memory.
+Corrected held-out offline eval does not explain the rollout gap, which supports the
+closed-loop result as a real policy difference.
+Task 2 has a tied test-only subset at 4/5 against original phase ACT, so the exact claim is
+aggregate split-aware improvement, not universal held-out dominance.
 Next work should either repeat the same protocol on another task or run larger/multi-seed
 confirmation for tasks 2 and 5 before adding broad ablations.
 ```
@@ -2451,7 +2479,7 @@ confirmation for tasks 2 and 5 before adding broad ablations.
 Current artifact backup:
 
 ```text
-local: /workspace/run_backups/vla_run_artifacts_20260608_132450.tar.gz
+local: /workspace/run_backups/vla_run_artifacts_20260608_185154.tar.gz
 HF dataset: Alcatraz1412/vla-run-backups
-HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3ef40e83472fc207cac83303bfa969dda647995f
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/7975ed9feed8299e08c88c8c30aaa81ecca01907
 ```

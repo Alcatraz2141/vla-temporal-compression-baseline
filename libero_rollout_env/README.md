@@ -307,10 +307,37 @@ phase ACT:
   checkpoint: checkpoints/libero_long_corrected_task2/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
   train10 / val5 / test5 = 9/10, 2/5, 4/5 = 15/20
 
+phase ACT continued20:
+  config: configs/libero_long_act_chunked_corrected_h20_task2_phase_continued20.yaml
+  checkpoint: checkpoints/libero_long_corrected_task2/act_chunked_corrected_h20_task2_phase_continued20/best.pt
+  train10 / val5 / test5 = 6/10, 3/5, 3/5 = 12/20
+
+age-gated ACT:
+  config: configs/libero_long_age_gated_act_h20_task2_phase_memory20.yaml
+  checkpoint: checkpoints/libero_long_corrected_task2/age_gated_act_h20_task2_phase_memory20/last.pt
+  train10 / val5 / test5 = 3/10, 2/5, 0/5 = 5/20
+
 event-gated ACT:
   config: configs/libero_long_event_gated_act_h20_task2_phase_memory.yaml
   checkpoint: checkpoints/libero_long_corrected_task2/event_gated_act_h20_task2_phase_memory/best.pt
   train10 / val5 / test5 = 10/10, 5/5, 4/5 = 19/20
+```
+
+Final task-2 audit:
+
+```text
+results/task2_final_control_audit_20260608.md
+
+Event-gated is not explained by:
+  longer phase-ACT training,
+  age/recency memory,
+  or the training-time validation split issue.
+
+Remaining caveats:
+  single seed,
+  small selected rollout set,
+  rollout nondeterminism in diagnostic reruns,
+  event-gated test-only tied with original phase ACT at 4/5.
 ```
 
 Task-2 diagnostic videos:

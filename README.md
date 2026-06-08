@@ -204,14 +204,17 @@ Task 5 confirmation:
 
 Task 2 result:
   phase ACT train10 / val5 / test5:        15/20 total, 6/10 held-out
+  phase ACT continued20:                   12/20 total, 6/10 held-out
+  age-gated ACT continued20:                5/20 total, 2/10 held-out
   event-gated ACT train10 / val5 / test5:  19/20 total, 9/10 held-out
-  offline continuous_mse:                  0.033583 -> 0.022641
-  offline continuous_mae:                  0.132092 -> 0.107986
   summary: results/task2_event_memory_comparison_20260608.md
+  control audit: results/task2_final_control_audit_20260608.md
 
 Current interpretation:
   event-gated ACT has positive evidence on task 5 and task 2.
-  task 2 test-only is tied at 4/5, so do not overclaim every split.
+  task 2 is not explained by longer phase training or age/recency memory.
+  corrected held-out offline eval does not explain the rollout gap.
+  task 2 test-only is tied with original phase ACT at 4/5, so do not overclaim every split.
   the next decision should be whether to repeat this protocol on another task
   or run larger/multi-seed confirmation before broader ablations.
 ```
@@ -269,11 +272,18 @@ Decision rule:
 Current artifact backup:
 
 ```text
+/workspace/run_backups/vla_run_artifacts_20260608_185154.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/7975ed9feed8299e08c88c8c30aaa81ecca01907
+```
+
+Previous artifact backup:
+
+```text
 /workspace/run_backups/vla_run_artifacts_20260608_132450.tar.gz
 https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3ef40e83472fc207cac83303bfa969dda647995f
 ```
 
-Previous artifact backup:
+Earlier artifact backup:
 
 ```text
 /workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz

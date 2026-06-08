@@ -151,6 +151,31 @@ event-gated improves task-2 offline action prediction and improves the 20-episod
 sample from 15/20 to 19/20, while held-out test-only remains tied on this small sample.
 ```
 
+Later controls:
+
+```text
+phase ACT continued20:
+  results/task2_phase_continued_control_20260608.md
+  rollout: 12/20 total, 6/10 held-out
+
+age-gated ACT:
+  results/task2_age_gated_control_20260608.md
+  rollout: 5/20 total, 2/10 held-out
+
+final audit:
+  results/task2_final_control_audit_20260608.md
+  corrected held-out offline eval: results/task2_fixed_split_offline_eval_20260608.csv
+```
+
+Updated conclusion after controls:
+
+```text
+The event-gated result is not explained by longer phase-ACT training alone or by age/recency
+memory. Corrected held-out offline eval does not explain the rollout gap either.
+The remaining caveats are single seed, small selected rollout sets, observed rollout
+nondeterminism in diagnostic reruns, and test-only tied with original phase ACT at 4/5.
+```
+
 Artifacts:
 
 ```text

@@ -401,6 +401,56 @@ The test-only subset is tied at 4/5, so the correct claim is not universal test 
 it is improved offline prediction and improved aggregate split-aware rollout robustness.
 ```
 
+Follow-up controls:
+
+```text
+phase ACT continued20:
+  checkpoint: checkpoints/libero_long_corrected_task2/act_chunked_corrected_h20_task2_phase_continued20/best.pt
+  same phase checkpoint warm start
+  same 20-epoch continuation budget
+  train10 / val5 / test5: 6/10, 3/5, 3/5 = 12/20
+  held-out val+test: 6/10
+
+age-gated ACT continued20:
+  checkpoint: checkpoints/libero_long_corrected_task2/age_gated_act_h20_task2_phase_memory20/last.pt
+  same phase checkpoint warm start
+  same 20-epoch continuation budget
+  gate_type: age_based
+  train10 / val5 / test5: 3/10, 2/5, 0/5 = 5/20
+  held-out val+test: 2/10
+```
+
+Corrected held-out offline eval:
+
+```text
+file: results/task2_fixed_split_offline_eval_20260608.csv
+splits: val and test
+eval_windows_per_episode: 4
+
+finding:
+  held-out offline metrics do not explain the rollout gap.
+  event-gated is slightly best on val continuous_mse, but phase continued20 is best
+  on test continuous_mse/mae. Age-gated is not obviously catastrophic offline, yet
+  it collapses in rollout.
+```
+
+Final task-2 audit:
+
+```text
+summary: results/task2_final_control_audit_20260608.md
+
+Event-gated task-2 rollout improvement is not explained by:
+  longer phase-ACT training alone,
+  generic age/recency memory,
+  or the training-time validation split issue.
+
+The remaining caveats are:
+  single seed,
+  small selected rollout set,
+  observed rollout nondeterminism in diagnostic video reruns,
+  and event-gated test-only tied with original phase ACT at 4/5.
+```
+
 Flipped task-2 rollout cases:
 
 ```text
@@ -455,9 +505,9 @@ Next choices are:
 Artifact backup after the 2026-06-08 task-2/task-5 runs:
 
 ```text
-local backup: /workspace/run_backups/vla_run_artifacts_20260608_132450.tar.gz
+local backup: /workspace/run_backups/vla_run_artifacts_20260608_185154.tar.gz
 Hugging Face dataset: Alcatraz1412/vla-run-backups
-HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3ef40e83472fc207cac83303bfa969dda647995f
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/7975ed9feed8299e08c88c8c30aaa81ecca01907
 ```
 
 ## Scope

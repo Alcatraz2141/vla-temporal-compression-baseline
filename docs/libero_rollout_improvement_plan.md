@@ -1044,6 +1044,14 @@ event-gated ACT:
   continuous_mae: 0.10798589040040969
   train10 / val5 / test5: 10/10, 5/5, 4/5 = 19/20
   held-out val+test: 9/10
+
+phase ACT continued20:
+  train10 / val5 / test5: 6/10, 3/5, 3/5 = 12/20
+  held-out val+test: 6/10
+
+age-gated ACT continued20:
+  train10 / val5 / test5: 3/10, 2/5, 0/5 = 5/20
+  held-out val+test: 2/10
 ```
 
 Interpretation:
@@ -1051,6 +1059,10 @@ Interpretation:
 ```text
 The old concern that memory should not be tried before the controller was stable is resolved
 for these per-task ACT runs. Event-gated memory has now improved task 5 and task 2.
+
+For task 2, the event-gated result is not explained by longer phase-ACT training or by
+generic age/recency memory. Corrected held-out offline eval also does not explain the
+closed-loop rollout gap.
 
 Task 2 test-only is tied at 4/5, so the claim should stay precise:
 event memory improves offline prediction and aggregate split-aware rollout success, but
@@ -1073,4 +1085,7 @@ Relevant summaries:
 ```text
 results/task5_event_memory_confirmation_20260608.md
 results/task2_event_memory_comparison_20260608.md
+results/task2_phase_continued_control_20260608.md
+results/task2_age_gated_control_20260608.md
+results/task2_final_control_audit_20260608.md
 ```
