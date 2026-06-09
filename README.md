@@ -187,7 +187,7 @@ This includes the optional SmolVLA/LeRobot external baseline path.
 
 ## Current LIBERO Handoff
 
-Latest RunPod rollout-facing state as of 2026-06-08:
+Latest RunPod rollout-facing state as of 2026-06-09:
 
 ```text
 Confirmed per-task protocol:
@@ -215,8 +215,25 @@ Current interpretation:
   task 2 is not explained by longer phase training or age/recency memory.
   corrected held-out offline eval does not explain the rollout gap.
   task 2 test-only is tied with original phase ACT at 4/5, so do not overclaim every split.
-  the next decision should be whether to repeat this protocol on another task
-  or run larger/multi-seed confirmation before broader ablations.
+
+Kitchen4 from-scratch probe:
+  task id: 3
+  task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
+  phase ACT train10 / val / test5:        3/10, 1/4, 2/5 = 6/19 total, 3/9 held-out
+  event-gated ACT train10 / val / test5:  7/10, 4/4, 4/5 = 15/19 total, 8/9 held-out
+  offline continuous_mse:
+    phase ACT:       0.05191242003440857
+    event-gated ACT: 0.04404234265983105
+  summary: results/kitchen4_fromscratch_event_memory_20260609.md
+  artifact backup:
+    /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
+    https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
+
+Current interpretation:
+  event-gated ACT has positive evidence on task 5, task 2, and now task 3/kitchen4.
+  kitchen4 is especially useful because the phase and event-gated models were both trained from scratch.
+  the next required control is the kitchen4 age-gated from-scratch run.
+  after that, repeat the from-scratch protocol on one more task or run larger/multi-seed confirmation.
 ```
 
 Diagnostic task-2 videos were generated after the measured rollouts:

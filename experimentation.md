@@ -2,6 +2,87 @@
 
 Date: 2026-05-19
 
+## 2026-06-09 Kitchen4 From-Scratch Event-Memory Probe
+
+The controlled per-task memory comparison was repeated on a new task without warm-starting either model.
+
+```text
+task id: 3
+task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
+phase config: configs/libero_long_act_chunked_h20_kitchen4_drawer_phase_fromscratch.yaml
+event config: configs/libero_long_event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
+checkpoint root: checkpoints/libero_long_fromscratch_probe
+epochs: 20 each
+seed: 42
+```
+
+Offline result:
+
+```text
+phase ACT:
+  continuous_mse:        0.05191242003440857
+  continuous_mae:        0.162862943983078
+  gripper_sign_accuracy: 0.9896825002670289
+
+event-gated ACT:
+  continuous_mse:        0.04404234265983105
+  continuous_mae:        0.15004283199310303
+  gripper_sign_accuracy: 0.991724999332428
+```
+
+Split-aware rollout result:
+
+```text
+phase ACT:
+  train10: 3/10
+  val:     1/4
+  test5:   2/5
+  total:   6/19
+  held-out val+test: 3/9
+
+event-gated ACT:
+  train10: 7/10
+  val:     4/4
+  test5:   4/5
+  total:   15/19
+  held-out val+test: 8/9
+```
+
+Matched rollout flips:
+
+```text
+phase failure -> event success:
+  train: [2, 3, 6, 9]
+  val:   [1, 8, 20]
+  test:  [15, 37]
+
+phase success -> event failure:
+  none
+```
+
+Interpretation:
+
+```text
+Kitchen4 is a strong from-scratch positive result for event-gated ACT.
+The offline improvement is moderate, but the closed-loop improvement is large.
+This result is not explained by phase-checkpoint warm-starting because both models were trained from scratch.
+The next required control is the kitchen4 age-gated from-scratch run with the same 20-epoch budget.
+```
+
+Dedicated summary:
+
+```text
+results/kitchen4_fromscratch_event_memory_20260609.md
+```
+
+Artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
+Hugging Face dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
+```
+
 ## 2026-06-04 Phase ACT And Object-Signal Rollout Check
 
 This update records the current task-5 ACT controller baseline and the object-signal diagnostic result. These are online LIBERO rollout results on task 5, not broad LIBERO-Long claims.

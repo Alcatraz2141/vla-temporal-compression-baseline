@@ -2,6 +2,54 @@
 
 This file is the operating guide for autoresearch agents working on this repository. The project is serious research code, not a toy demo. Preserve existing pipelines unless a change is explicitly needed for the current milestone.
 
+## Latest Handoff Note: 2026-06-09 Kitchen4 From-Scratch Probe
+
+The per-task ACT memory comparison has a new from-scratch positive result:
+
+```text
+task id: 3
+task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
+
+phase ACT from scratch:
+  config: configs/libero_long_act_chunked_h20_kitchen4_drawer_phase_fromscratch.yaml
+  checkpoint: checkpoints/libero_long_fromscratch_probe/act_chunked_h20_kitchen4_drawer_phase_fromscratch/best.pt
+  offline continuous_mse: 0.05191242003440857
+  rollout train10 / val / test5: 3/10, 1/4, 2/5 = 6/19
+
+event-gated ACT from scratch:
+  config: configs/libero_long_event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
+  checkpoint: checkpoints/libero_long_fromscratch_probe/event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch/best.pt
+  offline continuous_mse: 0.04404234265983105
+  rollout train10 / val / test5: 7/10, 4/4, 4/5 = 15/19
+```
+
+Matched rollout flips:
+
+```text
+phase failure -> event success:
+  train: [2, 3, 6, 9]
+  val:   [1, 8, 20]
+  test:  [15, 37]
+
+phase success -> event failure:
+  none
+```
+
+Immediate next control:
+
+```text
+Run configs/libero_long_age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
+for the same 20-epoch from-scratch budget, then eval and roll out task 3 on the same train/val/test split.
+```
+
+Artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
+Hugging Face dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
+```
+
 ## Research Goal
 
 We are building a publishable long-horizon VLA / behavior-cloning benchmark for robot manipulation.

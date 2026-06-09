@@ -78,6 +78,33 @@ eval or rollout.
 
 ## Current Checkpoint And Rollout State
 
+As of 2026-06-09, the current rollout-facing comparison includes a new from-scratch kitchen4 result:
+
+```text
+task id: 3
+task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
+
+phase ACT:
+  config: configs/libero_long_act_chunked_h20_kitchen4_drawer_phase_fromscratch.yaml
+  checkpoint: checkpoints/libero_long_fromscratch_probe/act_chunked_h20_kitchen4_drawer_phase_fromscratch/best.pt
+  train10 / val / test5: 3/10, 1/4, 2/5 = 6/19
+
+event-gated ACT:
+  config: configs/libero_long_event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
+  checkpoint: checkpoints/libero_long_fromscratch_probe/event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch/best.pt
+  train10 / val / test5: 7/10, 4/4, 4/5 = 15/19
+```
+
+The next matching rollout control is age-gated ACT from scratch on task 3.
+
+Artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
+Hugging Face dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
+```
+
 As of 2026-06-01, the corrected-H1 rollout stack has produced nonzero simulator success.
 
 Task-5 transition-aware sliding-window overfit:

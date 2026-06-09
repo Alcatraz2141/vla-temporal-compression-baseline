@@ -2,6 +2,66 @@
 
 Date: 2026-05-30
 
+## 2026-06-09 Kitchen4 From-Scratch Event-Memory Result
+
+The event-memory comparison was repeated on a new task with both models trained from scratch.
+
+```text
+task id: 3
+task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
+phase config: configs/libero_long_act_chunked_h20_kitchen4_drawer_phase_fromscratch.yaml
+event config: configs/libero_long_event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
+epochs: 20 each
+seed: 42
+```
+
+Offline metrics:
+
+```text
+phase ACT continuous_mse:       0.05191242003440857
+event-gated continuous_mse:     0.04404234265983105
+phase ACT continuous_mae:       0.162862943983078
+event-gated continuous_mae:     0.15004283199310303
+```
+
+Rollouts:
+
+```text
+phase ACT:        train10 3/10, val 1/4, test5 2/5 = 6/19
+event-gated ACT:  train10 7/10, val 4/4, test5 4/5 = 15/19
+held-out:
+  phase ACT:       3/9
+  event-gated ACT: 8/9
+```
+
+Matched flips:
+
+```text
+phase failure -> event success:
+  train: [2, 3, 6, 9]
+  val:   [1, 8, 20]
+  test:  [15, 37]
+
+phase success -> event failure:
+  none
+```
+
+Interpretation:
+
+```text
+This is a strong positive result for event-gated ACT under a from-scratch protocol.
+The next control is age-gated ACT from scratch on the same kitchen4 task.
+Do not treat this as multi-seed proof yet; it is still one seed and a selected rollout set.
+```
+
+Artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
+Hugging Face dataset: Alcatraz1412/vla-run-backups
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
+```
+
 ## 2026-06-04 Event-Gated ACT Result
 
 The controlled memory comparison is now positive.
