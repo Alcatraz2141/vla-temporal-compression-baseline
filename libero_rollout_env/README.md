@@ -93,9 +93,14 @@ event-gated ACT:
   config: configs/libero_long_event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
   checkpoint: checkpoints/libero_long_fromscratch_probe/event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch/best.pt
   train10 / val / test5: 7/10, 4/4, 4/5 = 15/19
+
+age-gated ACT:
+  config: configs/libero_long_age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
+  checkpoint: checkpoints/libero_long_fromscratch_probe/age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch/best.pt
+  train10 / val / test5: 3/10, 1/4, 1/5 = 5/19
 ```
 
-The next matching rollout control is age-gated ACT from scratch on task 3.
+The age-gated task-3 control did not reproduce the event-gated rollout gain.
 
 Artifact backup:
 
@@ -103,6 +108,8 @@ Artifact backup:
 local: /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
 Hugging Face dataset: Alcatraz1412/vla-run-backups
 HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
+latest local: /workspace/run_backups/vla_run_artifacts_20260609_180542.tar.gz
+latest HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/a5c98d68099f2f050941034b3737b21cd3ed5875
 ```
 
 As of 2026-06-01, the corrected-H1 rollout stack has produced nonzero simulator success.

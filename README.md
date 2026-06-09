@@ -221,19 +221,24 @@ Kitchen4 from-scratch probe:
   task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
   phase ACT train10 / val / test5:        3/10, 1/4, 2/5 = 6/19 total, 3/9 held-out
   event-gated ACT train10 / val / test5:  7/10, 4/4, 4/5 = 15/19 total, 8/9 held-out
+  age-gated ACT train10 / val / test5:    3/10, 1/4, 1/5 = 5/19 total, 2/9 held-out
   offline continuous_mse:
     phase ACT:       0.05191242003440857
     event-gated ACT: 0.04404234265983105
+    age-gated ACT:   0.047048382997512815
   summary: results/kitchen4_fromscratch_event_memory_20260609.md
   artifact backup:
     /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
     https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
+  latest backup after age-gated control:
+    /workspace/run_backups/vla_run_artifacts_20260609_180542.tar.gz
+    https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/a5c98d68099f2f050941034b3737b21cd3ed5875
 
 Current interpretation:
   event-gated ACT has positive evidence on task 5, task 2, and now task 3/kitchen4.
   kitchen4 is especially useful because the phase and event-gated models were both trained from scratch.
-  the next required control is the kitchen4 age-gated from-scratch run.
-  after that, repeat the from-scratch protocol on one more task or run larger/multi-seed confirmation.
+  kitchen4 age-gated from-scratch improves offline MSE over phase but does not reproduce the rollout gain.
+  next, repeat the from-scratch protocol on one more task or run larger/multi-seed confirmation.
 ```
 
 Diagnostic task-2 videos were generated after the measured rollouts:

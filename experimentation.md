@@ -11,6 +11,7 @@ task id: 3
 task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
 phase config: configs/libero_long_act_chunked_h20_kitchen4_drawer_phase_fromscratch.yaml
 event config: configs/libero_long_event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
+age config: configs/libero_long_age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
 checkpoint root: checkpoints/libero_long_fromscratch_probe
 epochs: 20 each
 seed: 42
@@ -28,6 +29,11 @@ event-gated ACT:
   continuous_mse:        0.04404234265983105
   continuous_mae:        0.15004283199310303
   gripper_sign_accuracy: 0.991724999332428
+
+age-gated ACT:
+  continuous_mse:        0.047048382997512815
+  continuous_mae:        0.15670564353466035
+  gripper_sign_accuracy: 0.9881600014686585
 ```
 
 Split-aware rollout result:
@@ -46,6 +52,13 @@ event-gated ACT:
   test5:   4/5
   total:   15/19
   held-out val+test: 8/9
+
+age-gated ACT:
+  train10: 3/10
+  val:     1/4
+  test5:   1/5
+  total:   5/19
+  held-out val+test: 2/9
 ```
 
 Matched rollout flips:
@@ -58,6 +71,11 @@ phase failure -> event success:
 
 phase success -> event failure:
   none
+
+event success -> age failure:
+  train: [2, 3, 4, 6, 9]
+  val:   [1, 8, 20]
+  test:  [10, 15, 37]
 ```
 
 Interpretation:
@@ -66,7 +84,8 @@ Interpretation:
 Kitchen4 is a strong from-scratch positive result for event-gated ACT.
 The offline improvement is moderate, but the closed-loop improvement is large.
 This result is not explained by phase-checkpoint warm-starting because both models were trained from scratch.
-The next required control is the kitchen4 age-gated from-scratch run with the same 20-epoch budget.
+The age-gated from-scratch control improves offline MSE over phase ACT but fails to reproduce the rollout gain.
+This supports event-aware memory selection over simple recency/age selection on this task.
 ```
 
 Dedicated summary:
@@ -81,6 +100,9 @@ Artifact backup:
 local: /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
 Hugging Face dataset: Alcatraz1412/vla-run-backups
 HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
+
+latest local: /workspace/run_backups/vla_run_artifacts_20260609_180542.tar.gz
+latest HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/a5c98d68099f2f050941034b3737b21cd3ed5875
 ```
 
 ## 2026-06-04 Phase ACT And Object-Signal Rollout Check

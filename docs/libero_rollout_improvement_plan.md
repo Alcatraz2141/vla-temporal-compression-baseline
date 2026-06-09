@@ -11,6 +11,7 @@ task id: 3
 task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
 phase config: configs/libero_long_act_chunked_h20_kitchen4_drawer_phase_fromscratch.yaml
 event config: configs/libero_long_event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
+age config: configs/libero_long_age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
 epochs: 20 each
 seed: 42
 ```
@@ -20,8 +21,10 @@ Offline metrics:
 ```text
 phase ACT continuous_mse:       0.05191242003440857
 event-gated continuous_mse:     0.04404234265983105
+age-gated continuous_mse:       0.047048382997512815
 phase ACT continuous_mae:       0.162862943983078
 event-gated continuous_mae:     0.15004283199310303
+age-gated continuous_mae:       0.15670564353466035
 ```
 
 Rollouts:
@@ -29,9 +32,11 @@ Rollouts:
 ```text
 phase ACT:        train10 3/10, val 1/4, test5 2/5 = 6/19
 event-gated ACT:  train10 7/10, val 4/4, test5 4/5 = 15/19
+age-gated ACT:    train10 3/10, val 1/4, test5 1/5 = 5/19
 held-out:
   phase ACT:       3/9
   event-gated ACT: 8/9
+  age-gated ACT:   2/9
 ```
 
 Matched flips:
@@ -44,13 +49,19 @@ phase failure -> event success:
 
 phase success -> event failure:
   none
+
+event success -> age failure:
+  train: [2, 3, 4, 6, 9]
+  val:   [1, 8, 20]
+  test:  [10, 15, 37]
 ```
 
 Interpretation:
 
 ```text
 This is a strong positive result for event-gated ACT under a from-scratch protocol.
-The next control is age-gated ACT from scratch on the same kitchen4 task.
+The age-gated control improves offline MSE over phase ACT but does not reproduce the event-gated rollout gain.
+This supports event-aware memory selection over simple recency/age selection on this task.
 Do not treat this as multi-seed proof yet; it is still one seed and a selected rollout set.
 ```
 
@@ -60,6 +71,9 @@ Artifact backup:
 local: /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
 Hugging Face dataset: Alcatraz1412/vla-run-backups
 HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
+
+latest local: /workspace/run_backups/vla_run_artifacts_20260609_180542.tar.gz
+latest HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/a5c98d68099f2f050941034b3737b21cd3ed5875
 ```
 
 ## 2026-06-04 Event-Gated ACT Result

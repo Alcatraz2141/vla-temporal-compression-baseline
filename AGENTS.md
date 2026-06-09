@@ -21,6 +21,12 @@ event-gated ACT from scratch:
   checkpoint: checkpoints/libero_long_fromscratch_probe/event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch/best.pt
   offline continuous_mse: 0.04404234265983105
   rollout train10 / val / test5: 7/10, 4/4, 4/5 = 15/19
+
+age-gated ACT from scratch:
+  config: configs/libero_long_age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
+  checkpoint: checkpoints/libero_long_fromscratch_probe/age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch/best.pt
+  offline continuous_mse: 0.047048382997512815
+  rollout train10 / val / test5: 3/10, 1/4, 1/5 = 5/19
 ```
 
 Matched rollout flips:
@@ -33,13 +39,19 @@ phase failure -> event success:
 
 phase success -> event failure:
   none
+
+event success -> age failure:
+  train: [2, 3, 4, 6, 9]
+  val:   [1, 8, 20]
+  test:  [10, 15, 37]
 ```
 
-Immediate next control:
+Current interpretation:
 
 ```text
-Run configs/libero_long_age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
-for the same 20-epoch from-scratch budget, then eval and roll out task 3 on the same train/val/test split.
+The age-gated from-scratch control did not reproduce the event-gated rollout gain.
+Event-gated ACT is now positive on task 5, task 2, and task 3/kitchen4, with task 3 using a from-scratch comparison.
+Next: repeat the from-scratch protocol on one more task or run larger/multi-seed confirmation.
 ```
 
 Artifact backup:
@@ -48,6 +60,9 @@ Artifact backup:
 local: /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
 Hugging Face dataset: Alcatraz1412/vla-run-backups
 HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
+
+latest local: /workspace/run_backups/vla_run_artifacts_20260609_180542.tar.gz
+latest HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/a5c98d68099f2f050941034b3737b21cd3ed5875
 ```
 
 ## Research Goal
