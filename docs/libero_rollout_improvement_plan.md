@@ -2,6 +2,64 @@
 
 Date: 2026-05-30
 
+## 2026-06-23 Task-2 Phase-ACT Seed Variance Check
+
+The task-2 phase-ACT baseline was expanded with paper seed runs.
+
+```text
+task id: 2
+task: KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+protocol: train10 / val5 / test5, max steps 300
+simulator seed: 42
+```
+
+Results:
+
+```text
+seed 42 original phase ACT:
+  checkpoint: checkpoints/libero_long_corrected_task2/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+  best epoch: 29
+  rollouts: train10 9/10, val5 2/5, test5 4/5 = 15/20
+
+seed 43 phase ACT:
+  checkpoint: checkpoints/paper_phase_act_task2_seed43/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+  best epoch: 57
+  offline continuous_mse: 0.01966886719018221
+  rollouts: train10 8/10, val5 4/5, test5 5/5 = 17/20
+
+seed 44 phase ACT:
+  checkpoint: checkpoints/paper_phase_act_task2_seed44/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+  best epoch: 58
+  offline continuous_mse: 0.020462753280997278
+  rollouts: train10 4/10, val5 3/5, test5 3/5 = 10/20
+```
+
+Interpretation:
+
+```text
+Task-2 phase ACT has high online variance across training seeds.
+Seed 43 is a strong controller; seed 44 is not, despite similar offline metrics.
+Offline continuous MSE is insufficient for selecting the best rollout checkpoint.
+The next clean paper step is matched event-gated memory training/evaluation for seeds 43 and 44,
+not another single-seed task search.
+```
+
+Current next work:
+
+```text
+1. Train event-gated ACT task-2 phase-memory for seed 43 from the seed-43 phase checkpoint.
+2. Train event-gated ACT task-2 phase-memory for seed 44 from the seed-44 phase checkpoint.
+3. Run the exact same task-2 train10 / val5 / test5 rollouts.
+4. Compare mean and per-episode flips against phase ACT.
+```
+
+Artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260623_191057.tar.gz
+Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/b415453cb949fd7cd6ebb2ba8abdae9a2c0ed72b
+```
+
 ## 2026-06-09 Kitchen4 From-Scratch Event-Memory Result
 
 The event-memory comparison was repeated on a new task with both models trained from scratch.

@@ -2,107 +2,108 @@
 
 Date: 2026-05-19
 
-## 2026-06-09 Kitchen4 From-Scratch Event-Memory Probe
+## 2026-06-23 Task-2 Phase-ACT Paper Seeds
 
-The controlled per-task memory comparison was repeated on a new task without warm-starting either model.
+This update records the task-2 phase-conditioned ACT paper-seed continuation and rollout check.
+
+Task:
 
 ```text
-task id: 3
-task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
-phase config: configs/libero_long_act_chunked_h20_kitchen4_drawer_phase_fromscratch.yaml
-event config: configs/libero_long_event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
-age config: configs/libero_long_age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
-checkpoint root: checkpoints/libero_long_fromscratch_probe
-epochs: 20 each
-seed: 42
+task id: 2
+task: KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+base config: configs/libero_long_act_chunked_corrected_h20_task2_phase_conditioned.yaml
+seed-44 resume config: configs/paper_phase_act_task2_seed44_resume.yaml
+rollout protocol: train10 / val5 / test5
+max steps: 300
+simulator seed: 42
 ```
 
-Offline result:
+Seed 43:
 
 ```text
-phase ACT:
-  continuous_mse:        0.05191242003440857
-  continuous_mae:        0.162862943983078
-  gripper_sign_accuracy: 0.9896825002670289
-
-event-gated ACT:
-  continuous_mse:        0.04404234265983105
-  continuous_mae:        0.15004283199310303
-  gripper_sign_accuracy: 0.991724999332428
-
-age-gated ACT:
-  continuous_mse:        0.047048382997512815
-  continuous_mae:        0.15670564353466035
-  gripper_sign_accuracy: 0.9881600014686585
+checkpoint root: checkpoints/paper_phase_act_task2_seed43
+best.pt epoch: 57
+best_val: 0.01841944182217121
+last.pt epoch: 60
+last val_mse: 0.021169397957623005
+offline continuous_mse: 0.01966886719018221
+offline continuous_mae: 0.10089445358514786
+offline gripper_sign_accuracy: 0.9917099995613098
+rollout train10: 8/10
+rollout val5: 4/5
+rollout test5: 5/5
+rollout total: 17/20
 ```
 
-Split-aware rollout result:
+Seed 44:
 
 ```text
-phase ACT:
-  train10: 3/10
-  val:     1/4
-  test5:   2/5
-  total:   6/19
-  held-out val+test: 3/9
-
-event-gated ACT:
-  train10: 7/10
-  val:     4/4
-  test5:   4/5
-  total:   15/19
-  held-out val+test: 8/9
-
-age-gated ACT:
-  train10: 3/10
-  val:     1/4
-  test5:   1/5
-  total:   5/19
-  held-out val+test: 2/9
+checkpoint root: checkpoints/paper_phase_act_task2_seed44
+interruption recovered from last.pt epoch: 13
+completed epoch: 60
+best.pt epoch: 58
+best_val: 0.018637190474569798
+last.pt epoch: 60
+last val_mse: 0.021783009807765485
+offline continuous_mse: 0.020462753280997278
+offline continuous_mae: 0.10250961701869965
+offline gripper_sign_accuracy: 0.9940675008773804
+rollout train10: 4/10
+rollout val5: 3/5
+rollout test5: 3/5
+rollout total: 10/20
 ```
 
-Matched rollout flips:
+Relevant artifacts:
 
 ```text
-phase failure -> event success:
-  train: [2, 3, 6, 9]
-  val:   [1, 8, 20]
-  test:  [15, 37]
-
-phase success -> event failure:
-  none
-
-event success -> age failure:
-  train: [2, 3, 4, 6, 9]
-  val:   [1, 8, 20]
-  test:  [10, 15, 37]
+config:
+  configs/paper_phase_act_task2_seed44_resume.yaml
+checkpoints:
+  checkpoints/paper_phase_act_task2_seed43/act_chunked_corrected_h20_task2_phase_conditioned/{best,last}.pt
+  checkpoints/paper_phase_act_task2_seed44/act_chunked_corrected_h20_task2_phase_conditioned/{best,last}.pt
+logs:
+  logs/paper_phase_act_task2_seed43_20260623_1308.log
+  logs/paper_phase_act_task2_seed43_eval_20260623.log
+  logs/paper_phase_act_task2_seed43_rollout_train10_20260623.log
+  logs/paper_phase_act_task2_seed43_rollout_val5_20260623.log
+  logs/paper_phase_act_task2_seed43_rollout_test5_20260623.log
+  logs/paper_phase_act_task2_seed44_train_20260623.log
+  logs/paper_phase_act_task2_seed44_resume_monitor_20260623.log
+  logs/paper_phase_act_task2_seed44_resume_20260623.log
+  logs/paper_phase_act_task2_seed44_eval_20260623.log
+  logs/paper_phase_act_task2_seed44_rollout_train10_20260623.log
+  logs/paper_phase_act_task2_seed44_rollout_val5_20260623.log
+  logs/paper_phase_act_task2_seed44_rollout_test5_20260623.log
+results:
+  results/paper_baselines_phase_act_task2_seed44.csv
+  results/paper_rollouts_phase_act_task2_seed43_{train10,val5,test5}.csv
+  results/paper_rollouts_phase_act_task2_seed44_{train10,val5,test5}.csv
+  results/paper_trace_phase_act_task2_seed43_{train10,val5,test5}.csv
+  results/paper_trace_phase_act_task2_seed44_{train10,val5,test5}.csv
+  results/task2_phase_act_paper_seeds_20260623.md
+backup:
+  local: /workspace/run_backups/vla_run_artifacts_20260623_191057.tar.gz
+  Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/b415453cb949fd7cd6ebb2ba8abdae9a2c0ed72b
 ```
 
 Interpretation:
 
 ```text
-Kitchen4 is a strong from-scratch positive result for event-gated ACT.
-The offline improvement is moderate, but the closed-loop improvement is large.
-This result is not explained by phase-checkpoint warm-starting because both models were trained from scratch.
-The age-gated from-scratch control improves offline MSE over phase ACT but fails to reproduce the rollout gain.
-This supports event-aware memory selection over simple recency/age selection on this task.
+Seed 43 confirms a strong phase-ACT task-2 rollout at 17/20.
+Seed 44 has nearly identical offline action-prediction quality but only reaches 10/20 online.
+The gap is closed-loop seed sensitivity, not explained by offline continuous MSE alone.
+Do not present phase-ACT 60-epoch continuation as reliably improving task 2.
+Use this as motivation for matched multi-seed event-memory runs before final paper claims.
 ```
 
-Dedicated summary:
+Left to do:
 
 ```text
-results/kitchen4_fromscratch_event_memory_20260609.md
-```
-
-Artifact backup:
-
-```text
-local: /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
-Hugging Face dataset: Alcatraz1412/vla-run-backups
-HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
-
-latest local: /workspace/run_backups/vla_run_artifacts_20260609_180542.tar.gz
-latest HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/a5c98d68099f2f050941034b3737b21cd3ed5875
+1. Train matched event-gated task-2 phase-memory runs for seeds 43 and 44.
+2. Run the same train10 / val5 / test5 rollouts for those event-memory checkpoints.
+3. Compare per-episode flips against phase-ACT seeds 43 and 44.
+4. Back up artifacts before stopping the pod.
 ```
 
 ## 2026-06-04 Phase ACT And Object-Signal Rollout Check
@@ -608,9 +609,9 @@ Next choices are:
 Artifact backup after the 2026-06-08 task-2/task-5 runs:
 
 ```text
-local backup: /workspace/run_backups/vla_run_artifacts_20260608_185154.tar.gz
+local backup: /workspace/run_backups/vla_run_artifacts_20260608_132450.tar.gz
 Hugging Face dataset: Alcatraz1412/vla-run-backups
-HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/7975ed9feed8299e08c88c8c30aaa81ecca01907
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3ef40e83472fc207cac83303bfa969dda647995f
 ```
 
 ## Scope

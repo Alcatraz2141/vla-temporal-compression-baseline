@@ -187,7 +187,50 @@ This includes the optional SmolVLA/LeRobot external baseline path.
 
 ## Current LIBERO Handoff
 
-Latest RunPod rollout-facing state as of 2026-06-09:
+Latest RunPod paper-seed state as of 2026-06-23:
+
+```text
+Task 2 phase-ACT paper seed expansion:
+  task: KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+  config base: configs/libero_long_act_chunked_corrected_h20_task2_phase_conditioned.yaml
+  seed-44 resume config: configs/paper_phase_act_task2_seed44_resume.yaml
+  rollout protocol: task-2 train10 / val5 / test5, max steps 300
+  simulator rollout seed: 42 for comparability with prior measured rollouts
+
+Seed 43:
+  checkpoint root: checkpoints/paper_phase_act_task2_seed43
+  best checkpoint: epoch 57, best_val 0.01841944182217121
+  last checkpoint: epoch 60, val_mse 0.021169397957623005
+  offline continuous_mse: 0.01966886719018221
+  offline continuous_mae: 0.10089445358514786
+  gripper_sign_accuracy: 0.9917099995613098
+  rollouts: train10 8/10, val5 4/5, test5 5/5 = 17/20
+
+Seed 44:
+  checkpoint root: checkpoints/paper_phase_act_task2_seed44
+  interrupted at epoch 13, resumed on 2026-06-23 from last.pt, completed epoch 60
+  best checkpoint: epoch 58, best_val 0.018637190474569798
+  last checkpoint: epoch 60, val_mse 0.021783009807765485
+  offline continuous_mse: 0.020462753280997278
+  offline continuous_mae: 0.10250961701869965
+  gripper_sign_accuracy: 0.9940675008773804
+  rollouts: train10 4/10, val5 3/5, test5 3/5 = 10/20
+
+Interpretation:
+  Offline metrics for seeds 43 and 44 are very close.
+  Closed-loop rollout differs substantially: seed 43 is strong, seed 44 falls back to the
+  original seed-42 phase-ACT level.
+  This is useful variance evidence, not a clean monotonic improvement claim for longer phase
+  training alone. Event-memory comparisons should be repeated with matched seed-43/44 models
+  before making multi-seed paper claims.
+
+Summary: results/task2_phase_act_paper_seeds_20260623.md
+Artifact backup:
+  local: /workspace/run_backups/vla_run_artifacts_20260623_191057.tar.gz
+  Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/b415453cb949fd7cd6ebb2ba8abdae9a2c0ed72b
+```
+
+Latest RunPod rollout-facing state as of 2026-06-08:
 
 ```text
 Confirmed per-task protocol:
@@ -215,30 +258,8 @@ Current interpretation:
   task 2 is not explained by longer phase training or age/recency memory.
   corrected held-out offline eval does not explain the rollout gap.
   task 2 test-only is tied with original phase ACT at 4/5, so do not overclaim every split.
-
-Kitchen4 from-scratch probe:
-  task id: 3
-  task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
-  phase ACT train10 / val / test5:        3/10, 1/4, 2/5 = 6/19 total, 3/9 held-out
-  event-gated ACT train10 / val / test5:  7/10, 4/4, 4/5 = 15/19 total, 8/9 held-out
-  age-gated ACT train10 / val / test5:    3/10, 1/4, 1/5 = 5/19 total, 2/9 held-out
-  offline continuous_mse:
-    phase ACT:       0.05191242003440857
-    event-gated ACT: 0.04404234265983105
-    age-gated ACT:   0.047048382997512815
-  summary: results/kitchen4_fromscratch_event_memory_20260609.md
-  artifact backup:
-    /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
-    https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
-  latest backup after age-gated control:
-    /workspace/run_backups/vla_run_artifacts_20260609_180542.tar.gz
-    https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/a5c98d68099f2f050941034b3737b21cd3ed5875
-
-Current interpretation:
-  event-gated ACT has positive evidence on task 5, task 2, and now task 3/kitchen4.
-  kitchen4 is especially useful because the phase and event-gated models were both trained from scratch.
-  kitchen4 age-gated from-scratch improves offline MSE over phase but does not reproduce the rollout gain.
-  next, repeat the from-scratch protocol on one more task or run larger/multi-seed confirmation.
+  the next decision should be whether to repeat this protocol on another task
+  or run larger/multi-seed confirmation before broader ablations.
 ```
 
 Diagnostic task-2 videos were generated after the measured rollouts:
@@ -294,18 +315,11 @@ Decision rule:
 Current artifact backup:
 
 ```text
-/workspace/run_backups/vla_run_artifacts_20260608_185154.tar.gz
-https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/7975ed9feed8299e08c88c8c30aaa81ecca01907
-```
-
-Previous artifact backup:
-
-```text
 /workspace/run_backups/vla_run_artifacts_20260608_132450.tar.gz
 https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3ef40e83472fc207cac83303bfa969dda647995f
 ```
 
-Earlier artifact backup:
+Previous artifact backup:
 
 ```text
 /workspace/run_backups/vla_run_artifacts_20260604_124932.tar.gz

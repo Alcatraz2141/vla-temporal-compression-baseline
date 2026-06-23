@@ -2,69 +2,6 @@
 
 This file is the operating guide for autoresearch agents working on this repository. The project is serious research code, not a toy demo. Preserve existing pipelines unless a change is explicitly needed for the current milestone.
 
-## Latest Handoff Note: 2026-06-09 Kitchen4 From-Scratch Probe
-
-The per-task ACT memory comparison has a new from-scratch positive result:
-
-```text
-task id: 3
-task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
-
-phase ACT from scratch:
-  config: configs/libero_long_act_chunked_h20_kitchen4_drawer_phase_fromscratch.yaml
-  checkpoint: checkpoints/libero_long_fromscratch_probe/act_chunked_h20_kitchen4_drawer_phase_fromscratch/best.pt
-  offline continuous_mse: 0.05191242003440857
-  rollout train10 / val / test5: 3/10, 1/4, 2/5 = 6/19
-
-event-gated ACT from scratch:
-  config: configs/libero_long_event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
-  checkpoint: checkpoints/libero_long_fromscratch_probe/event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch/best.pt
-  offline continuous_mse: 0.04404234265983105
-  rollout train10 / val / test5: 7/10, 4/4, 4/5 = 15/19
-
-age-gated ACT from scratch:
-  config: configs/libero_long_age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
-  checkpoint: checkpoints/libero_long_fromscratch_probe/age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch/best.pt
-  offline continuous_mse: 0.047048382997512815
-  rollout train10 / val / test5: 3/10, 1/4, 1/5 = 5/19
-```
-
-Matched rollout flips:
-
-```text
-phase failure -> event success:
-  train: [2, 3, 6, 9]
-  val:   [1, 8, 20]
-  test:  [15, 37]
-
-phase success -> event failure:
-  none
-
-event success -> age failure:
-  train: [2, 3, 4, 6, 9]
-  val:   [1, 8, 20]
-  test:  [10, 15, 37]
-```
-
-Current interpretation:
-
-```text
-The age-gated from-scratch control did not reproduce the event-gated rollout gain.
-Event-gated ACT is now positive on task 5, task 2, and task 3/kitchen4, with task 3 using a from-scratch comparison.
-Next: repeat the from-scratch protocol on one more task or run larger/multi-seed confirmation.
-```
-
-Artifact backup:
-
-```text
-local: /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
-Hugging Face dataset: Alcatraz1412/vla-run-backups
-HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
-
-latest local: /workspace/run_backups/vla_run_artifacts_20260609_180542.tar.gz
-latest HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/a5c98d68099f2f050941034b3737b21cd3ed5875
-```
-
 ## Research Goal
 
 We are building a publishable long-horizon VLA / behavior-cloning benchmark for robot manipulation.
@@ -100,6 +37,19 @@ The repository contains a PyTorch behavior-cloning pipeline with:
 - Open X / RT-X-style offline data support
 - LIBERO-Long HDF5 reading through direct `h5py`
 - a unified episode-level loader for current milestone experiments
+
+Latest paper-seed task-2 phase-ACT state as of 2026-06-23:
+
+```text
+task: KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+protocol: train10 / val5 / test5 split-aware LIBERO rollouts, max steps 300
+seed 43 phase ACT: best epoch 57, offline continuous_mse 0.01966886719018221, rollout 17/20
+seed 44 phase ACT: best epoch 58, offline continuous_mse 0.020462753280997278, rollout 10/20
+summary: results/task2_phase_act_paper_seeds_20260623.md
+```
+
+This is seed-variance evidence for phase ACT. Do not claim that longer phase-ACT training
+reliably explains the task-2 memory result until matched event-gated seed-43/44 runs are complete.
 
 Important: do not remove or break older baselines or the old WebDataset path. The current milestone adds a better episode-level path; it does not delete the previous work.
 
@@ -2542,7 +2492,7 @@ confirmation for tasks 2 and 5 before adding broad ablations.
 Current artifact backup:
 
 ```text
-local: /workspace/run_backups/vla_run_artifacts_20260608_185154.tar.gz
+local: /workspace/run_backups/vla_run_artifacts_20260608_132450.tar.gz
 HF dataset: Alcatraz1412/vla-run-backups
-HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/7975ed9feed8299e08c88c8c30aaa81ecca01907
+HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3ef40e83472fc207cac83303bfa969dda647995f
 ```

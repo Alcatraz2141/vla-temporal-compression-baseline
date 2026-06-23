@@ -78,38 +78,37 @@ eval or rollout.
 
 ## Current Checkpoint And Rollout State
 
-As of 2026-06-09, the current rollout-facing comparison includes a new from-scratch kitchen4 result:
+As of 2026-06-23, task-2 paper phase-ACT seed rollouts were measured with the same split-aware
+protocol used by the prior task-2 comparison:
 
 ```text
-task id: 3
-task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
+task id: 2
+task: KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+max steps: 300
+simulator seed: 42
 
-phase ACT:
-  config: configs/libero_long_act_chunked_h20_kitchen4_drawer_phase_fromscratch.yaml
-  checkpoint: checkpoints/libero_long_fromscratch_probe/act_chunked_h20_kitchen4_drawer_phase_fromscratch/best.pt
-  train10 / val / test5: 3/10, 1/4, 2/5 = 6/19
+seed 43:
+  checkpoint: checkpoints/paper_phase_act_task2_seed43/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+  best epoch: 57
+  train10 / val5 / test5: 8/10, 4/5, 5/5 = 17/20
 
-event-gated ACT:
-  config: configs/libero_long_event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
-  checkpoint: checkpoints/libero_long_fromscratch_probe/event_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch/best.pt
-  train10 / val / test5: 7/10, 4/4, 4/5 = 15/19
-
-age-gated ACT:
-  config: configs/libero_long_age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch.yaml
-  checkpoint: checkpoints/libero_long_fromscratch_probe/age_gated_act_h20_kitchen4_drawer_phase_memory_fromscratch/best.pt
-  train10 / val / test5: 3/10, 1/4, 1/5 = 5/19
+seed 44:
+  checkpoint: checkpoints/paper_phase_act_task2_seed44/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+  best epoch: 58
+  train10 / val5 / test5: 4/10, 3/5, 3/5 = 10/20
 ```
 
-The age-gated task-3 control did not reproduce the event-gated rollout gain.
+Representative commands:
 
-Artifact backup:
-
-```text
-local: /workspace/run_backups/vla_run_artifacts_20260609_113957.tar.gz
-Hugging Face dataset: Alcatraz1412/vla-run-backups
-HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cf4a2a58dce40859cf701b91da349781b25c44d6
-latest local: /workspace/run_backups/vla_run_artifacts_20260609_180542.tar.gz
-latest HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/a5c98d68099f2f050941034b3737b21cd3ed5875
+```bash
+bash libero_rollout_env/run_rollout.sh \
+  configs/paper_phase_act_task2_seed44_resume.yaml \
+  checkpoints/paper_phase_act_task2_seed44/act_chunked_corrected_h20_task2_phase_conditioned/best.pt \
+  --tasks 2 --episodes-per-task 10 --max-steps 300 \
+  --split-file splits/libero_long_train.txt \
+  --results-path results/paper_rollouts_phase_act_task2_seed44_train10.csv \
+  --trace-path results/paper_trace_phase_act_task2_seed44_train10.csv \
+  --seed 42
 ```
 
 As of 2026-06-01, the corrected-H1 rollout stack has produced nonzero simulator success.
