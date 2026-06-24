@@ -51,6 +51,47 @@ summary: results/task2_phase_act_paper_seeds_20260623.md
 This is seed-variance evidence for phase ACT. Do not claim that longer phase-ACT training
 reliably explains the task-2 memory result until matched event-gated seed-43/44 runs are complete.
 
+Additional random phase-ACT seed completed on 2026-06-24:
+
+```text
+seed 187: best epoch 58, offline continuous_mse 0.019253734470903873
+unique rollout: train30 20/30, val5 1/5, test5 4/5 = 25/40
+held-out val+test: 5/10
+```
+
+The task-2 phase seeds have similar offline metrics but materially different closed-loop success.
+For the paper comparison, train event-gated ACT from scratch for 60 epochs with matched seeds
+43, 44, and 187. Use the same unique train30/val5/test5 rollout protocol before age-gated controls.
+
+Latest artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260624_121312.tar.gz
+Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/bf0eecd96297788fabe223fbb6099b1735703945
+```
+
+Current from-scratch event-gated paper run as of 2026-06-24:
+
+```text
+seed: 43
+config: configs/paper_event_gated_act_task2_seed43.yaml
+resume config: configs/paper_event_gated_act_task2_seed43_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed43/event_gated_act_h20_task2_phase_memory/last.pt
+stopped safely after epoch: 21
+epoch 21 val_mse: 0.04350930461883545
+best epoch: 21
+best_val: 0.04350930461883545
+```
+
+Resume with the resume config; the unfinished epoch 22 work was intentionally discarded.
+
+Epoch-21 shutdown backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260624_185606.tar.gz
+Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/02e537abdbdf6587d8f268517b35eb36290a32a3
+```
+
 Important: do not remove or break older baselines or the old WebDataset path. The current milestone adds a better episode-level path; it does not delete the previous work.
 
 ## Main Data Philosophy
