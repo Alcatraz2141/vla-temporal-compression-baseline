@@ -2,6 +2,27 @@
 
 Date: 2026-05-30
 
+## 2026-06-24 Task-2 Phase-ACT Seed 187 And Matched Event Plan
+
+```text
+seed 187 best epoch: 58
+offline continuous_mse: 0.019253734470903873
+rollout train30 / val5 / test5: 20/30, 1/5, 4/5 = 25/40
+held-out val+test: 5/10
+```
+
+This seed reinforces closed-loop seed variance: offline metrics are strong, while held-out rollout
+is weaker than seed 43. The matched event protocol is from-scratch 60-epoch training, ordered
+seed 43, seed 44, then seed 187. Evaluate each with unique train30/val5/test5 rollouts.
+Begin age-gated controls only after the event-gated multi-seed results are recorded.
+
+Artifact backup:
+
+```text
+/workspace/run_backups/vla_run_artifacts_20260624_121312.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/bf0eecd96297788fabe223fbb6099b1735703945
+```
+
 ## 2026-06-23 Task-2 Phase-ACT Seed Variance Check
 
 The task-2 phase-ACT baseline was expanded with paper seed runs.

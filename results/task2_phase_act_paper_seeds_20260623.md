@@ -2,6 +2,30 @@
 
 Date: 2026-06-23
 
+## 2026-06-24 Seed 187 Extension
+
+```text
+checkpoint: checkpoints/paper_phase_act_task2_seed187/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+best epoch: 58
+best val_mse: 0.01964960294365883
+offline continuous_mse: 0.019253734470903873
+offline continuous_mae: 0.09981400260925292
+gripper_sign_accuracy: 0.9923175002098084
+train30 / val5 / test5: 20/30, 1/5, 4/5 = 25/40
+held-out val+test: 5/10
+```
+
+Seed 187 further separates offline and online model selection: its offline MSE is slightly better
+than seeds 43 and 44, while held-out rollout is only 5/10. The matched event-gated paper runs will
+train from scratch for 60 epochs with seeds 43, 44, and 187.
+
+Artifact backup:
+
+```text
+/workspace/run_backups/vla_run_artifacts_20260624_121312.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/bf0eecd96297788fabe223fbb6099b1735703945
+```
+
 ## Protocol
 
 ```text
@@ -155,11 +179,4 @@ results/paper_trace_phase_act_task2_seed43_test5.csv
 results/paper_trace_phase_act_task2_seed44_train10.csv
 results/paper_trace_phase_act_task2_seed44_val5.csv
 results/paper_trace_phase_act_task2_seed44_test5.csv
-```
-
-Backup:
-
-```text
-local: /workspace/run_backups/vla_run_artifacts_20260623_191057.tar.gz
-Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/b415453cb949fd7cd6ebb2ba8abdae9a2c0ed72b
 ```

@@ -2,6 +2,43 @@
 
 Date: 2026-05-19
 
+## 2026-06-24 Task-2 Phase-ACT Random Seed 187
+
+```text
+config: configs/paper_phase_act_task2_seed187.yaml
+checkpoint: checkpoints/paper_phase_act_task2_seed187/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+best epoch: 58
+best val_mse: 0.01964960294365883
+last epoch: 60
+last val_mse: 0.020050966224074363
+offline continuous_mse: 0.019253734470903873
+offline continuous_mae: 0.09981400260925292
+gripper_sign_accuracy: 0.9923175002098084
+```
+
+Unique split-aware 40-episode rollout:
+
+```text
+train30: 20/30
+val5:     1/5
+test5:    4/5
+total:   25/40
+held-out val+test: 5/10
+```
+
+Seed 187 has slightly better offline continuous MSE than seeds 43 and 44, but only 5/10 held-out
+success. Offline action prediction remains insufficient for selecting robust closed-loop
+checkpoints. The 1/5 versus 4/5 val/test asymmetry also shows that five-episode subsets are noisy.
+Next run event-gated ACT from scratch for 60 epochs with seeds 43, 44, and 187. Do not initialize
+these paper-seed event models from the phase-ACT checkpoints.
+
+Artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260624_121312.tar.gz
+Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/bf0eecd96297788fabe223fbb6099b1735703945
+```
+
 ## 2026-06-23 Task-2 Phase-ACT Paper Seeds
 
 This update records the task-2 phase-conditioned ACT paper-seed continuation and rollout check.
@@ -82,9 +119,6 @@ results:
   results/paper_trace_phase_act_task2_seed43_{train10,val5,test5}.csv
   results/paper_trace_phase_act_task2_seed44_{train10,val5,test5}.csv
   results/task2_phase_act_paper_seeds_20260623.md
-backup:
-  local: /workspace/run_backups/vla_run_artifacts_20260623_191057.tar.gz
-  Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/b415453cb949fd7cd6ebb2ba8abdae9a2c0ed72b
 ```
 
 Interpretation:

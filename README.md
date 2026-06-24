@@ -225,9 +225,25 @@ Interpretation:
   before making multi-seed paper claims.
 
 Summary: results/task2_phase_act_paper_seeds_20260623.md
+```
+
+Additional random phase-ACT seed completed on 2026-06-24:
+
+```text
+Seed 187:
+  config: configs/paper_phase_act_task2_seed187.yaml
+  best checkpoint: epoch 58, val_mse 0.01964960294365883
+  offline continuous_mse: 0.019253734470903873
+  rollouts: train30 20/30, val5 1/5, test5 4/5 = 25/40
+  held-out val+test: 5/10
+
+Interpretation:
+  Offline quality is comparable across the phase-ACT paper seeds, but rollout robustness varies.
+  Run event-gated ACT from scratch for matched seeds 43, 44, and 187 before age-gated controls.
+
 Artifact backup:
-  local: /workspace/run_backups/vla_run_artifacts_20260623_191057.tar.gz
-  Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/b415453cb949fd7cd6ebb2ba8abdae9a2c0ed72b
+  /workspace/run_backups/vla_run_artifacts_20260624_121312.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/bf0eecd96297788fabe223fbb6099b1735703945
 ```
 
 Latest RunPod rollout-facing state as of 2026-06-08:

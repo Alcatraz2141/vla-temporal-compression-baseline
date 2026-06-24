@@ -78,6 +78,25 @@ eval or rollout.
 
 ## Current Checkpoint And Rollout State
 
+As of 2026-06-24, random task-2 phase-ACT seed `187` completed:
+
+```text
+checkpoint: checkpoints/paper_phase_act_task2_seed187/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+best epoch: 58
+train30 / val5 / test5: 20/30, 1/5, 4/5 = 25/40
+held-out val+test: 5/10
+```
+
+Next run event-gated ACT from scratch for seeds 43, 44, and 187, 60 epochs each. Use the same
+unique train30/val5/test5 rollout protocol before age gating.
+
+Latest uploaded artifact backup:
+
+```text
+/workspace/run_backups/vla_run_artifacts_20260624_121312.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/bf0eecd96297788fabe223fbb6099b1735703945
+```
+
 As of 2026-06-23, task-2 paper phase-ACT seed rollouts were measured with the same split-aware
 protocol used by the prior task-2 comparison:
 
