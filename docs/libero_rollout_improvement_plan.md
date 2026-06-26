@@ -2,6 +2,50 @@
 
 Date: 2026-05-30
 
+## 2026-06-26 Task-2 From-Scratch Event-Gated Seed 43 Completed
+
+The task-2 event-gated ACT seed-43 from-scratch run resumed from epoch 21 and completed to
+epoch 60.
+
+```text
+config: configs/paper_event_gated_act_task2_seed43_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed43/event_gated_act_h20_task2_phase_memory/best.pt
+best epoch: 58
+best val_mse: 0.020923468711972235
+offline continuous_mse: 0.01848969299942255
+offline continuous_mae: 0.09646275240182876
+gripper_sign_accuracy: 0.9892899991989136
+```
+
+Unique split-aware rollout:
+
+```text
+train30 / val5 / test5: 18/30, 3/5, 3/5 = 24/40
+held-out val+test: 6/10
+```
+
+Interpretation:
+
+```text
+This run is an offline-positive but rollout-negative result relative to seed-43 phase ACT.
+On the comparable train10 / val5 / test5 subset, phase ACT seed 43 was 17/20 while
+from-scratch event-gated seed 43 was 12/20.
+
+The result reinforces closed-loop seed/training sensitivity and the weakness of offline MSE as
+a checkpoint selector. Finish matched from-scratch event-gated seeds 44 and 187 before beginning
+age-gated controls.
+```
+
+Artifacts:
+
+```text
+results/paper_event_gated_task2_seed43_20260626.md
+results/paper_baselines_event_gated_task2_seed43.csv
+results/paper_rollouts_event_gated_task2_seed43_{train30,val5,test5}.csv
+results/paper_trace_event_gated_task2_seed43_{train30,val5,test5}.csv
+backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/aee8f20fd7770fc071239ecd9ee75190d423e21b
+```
+
 ## 2026-06-24 Task-2 Phase-ACT Seed 187 And Matched Event Plan
 
 ```text

@@ -92,6 +92,34 @@ local: /workspace/run_backups/vla_run_artifacts_20260624_185606.tar.gz
 Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/02e537abdbdf6587d8f268517b35eb36290a32a3
 ```
 
+Task-2 from-scratch event-gated seed-43 completion as of 2026-06-26:
+
+```text
+config: configs/paper_event_gated_act_task2_seed43_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed43/event_gated_act_h20_task2_phase_memory/best.pt
+completed epoch: 60
+best epoch: 58
+best val_mse: 0.020923468711972235
+offline continuous_mse: 0.01848969299942255
+offline continuous_mae: 0.09646275240182876
+gripper_sign_accuracy: 0.9892899991989136
+rollout train30 / val5 / test5: 18/30, 3/5, 3/5 = 24/40
+held-out val+test: 6/10
+summary: results/paper_event_gated_task2_seed43_20260626.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/aee8f20fd7770fc071239ecd9ee75190d423e21b
+```
+
+This from-scratch event-gated seed improves offline continuous MSE versus seed-43 phase ACT, but
+does not reproduce seed-43 phase ACT's stronger online result. Comparable 20-episode subset:
+
+```text
+seed-43 phase ACT:                train10 8/10, val5 4/5, test5 5/5 = 17/20
+seed-43 event-gated from scratch: train10 6/10, val5 3/5, test5 3/5 = 12/20
+```
+
+Do not claim seed-43 from-scratch event memory improves the phase baseline. Continue the matched
+from-scratch protocol with seeds 44 and 187 before age-gated controls.
+
 Important: do not remove or break older baselines or the old WebDataset path. The current milestone adds a better episode-level path; it does not delete the previous work.
 
 ## Main Data Philosophy

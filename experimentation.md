@@ -2,6 +2,81 @@
 
 Date: 2026-05-19
 
+## 2026-06-26 Task-2 From-Scratch Event-Gated Seed 43
+
+The event-gated ACT task-2 seed-43 run was resumed from the epoch-21 checkpoint and completed.
+
+```text
+config: configs/paper_event_gated_act_task2_seed43_resume.yaml
+checkpoint root: checkpoints/paper_event_gated_task2_seed43/event_gated_act_h20_task2_phase_memory
+resume source: last.pt from epoch 21
+completed epoch: 60
+best checkpoint: best.pt
+best epoch: 58
+best val_mse: 0.020923468711972235
+last epoch val_mse: 0.020978209085762502
+```
+
+Offline eval on `best.pt`:
+
+```text
+results: results/paper_baselines_event_gated_task2_seed43.csv
+continuous_mse: 0.01848969299942255
+continuous_mae: 0.09646275240182876
+gripper_sign_accuracy: 0.9892899991989136
+```
+
+Unique split-aware 40-episode rollout:
+
+```text
+train30: 18/30
+val5:     3/5
+test5:    3/5
+total:   24/40
+held-out val+test: 6/10
+```
+
+Failed episodes:
+
+```text
+train: [0, 4, 5, 6, 15, 16, 19, 21, 26, 31, 34, 38]
+val:   [29, 40]
+test:  [7, 22]
+```
+
+Relevant artifacts:
+
+```text
+results/paper_event_gated_task2_seed43_20260626.md
+results/paper_baselines_event_gated_task2_seed43.csv
+results/paper_rollouts_event_gated_task2_seed43_train30.csv
+results/paper_rollouts_event_gated_task2_seed43_val5.csv
+results/paper_rollouts_event_gated_task2_seed43_test5.csv
+results/paper_trace_event_gated_task2_seed43_train30.csv
+results/paper_trace_event_gated_task2_seed43_val5.csv
+results/paper_trace_event_gated_task2_seed43_test5.csv
+logs/paper_event_gated_task2_seed43_resume_20260626_0503.log
+```
+
+Artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260626_164517.tar.gz
+Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/aee8f20fd7770fc071239ecd9ee75190d423e21b
+```
+
+Interpretation:
+
+```text
+This from-scratch event-gated seed-43 checkpoint has better offline continuous MSE than the
+matched seed-43 phase ACT checkpoint, but worse online rollout. On the comparable 20-episode
+subset, phase ACT seed 43 reached 17/20 while this event-gated seed reached 12/20.
+
+Do not claim from-scratch event memory improves seed 43. This result reinforces that offline
+action prediction is not sufficient for selecting robust closed-loop policies. Continue with
+matched from-scratch event-gated seeds 44 and 187 before age-gated controls.
+```
+
 ## 2026-06-24 Task-2 Phase-ACT Random Seed 187
 
 ```text

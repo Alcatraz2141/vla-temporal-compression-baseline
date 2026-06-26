@@ -259,6 +259,33 @@ shutdown backup:
   https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/02e537abdbdf6587d8f268517b35eb36290a32a3
 ```
 
+Completed event-gated paper run as of 2026-06-26:
+
+```text
+seed 43, from scratch
+config: configs/paper_event_gated_act_task2_seed43_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed43/event_gated_act_h20_task2_phase_memory/best.pt
+completed epoch: 60
+best epoch: 58
+best val_mse: 0.020923468711972235
+offline continuous_mse: 0.01848969299942255
+rollouts: train30 18/30, val5 3/5, test5 3/5 = 24/40
+held-out val+test: 6/10
+summary: results/paper_event_gated_task2_seed43_20260626.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/aee8f20fd7770fc071239ecd9ee75190d423e21b
+```
+
+Interpretation:
+
+```text
+The from-scratch event-gated seed-43 model improves offline continuous MSE versus seed-43 phase ACT
+but underperforms online. On the comparable train10 / val5 / test5 subset, phase ACT seed 43 was
+17/20 and event-gated seed 43 was 12/20.
+
+Continue the matched from-scratch event-gated protocol with seeds 44 and 187 before age-gated
+controls. Do not claim seed-43 event memory improves the phase baseline.
+```
+
 Latest RunPod rollout-facing state as of 2026-06-08:
 
 ```text

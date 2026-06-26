@@ -108,6 +108,42 @@ backup: /workspace/run_backups/vla_run_artifacts_20260624_185606.tar.gz
 HF commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/02e537abdbdf6587d8f268517b35eb36290a32a3
 ```
 
+Completed 2026-06-26 handoff:
+
+```text
+event-gated task-2 seed 43, trained from scratch
+config: configs/paper_event_gated_act_task2_seed43_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed43/event_gated_act_h20_task2_phase_memory/best.pt
+completed epoch: 60
+best epoch: 58
+offline continuous_mse: 0.01848969299942255
+rollout train30 / val5 / test5: 18/30, 3/5, 3/5 = 24/40
+held-out val+test: 6/10
+summary: results/paper_event_gated_task2_seed43_20260626.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/aee8f20fd7770fc071239ecd9ee75190d423e21b
+```
+
+Representative commands:
+
+```bash
+uv run python evaluation/eval.py \
+  --config configs/paper_event_gated_act_task2_seed43_resume.yaml \
+  --checkpoint checkpoints/paper_event_gated_task2_seed43/event_gated_act_h20_task2_phase_memory/best.pt
+
+bash libero_rollout_env/run_rollout.sh \
+  configs/paper_event_gated_act_task2_seed43_resume.yaml \
+  checkpoints/paper_event_gated_task2_seed43/event_gated_act_h20_task2_phase_memory/best.pt \
+  --tasks 2 --episodes-per-task 30 --max-steps 300 \
+  --split-file splits/libero_long_train.txt \
+  --temporal-ensemble \
+  --results-path results/paper_rollouts_event_gated_task2_seed43_train30.csv \
+  --trace-path results/paper_trace_event_gated_task2_seed43_train30.csv \
+  --seed 42
+```
+
+Use the analogous `val5` and `test5` commands with `splits/libero_long_val.txt` and
+`splits/libero_long_test.txt`.
+
 As of 2026-06-23, task-2 paper phase-ACT seed rollouts were measured with the same split-aware
 protocol used by the prior task-2 comparison:
 
