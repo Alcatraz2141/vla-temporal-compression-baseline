@@ -1,0 +1,2 @@
+timestamp,suite,run_name,checkpoint,seed,task_id,task_name,episode_idx,success,total_reward,steps,max_steps,expert_prefix_steps,video_path
+2026-06-26T16:51:15.055286+00:00,libero_10,event_gated_act_h20_task2_phase_memory,checkpoints/paper_event_gated_task2_seed43/event_gated_act_h20_task2_phase_memory/best.pt,42,2,KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it,1,1,1.0,248,300,0,results/memory_gate_debug/videos/event_gated_act_h20_task2_phase_memory/seed42_task02_episode1_KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it.mp4

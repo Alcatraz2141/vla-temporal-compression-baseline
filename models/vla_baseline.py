@@ -381,7 +381,7 @@ class ACTChunkedBaseline(nn.Module):
             context = context + self.placement_ready_embedding(placement_ready_ids.clamp(0, 1))
         return context
 
-    def _event_memory_tokens(self, tokens: torch.Tensor, mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def _event_memory_debug(self, tokens: torch.Tensor, mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
         bsz, timesteps, dim = tokens.shape
         chunk_count = max((timesteps + self.memory_chunk_size - 1) // self.memory_chunk_size, 1)
         padded_steps = chunk_count * self.memory_chunk_size
@@ -412,16 +412,52 @@ class ACTChunkedBaseline(nn.Module):
             gate_score = torch.sigmoid(self.memory_gate(torch.cat([summaries, deltas, chunk_mean, age], dim=-1)))
         memory_tokens = summaries * gate_score
         memory_mask = chunk_mask.any(dim=-1)
+        debug = {
+            "gate_score": gate_score.squeeze(-1),
+            "memory_mask": memory_mask,
+            "pool_attention": attn,
+            "chunk_valid_count": chunk_mask.sum(dim=-1),
+        }
         if memory_tokens.size(1) > self.max_memory_tokens:
+            offset = memory_tokens.size(1) - self.max_memory_tokens
             memory_tokens = memory_tokens[:, -self.max_memory_tokens :]
             memory_mask = memory_mask[:, -self.max_memory_tokens :]
+            debug = {
+                key: value[:, offset:] if value.ndim >= 2 else value
+                for key, value in debug.items()
+            }
         empty_memory = ~memory_mask.any(dim=1)
         if empty_memory.any():
             memory_tokens = memory_tokens.clone()
             memory_mask = memory_mask.clone()
             memory_tokens[empty_memory, 0] = 0
             memory_mask[empty_memory, 0] = True
+            debug["memory_mask"] = memory_mask
+        return memory_tokens, memory_mask, debug
+
+    def _event_memory_tokens(self, tokens: torch.Tensor, mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        memory_tokens, memory_mask, _debug = self._event_memory_debug(tokens, mask)
         return memory_tokens, memory_mask
+
+    @torch.no_grad()
+    def inspect_event_memory(
+        self,
+        older_obs: torch.Tensor,
+        older_states: torch.Tensor,
+        older_actions: torch.Tensor | None = None,
+        older_mask: torch.Tensor | None = None,
+        language_ids: torch.Tensor | None = None,
+    ) -> dict[str, torch.Tensor]:
+        older_context = self._encode_context_tokens(
+            older_obs,
+            older_states,
+            older_actions,
+            language_ids=language_ids,
+        )
+        if older_mask is None:
+            older_mask = torch.ones(older_context.shape[:2], dtype=torch.bool, device=older_context.device)
+        _memory_tokens, _memory_mask, debug = self._event_memory_debug(older_context, older_mask.to(torch.bool))
+        return debug
 
     def forward(
         self,

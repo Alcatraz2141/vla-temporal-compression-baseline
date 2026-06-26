@@ -272,6 +272,15 @@ class OnlineHistory:
             valid = [False] * pad + valid
         return images, states, actions, valid
 
+    def older_indices(self) -> list[int]:
+        cutoff = max(0, len(self.images) - self.k_recent)
+        start = max(0, cutoff - self.older_len)
+        indices = list(range(start, cutoff))
+        pad = self.older_len - len(indices)
+        if pad > 0:
+            indices = [-1] * pad + indices
+        return indices
+
 
 @torch.no_grad()
 def predict_chunk(
@@ -409,6 +418,73 @@ def write_video(path: Path, frames: list[np.ndarray], fps: int) -> None:
     imageio.mimsave(path, frames, fps=fps)
 
 
+def write_memory_debug_rows(
+    path: Path,
+    model: torch.nn.Module,
+    history: OnlineHistory,
+    device: torch.device,
+    action_stats: dict[str, Any] | None,
+    image_normalization: str | None,
+    language_id_tensor: torch.Tensor | None,
+    task_id: int,
+    task_name: str,
+    episode_idx: int,
+    step: int,
+) -> None:
+    if not hasattr(model, "inspect_event_memory"):
+        return
+    older_images, older_states, older_actions, older_mask = history.older()
+    older_indices = history.older_indices()
+    older_actions = normalize_actions(older_actions, action_stats, history.action_dim)
+    debug = model.inspect_event_memory(
+        older_obs=image_tensor(older_images, device, image_normalization),
+        older_actions=vector_tensor(older_actions, device),
+        older_states=vector_tensor(older_states, device),
+        older_mask=mask_tensor(older_mask, device),
+        language_ids=language_id_tensor,
+    )
+    gate_scores = debug["gate_score"][0].detach().cpu().numpy()
+    valid_counts = debug["chunk_valid_count"][0].detach().cpu().numpy()
+    pool_attention = debug["pool_attention"][0].detach().cpu().numpy()
+    chunk_size = pool_attention.shape[-1]
+    retained_chunk_offset = max((len(older_indices) + chunk_size - 1) // chunk_size - len(gate_scores), 0)
+    for out_chunk_id, gate_score in enumerate(gate_scores):
+        chunk_id = retained_chunk_offset + out_chunk_id
+        start = chunk_id * chunk_size
+        end = start + chunk_size
+        chunk_indices = older_indices[start:end]
+        valid_pairs = [(local_i, index) for local_i, index in enumerate(chunk_indices) if index >= 0]
+        if valid_pairs:
+            local_ids = [local_i for local_i, _index in valid_pairs]
+            best_local = int(local_ids[int(np.argmax(pool_attention[out_chunk_id, local_ids]))])
+            selected_frame_index = int(chunk_indices[best_local])
+            frame_start = int(valid_pairs[0][1])
+            frame_end = int(valid_pairs[-1][1])
+        else:
+            best_local = -1
+            selected_frame_index = -1
+            frame_start = -1
+            frame_end = -1
+        append_csv(
+            path,
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "task_id": task_id,
+                "task_name": task_name,
+                "episode_idx": episode_idx,
+                "policy_step": step,
+                "chunk_id": chunk_id,
+                "chunk_start_frame": frame_start,
+                "chunk_end_frame": frame_end,
+                "selected_frame": selected_frame_index,
+                "selected_frame_local_offset": best_local,
+                "valid_count": int(valid_counts[out_chunk_id]),
+                "gate_score": float(gate_score),
+                "pool_attention_selected": float(pool_attention[out_chunk_id, best_local]) if best_local >= 0 else float("nan"),
+            },
+        )
+
+
 def load_policy(config_path: Path, checkpoint_path: Path, device: torch.device) -> tuple[torch.nn.Module, dict[str, Any], int, int]:
     cfg = load_config(config_path)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
@@ -538,6 +614,7 @@ def main() -> None:
     parser.add_argument("--video-fps", type=int, default=20)
     parser.add_argument("--video-every", type=int, default=1, help="Record every N simulator steps when --video-dir is set.")
     parser.add_argument("--trace-path", type=Path, default=None, help="Optional CSV path for per-step rollout state/action traces.")
+    parser.add_argument("--memory-debug-dir", type=Path, default=None, help="Optional directory for event-memory gate CSVs.")
     parser.add_argument(
         "--expert-prefix-steps",
         type=int,
@@ -654,6 +731,26 @@ def main() -> None:
                             language=task.name,
                             cfg=cfg,
                         )
+                        if args.memory_debug_dir is not None:
+                            language_id_tensor = None
+                            if bool(getattr(model, "use_language", False)):
+                                vocab_size = int(getattr(model, "language_embedding").num_embeddings)
+                                language_id_tensor = language_ids([task.name], vocab_size, device)
+                            write_memory_debug_rows(
+                                args.memory_debug_dir
+                                / run_name
+                                / f"task{task_id:02d}_episode{episode_idx}_memory_gates.csv",
+                                model,
+                                history,
+                                device,
+                                action_stats,
+                                image_normalization,
+                                language_id_tensor,
+                                task_id,
+                                task.name,
+                                episode_idx,
+                                steps,
+                            )
                         raw_chunk = prediction_info["raw_actions"]
                         if args.temporal_ensemble:
                             for offset, predicted_action in enumerate(action_chunk):
