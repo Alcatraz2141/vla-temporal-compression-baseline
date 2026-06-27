@@ -272,7 +272,7 @@ offline continuous_mse: 0.01848969299942255
 rollouts: train30 18/30, val5 3/5, test5 3/5 = 24/40
 held-out val+test: 6/10
 summary: results/paper_event_gated_task2_seed43_20260626.md
-artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/aee8f20fd7770fc071239ecd9ee75190d423e21b
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/db21d6240870b8a95ecdc8b39337f8a2691faad4
 ```
 
 Interpretation:
@@ -284,6 +284,48 @@ but underperforms online. On the comparable train10 / val5 / test5 subset, phase
 
 Continue the matched from-scratch event-gated protocol with seeds 44 and 187 before age-gated
 controls. Do not claim seed-43 event memory improves the phase baseline.
+```
+
+Current task-2 event-gated seed-44 state as of 2026-06-27:
+
+```text
+config: configs/paper_event_gated_act_task2_seed44.yaml
+resume config: configs/paper_event_gated_act_task2_seed44_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory/last.pt
+stopped during epoch: 12
+last completed epoch: 11
+best val_mse: 0.06793733193278313
+log: logs/paper_event_gated_task2_seed44_20260627_0606.log
+```
+
+Resume with:
+
+```bash
+uv run python train.py --config configs/paper_event_gated_act_task2_seed44_resume.yaml
+```
+
+Frozen-vision speed diagnostic:
+
+```text
+config: configs/diagnostic_event_gated_act_task2_seed44_freeze_vision.yaml
+last completed epoch: 7
+best val_mse: 0.14847677819728852
+result: reduced VRAM but no meaningful epoch-time speedup; do not use full frozen ResNet as the paper default
+```
+
+Current bottleneck diagnosis:
+
+```text
+Event-gated ACT speed is dominated by older-context image loading / CPU preprocessing / validation
+overhead, not ResNet backward compute. Next speed diagnostic should test larger task-2 episode
+cache and explicit train-vs-validation timing.
+```
+
+Artifact backup:
+
+```text
+/workspace/run_backups/vla_run_artifacts_20260627_113647.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/513bfd80a278f3f22d0b874f70709bf36aecc147
 ```
 
 Latest RunPod rollout-facing state as of 2026-06-08:

@@ -120,7 +120,45 @@ offline continuous_mse: 0.01848969299942255
 rollout train30 / val5 / test5: 18/30, 3/5, 3/5 = 24/40
 held-out val+test: 6/10
 summary: results/paper_event_gated_task2_seed43_20260626.md
-artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/aee8f20fd7770fc071239ecd9ee75190d423e21b
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/db21d6240870b8a95ecdc8b39337f8a2691faad4
+```
+
+Current 2026-06-27 handoff:
+
+```text
+event-gated task-2 seed 44, trained from scratch
+config: configs/paper_event_gated_act_task2_seed44.yaml
+resume config: configs/paper_event_gated_act_task2_seed44_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory/last.pt
+last completed epoch: 11
+best val_mse: 0.06793733193278313
+log: logs/paper_event_gated_task2_seed44_20260627_0606.log
+```
+
+Resume seed 44 with:
+
+```bash
+uv run python train.py --config configs/paper_event_gated_act_task2_seed44_resume.yaml
+```
+
+Frozen-vision diagnostic:
+
+```text
+config: configs/diagnostic_event_gated_act_task2_seed44_freeze_vision.yaml
+last completed epoch: 7
+best val_mse: 0.14847677819728852
+finding: VRAM decreased, but wall-clock epoch time stayed roughly 16.5-17 minutes.
+```
+
+Do not switch the paper protocol to full frozen ResNet. The speed bottleneck appears to be
+older-context image loading / preprocessing / validation overhead rather than ResNet backward
+compute.
+
+Artifact backup:
+
+```text
+/workspace/run_backups/vla_run_artifacts_20260627_113647.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/513bfd80a278f3f22d0b874f70709bf36aecc147
 ```
 
 Representative commands:

@@ -2,6 +2,89 @@
 
 Date: 2026-05-19
 
+## 2026-06-27 Task-2 Event-Gated Seed 44 Partial Run And Frozen-Vision Diagnostic
+
+Seed-44 event-gated ACT was started from scratch for the matched task-2 paper protocol.
+
+```text
+config: configs/paper_event_gated_act_task2_seed44.yaml
+resume config: configs/paper_event_gated_act_task2_seed44_resume.yaml
+checkpoint root: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory
+log: logs/paper_event_gated_task2_seed44_20260627_0606.log
+stopped by request during epoch: 12
+last completed epoch: 11
+best checkpoint: best.pt
+best epoch: 11
+best/last val_mse: 0.06793733193278313
+```
+
+The seed-44 run was intentionally stopped before epoch 12 completed. Continue with:
+
+```bash
+uv run python train.py --config configs/paper_event_gated_act_task2_seed44_resume.yaml
+```
+
+A cheap frozen-ResNet diagnostic was then added for event-gated ACT:
+
+```text
+config: configs/diagnostic_event_gated_act_task2_seed44_freeze_vision.yaml
+code: models/vla_baseline.py supports model.freeze_vision for ACTChunkedBaseline
+checkpoint root: checkpoints/diagnostic_event_gated_task2_seed44_freeze_vision/diagnostic_event_gated_act_h20_task2_freeze_vision_seed44
+log: logs/diagnostic_event_gated_task2_seed44_freeze_vision_20260627.log
+gpu monitor: results/diagnostic_event_gated_task2_seed44_freeze_vision_gpu.csv
+stopped by request during epoch: 8
+last completed epoch: 7
+best/last val_mse: 0.14847677819728852
+```
+
+Frozen-vision epoch timing:
+
+```text
+epoch 1: 17m09s, val_loss 0.351232
+epoch 2: 16m40s, val_loss 0.324954
+epoch 3: 16m31s, val_loss 0.305183
+epoch 4: 16m45s, val_loss 0.221577
+epoch 5: 16m44s, val_loss 0.171833
+epoch 6: 16m43s, val_loss 0.164392
+epoch 7: 16m45s, val_loss 0.148477
+```
+
+Comparison against the unfrozen seed-44 run:
+
+```text
+unfrozen epoch 1 val_loss: 0.295823
+frozen epoch 1 val_loss:   0.351232
+unfrozen typical epoch time through epoch 11: about 17 minutes
+frozen typical epoch time through epoch 7:    about 16.5-17 minutes
+```
+
+Interpretation:
+
+```text
+Full ResNet18 freezing is not a useful speed fix for this event-gated ACT setup.
+It reduces VRAM usage, but wall-clock speed is effectively unchanged and early validation is worse.
+The bottleneck is older-context image loading / CPU batch preparation / validation overhead, not
+ResNet backward compute. GPU utilization samples are bursty, with many 0% samples and intermittent
+90-100% bursts.
+```
+
+Recommended next speed work:
+
+```text
+1. Do not use full frozen vision for paper runs.
+2. Resume seed 44 only after deciding whether to increase task-2 cache_max_episodes.
+3. Run a 1-epoch cache-size timing diagnostic, for example cache_max_episodes 64 or 128.
+4. Separately time train_epoch and validate to quantify validation overhead.
+5. Treat visual-feature precomputation for older context as a later engineering milestone.
+```
+
+Artifact backup:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260627_113647.tar.gz
+Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/513bfd80a278f3f22d0b874f70709bf36aecc147
+```
+
 ## 2026-06-26 Task-2 From-Scratch Event-Gated Seed 43
 
 The event-gated ACT task-2 seed-43 run was resumed from the epoch-21 checkpoint and completed.
@@ -61,8 +144,8 @@ logs/paper_event_gated_task2_seed43_resume_20260626_0503.log
 Artifact backup:
 
 ```text
-local: /workspace/run_backups/vla_run_artifacts_20260626_164517.tar.gz
-Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/aee8f20fd7770fc071239ecd9ee75190d423e21b
+local: /workspace/run_backups/vla_run_artifacts_20260626_164344.tar.gz
+Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/db21d6240870b8a95ecdc8b39337f8a2691faad4
 ```
 
 Interpretation:

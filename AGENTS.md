@@ -106,7 +106,7 @@ gripper_sign_accuracy: 0.9892899991989136
 rollout train30 / val5 / test5: 18/30, 3/5, 3/5 = 24/40
 held-out val+test: 6/10
 summary: results/paper_event_gated_task2_seed43_20260626.md
-artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/aee8f20fd7770fc071239ecd9ee75190d423e21b
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/db21d6240870b8a95ecdc8b39337f8a2691faad4
 ```
 
 This from-scratch event-gated seed improves offline continuous MSE versus seed-43 phase ACT, but
@@ -119,6 +119,47 @@ seed-43 event-gated from scratch: train10 6/10, val5 3/5, test5 3/5 = 12/20
 
 Do not claim seed-43 from-scratch event memory improves the phase baseline. Continue the matched
 from-scratch protocol with seeds 44 and 187 before age-gated controls.
+
+Task-2 from-scratch event-gated seed-44 partial run as of 2026-06-27:
+
+```text
+config: configs/paper_event_gated_act_task2_seed44.yaml
+resume config: configs/paper_event_gated_act_task2_seed44_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory/last.pt
+stopped by request during epoch: 12
+last completed epoch: 11
+best epoch: 11
+best/last val_mse: 0.06793733193278313
+log: logs/paper_event_gated_task2_seed44_20260627_0606.log
+```
+
+Resume seed 44 with the resume config. The partial epoch-12 work was intentionally discarded.
+
+Frozen-vision speed diagnostic on seed 44 was also run and stopped on 2026-06-27:
+
+```text
+config: configs/diagnostic_event_gated_act_task2_seed44_freeze_vision.yaml
+checkpoint: checkpoints/diagnostic_event_gated_task2_seed44_freeze_vision/diagnostic_event_gated_act_h20_task2_freeze_vision_seed44/best.pt
+stopped by request during epoch: 8
+last completed epoch: 7
+best/last val_mse: 0.14847677819728852
+log: logs/diagnostic_event_gated_task2_seed44_freeze_vision_20260627.log
+gpu monitor: results/diagnostic_event_gated_task2_seed44_freeze_vision_gpu.csv
+```
+
+Finding: freezing ResNet18 reduced VRAM substantially but did not materially improve wall-clock
+epoch time. The frozen run stayed around 16.5-17 minutes per epoch, similar to the unfrozen seed-44
+run, and learned more slowly. GPU utilization remained bursty with many 0% samples, so the current
+bottleneck is the older-context image/data/validation pipeline rather than ResNet backward compute.
+Do not use full frozen-vision as the default paper protocol. Next speed diagnostic should test
+larger task-2 episode cache / validation timing before changing model or memory settings.
+
+Artifact backup after the seed-44 stop and frozen-vision diagnostic:
+
+```text
+local: /workspace/run_backups/vla_run_artifacts_20260627_113647.tar.gz
+Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/513bfd80a278f3f22d0b874f70709bf36aecc147
+```
 
 Important: do not remove or break older baselines or the old WebDataset path. The current milestone adds a better episode-level path; it does not delete the previous work.
 

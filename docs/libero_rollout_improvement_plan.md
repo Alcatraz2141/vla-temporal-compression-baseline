@@ -2,6 +2,58 @@
 
 Date: 2026-05-30
 
+## 2026-06-27 Seed-44 Stop And Frozen-Vision Speed Diagnostic
+
+The next matched from-scratch task-2 event-gated seed was started and then stopped on request.
+
+```text
+seed: 44
+config: configs/paper_event_gated_act_task2_seed44.yaml
+resume config: configs/paper_event_gated_act_task2_seed44_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory/last.pt
+last completed epoch: 11
+best val_mse: 0.06793733193278313
+```
+
+Resume with the seed-44 resume config; the unfinished epoch-12 work was discarded.
+
+A frozen ResNet18 diagnostic was run to test whether event-gated ACT is bottlenecked by visual
+backprop.
+
+```text
+config: configs/diagnostic_event_gated_act_task2_seed44_freeze_vision.yaml
+model change: ACTChunkedBaseline supports model.freeze_vision=true
+last completed epoch: 7
+best val_mse: 0.14847677819728852
+```
+
+Result:
+
+```text
+Freezing ResNet18 reduced VRAM, but did not materially reduce wall-clock epoch time.
+Frozen epochs remained about 16.5-17 minutes, similar to the unfrozen seed-44 run.
+The frozen model also learned more slowly early in training.
+```
+
+Diagnosis:
+
+```text
+The likely bottleneck is the event-gated ACT older-context image pipeline and validation path:
+K_recent 8 + older_obs 64 means 72 images/sample, or about 2304 images/batch at batch size 32.
+GPU utilization is bursty, with many 0% samples between compute bursts. This points to data
+loading / HDF5 / CPU preprocessing / validation overhead rather than ResNet backward compute.
+```
+
+Next speed work should test larger task-2 episode caching and explicit train-vs-validation timing
+before changing memory token count or model architecture.
+
+Artifact backup:
+
+```text
+/workspace/run_backups/vla_run_artifacts_20260627_113647.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/513bfd80a278f3f22d0b874f70709bf36aecc147
+```
+
 ## 2026-06-26 Task-2 From-Scratch Event-Gated Seed 43 Completed
 
 The task-2 event-gated ACT seed-43 from-scratch run resumed from epoch 21 and completed to

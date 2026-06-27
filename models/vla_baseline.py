@@ -237,6 +237,7 @@ class ACTChunkedBaseline(nn.Module):
         dropout: float = 0.1,
         pretrained_vision: bool = True,
         vision_encoder: str = "resnet18",
+        freeze_vision: bool = False,
         state_hidden_dim: int = 128,
         action_hidden_dim: int = 256,
         use_action_history: bool = True,
@@ -260,6 +261,7 @@ class ACTChunkedBaseline(nn.Module):
         self.use_phase = use_phase
         self.use_object_signals = use_object_signals
         self.use_event_memory = use_event_memory
+        self.freeze_vision = bool(freeze_vision)
         self.memory_chunk_size = max(int(memory_chunk_size), 1)
         self.max_memory_tokens = max(int(max_memory_tokens), 1)
         if gate_type not in {"event", "age_based"}:
@@ -277,6 +279,10 @@ class ACTChunkedBaseline(nn.Module):
 
         if self.use_vision:
             self.vision, vision_dim = _build_resnet18(pretrained_vision)
+            if self.freeze_vision:
+                for param in self.vision.parameters():
+                    param.requires_grad = False
+                self.vision.eval()
             self.vision_proj = nn.Linear(vision_dim, d_model)
         else:
             self.vision = None
@@ -338,6 +344,12 @@ class ACTChunkedBaseline(nn.Module):
             nn.Linear(action_hidden_dim, action_dim),
         )
 
+    def train(self, mode: bool = True) -> "ACTChunkedBaseline":
+        super().train(mode)
+        if self.freeze_vision and self.vision is not None:
+            self.vision.eval()
+        return self
+
     def _encode_context_tokens(
         self,
         images: torch.Tensor,
@@ -355,7 +367,12 @@ class ACTChunkedBaseline(nn.Module):
             flat_images = images.view(bsz * timesteps, channels, height, width)
             if flat_images.is_cuda:
                 flat_images = flat_images.contiguous(memory_format=torch.channels_last)
-            pieces.append(self.vision_proj(self.vision(flat_images)).view(bsz, timesteps, -1))
+            if self.freeze_vision:
+                with torch.no_grad():
+                    visual_features = self.vision(flat_images)
+            else:
+                visual_features = self.vision(flat_images)
+            pieces.append(self.vision_proj(visual_features).view(bsz, timesteps, -1))
         if self.use_state:
             pieces.append(self.state_encoder(states))
         if self.use_action_history:
@@ -976,6 +993,7 @@ def build_model(config: dict[str, Any], state_dim: int, action_dim: int) -> nn.M
             dropout=float(model_cfg.get("dropout", 0.1)),
             pretrained_vision=bool(model_cfg.get("pretrained_vision", True)),
             vision_encoder=model_cfg.get("vision_encoder", "resnet18"),
+            freeze_vision=bool(model_cfg.get("freeze_vision", False)),
             state_hidden_dim=int(model_cfg.get("state_hidden_dim", 128)),
             action_hidden_dim=int(model_cfg.get("action_hidden_dim", 256)),
             use_action_history=bool(model_cfg.get("use_action_history", True)),
