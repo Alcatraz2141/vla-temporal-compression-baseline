@@ -19,7 +19,7 @@ data:
     placement_start_timestep: 120
     phase_boundaries: [120, 160]
     cache_episodes: true
-    cache_max_episodes: 32
+    cache_max_episodes: 128
   split: train
   val_split: train
   image_size: 128

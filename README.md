@@ -249,14 +249,19 @@ Artifact backup:
 Current event-gated paper run:
 
 ```text
-seed 43, from scratch
-stopped safely at epoch 21
-best/last val_mse: 0.04350930461883545
-resume config: configs/paper_event_gated_act_task2_seed43_resume.yaml
+Task-2 event-gated seed 44, from scratch:
+  config: configs/paper_event_gated_act_task2_seed44.yaml
+  checkpoint: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory/last.pt
+  stopped epoch: 50
+  offline continuous_mse: 0.04505929201841354
+  rollouts: train30 17/30, val5 3/5, test5 4/5 = 24/40
+  held-out val+test: 7/10
+  summary: results/paper_event_gated_task2_seed44_epoch50_20260628.md
+  artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/40def1523780664f7d84a1402c8294be0b8fdffa
 
-shutdown backup:
-  /workspace/run_backups/vla_run_artifacts_20260624_185606.tar.gz
-  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/02e537abdbdf6587d8f268517b35eb36290a32a3
+Validation speed fix:
+  val_split=train no longer triggers stochastic 20k train-mode validation.
+  event-gated task-2 epoch time is now about 10.2 minutes, with validation around 3-4 seconds.
 ```
 
 Completed event-gated paper run as of 2026-06-26:

@@ -2,6 +2,101 @@
 
 Date: 2026-05-19
 
+## 2026-06-28 Task-2 Event-Gated Seed 44 Restart, Speed Fix, And Rollouts
+
+The task-2 event-gated ACT seed-44 run was restarted from scratch after fixing an expensive
+validation behavior.
+
+Validation/data-loader fix:
+
+```text
+files:
+  datasets/data_loader.py
+  datasets/episode_loader.py
+  datasets/episode_dataset.py
+  training/train.py
+
+change:
+  dataloaders now use call intent (shuffle=True for train, shuffle=False for eval) to decide
+  training mode, instead of inferring training mode from the split name.
+
+reason:
+  configs with val_split=train were accidentally running validation as 20k stochastic train-mode
+  samples with augmentation. This made validation almost as expensive as another training epoch.
+```
+
+Timing diagnostics:
+
+```text
+cache128, workers8 before decoupling:
+  total epoch: 1186 sec = 19.8 min
+  train_seconds: 596.52
+  val_seconds:   577.29
+
+after decoupling:
+  total epoch: 601 sec = 10.0 min
+  train_seconds: 585.87
+  val_seconds:     3.71
+```
+
+Seed-44 training result:
+
+```text
+config: configs/paper_event_gated_act_task2_seed44.yaml
+checkpoint root: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory
+stopped after completed epoch: 50
+best.pt epoch by decoupled quick validation: 46
+last.pt epoch: 50
+```
+
+Offline eval:
+
+```text
+best.pt epoch 46:
+  continuous_mse: 0.04581672772765159
+  continuous_mae: 0.14915308654308318
+  gripper_sign_accuracy: 0.9846874952316285
+
+last.pt epoch 50:
+  continuous_mse: 0.04505929201841354
+  continuous_mae: 0.14305126070976257
+  gripper_sign_accuracy: 0.989312493801117
+```
+
+Rollouts:
+
+```text
+epoch-50 last.pt:
+  train30 / val5 / test5 = 17/30, 3/5, 4/5 = 24/40
+  held-out val+test = 7/10
+
+epoch-46 best.pt:
+  train30 / val5 / test5 = 17/30, 2/5, 2/5 = 21/40
+  held-out val+test = 4/10
+```
+
+Interpretation:
+
+```text
+Epoch-50 last.pt is the better seed-44 rollout checkpoint despite not being selected by
+decoupled quick validation. Use epoch-50 last.pt for seed-44 reporting unless superseded.
+
+Seed-44 event-gated from scratch is viable: it matches seed-43 event-gated on total 40-episode
+count (24/40) and is slightly higher on held-out val+test (7/10 vs 6/10). It is also stronger
+than seed-44 phase ACT on the comparable train10/val5/test5 aggregate: 13/20 versus 10/20.
+
+Do not claim broad event-memory dominance across seeds yet because phase ACT seed 43 remains a
+strong 17/20 result on the smaller protocol. Continue with matched event-gated seed 187 before
+age-gated paper controls.
+```
+
+Summary:
+
+```text
+results/paper_event_gated_task2_seed44_epoch50_20260628.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/40def1523780664f7d84a1402c8294be0b8fdffa
+```
+
 ## 2026-06-27 Task-2 Event-Gated Seed 44 Partial Run And Frozen-Vision Diagnostic
 
 Seed-44 event-gated ACT was started from scratch for the matched task-2 paper protocol.

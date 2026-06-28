@@ -135,6 +135,45 @@ log: logs/paper_event_gated_task2_seed44_20260627_0606.log
 
 Resume seed 44 with the resume config. The partial epoch-12 work was intentionally discarded.
 
+Task-2 from-scratch event-gated seed-44 restarted and evaluated as of 2026-06-28:
+
+```text
+config: configs/paper_event_gated_act_task2_seed44.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory/last.pt
+completed/stopped epoch: 50
+best checkpoint by decoupled quick validation: epoch 46
+epoch-50 offline continuous_mse: 0.04505929201841354
+epoch-50 offline continuous_mae: 0.14305126070976257
+epoch-50 gripper_sign_accuracy: 0.989312493801117
+epoch-50 rollout train30 / val5 / test5: 17/30, 3/5, 4/5 = 24/40
+epoch-50 held-out val+test: 7/10
+epoch-46 best.pt rollout train30 / val5 / test5: 17/30, 2/5, 2/5 = 21/40
+summary: results/paper_event_gated_task2_seed44_epoch50_20260628.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/40def1523780664f7d84a1402c8294be0b8fdffa
+```
+
+Use epoch-50 `last.pt` for seed-44 event-gated reporting unless a later audit supersedes it.
+The decoupled quick-validation `best.pt` did not select the stronger rollout checkpoint.
+
+Important speed/protocol update from 2026-06-28:
+
+```text
+validation decoupling: build_dataloader now uses shuffle/train intent, not split name, to decide
+training mode. This fixes val_split=train accidentally running a full 20k stochastic train-mode
+validation pass with augmentation.
+
+seed-44 event-gated epoch timing after fix:
+  train: about 10.2 minutes/epoch
+  validation: about 3-4 seconds/epoch
+
+previous behavior:
+  validation added roughly another 9-10 minutes/epoch.
+```
+
+This change affects training-time validation and `best.pt` selection, not model forward logic or
+rollout. For rollout-facing comparisons, evaluate both promising checkpoints when validation
+protocol changes.
+
 Frozen-vision speed diagnostic on seed 44 was also run and stopped on 2026-06-27:
 
 ```text

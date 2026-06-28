@@ -60,6 +60,7 @@ class EpisodeWindowDataset(Dataset):
         stats_path: str | Path | None = None,
         samples_per_epoch: int | None = None,
         eval_windows_per_episode: int = 1,
+        training: bool = True,
     ) -> None:
         self.root = Path(root)
         self.split = split
@@ -69,6 +70,7 @@ class EpisodeWindowDataset(Dataset):
         self.seed = int(seed)
         self.samples_per_epoch = samples_per_epoch
         self.eval_windows_per_episode = max(int(eval_windows_per_episode), 1)
+        self.training = bool(training)
         split_data = _load_json(self.root / "splits" / f"{split}.json")
         self.records = [
             EpisodeRecord(eid, self.root / "episodes" / eid)
@@ -104,13 +106,13 @@ class EpisodeWindowDataset(Dataset):
         return transforms.Compose(ops)
 
     def __len__(self) -> int:
-        if self.split == "train":
+        if self.training:
             return self.samples_per_epoch or len(self.records)
         return len(self.records) * self.eval_windows_per_episode
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         rng = random.Random(self.seed + idx)
-        if self.split == "train":
+        if self.training:
             record = rng.choice(self.records)
             eval_anchor = 0
         else:
@@ -124,7 +126,7 @@ class EpisodeWindowDataset(Dataset):
             raise ValueError(f"Episode too short: {record.path}")
         min_t = min(self.K_recent, length - 1)
         max_t = max(min_t, length - 1)
-        if self.split == "train":
+        if self.training:
             t = rng.randint(min_t, max_t)
         else:
             span = max(max_t - min_t, 0)

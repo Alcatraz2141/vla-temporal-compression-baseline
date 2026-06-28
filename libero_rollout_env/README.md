@@ -161,6 +161,36 @@ Artifact backup:
 https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/513bfd80a278f3f22d0b874f70709bf36aecc147
 ```
 
+Current 2026-06-28 handoff:
+
+```text
+event-gated task-2 seed 44, trained from scratch
+config: configs/paper_event_gated_act_task2_seed44.yaml
+checkpoint used for rollout: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory/last.pt
+stopped epoch: 50
+offline continuous_mse: 0.04505929201841354
+offline continuous_mae: 0.14305126070976257
+rollout train30 / val5 / test5: 17/30, 3/5, 4/5 = 24/40
+held-out val+test: 7/10
+summary: results/paper_event_gated_task2_seed44_epoch50_20260628.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/40def1523780664f7d84a1402c8294be0b8fdffa
+```
+
+The epoch-46 `best.pt` selected by quick training validation was also rolled out and was worse:
+
+```text
+train30 / val5 / test5: 17/30, 2/5, 2/5 = 21/40
+held-out val+test: 4/10
+```
+
+Validation speed note:
+
+```text
+Training-time validation is now decoupled from split selection. `val_split: train` reads train
+records, but uses deterministic eval windows instead of stochastic 20k train-mode samples.
+This reduces task-2 event-gated epoch time to about 10.2 minutes.
+```
+
 Representative commands:
 
 ```bash

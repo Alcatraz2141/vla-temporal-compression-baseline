@@ -145,6 +145,7 @@ class EpisodeDataset(Dataset):
         placement_ready_stability_window: int = 4,
         cache_episodes: bool = False,
         cache_max_episodes: int = 32,
+        training: bool = True,
     ) -> None:
         self.source = source
         self.split = split
@@ -177,6 +178,7 @@ class EpisodeDataset(Dataset):
         self.placement_ready_stability_window = max(int(placement_ready_stability_window), 1)
         self.cache_episodes = bool(cache_episodes)
         self.cache_max_episodes = max(int(cache_max_episodes), 1)
+        self.training = bool(training)
         self._episode_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self.action_stats = _read_json(Path(stats_path)) if stats_path else {}
         self.normalize_actions = bool(normalize_actions and self.action_stats)
@@ -377,7 +379,7 @@ class EpisodeDataset(Dataset):
         path.write_text("\n".join(record.episode_id for record in records) + "\n", encoding="utf-8")
 
     def __len__(self) -> int:
-        if self.split == "train":
+        if self.training:
             return self.samples_per_epoch or len(self.records)
         return len(self.records) * self.eval_windows_per_episode
 
@@ -472,7 +474,7 @@ class EpisodeDataset(Dataset):
         rng = random.Random(self.seed + idx)
         transition_sample = False
         placement_sample = False
-        if self.split == "train":
+        if self.training:
             draw = rng.random()
             placement_sample = self.placement_sample_prob > 0.0 and draw < self.placement_sample_prob
             transition_sample = (
@@ -491,7 +493,7 @@ class EpisodeDataset(Dataset):
         max_t = length - self.H_action
         if max_t < min_t:
             raise ValueError(f"Episode too short after loading: {record.episode_id}")
-        if self.split == "train":
+        if self.training:
             t = rng.randint(min_t, max_t)
             placement_start = self._placement_start(length)
             if placement_sample and placement_start is not None:

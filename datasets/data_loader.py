@@ -48,7 +48,8 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
     train_cfg = config.get("training", {})
     eval_cfg = config.get("evaluation", {})
     model_cfg = config.get("model", {})
-    batch_size = train_cfg.get("batch_size", 32) if split == data_cfg.get("split", "train") else eval_cfg.get("batch_size", 32)
+    is_training = bool(shuffle)
+    batch_size = train_cfg.get("batch_size", 32) if is_training else eval_cfg.get("batch_size", 32)
     augment_cfg = data_cfg.get("augment", {})
     source = data_cfg.get("source", "local")
     if source == "unified_episode":
@@ -65,14 +66,14 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             root=episode_cfg.get("root"),
             split_dir=episode_cfg.get("split_dir", "splits"),
             image_size=int(data_cfg.get("image_size", config.get("image_size", 128))),
-            samples_per_epoch=episode_cfg.get("samples_per_epoch") if split == data_cfg.get("split", "train") else None,
+            samples_per_epoch=episode_cfg.get("samples_per_epoch") if is_training else None,
             eval_windows_per_episode=int(episode_cfg.get("eval_windows_per_episode", 1)),
             max_episodes=episode_cfg.get("max_episodes"),
             hdf5_glob=str(episode_cfg.get("hdf5_glob", "**/*.hdf5")),
             stats_path=normalization_cfg.get("stats_path"),
             normalize_actions=bool(normalization_cfg.get("actions", False)),
             action_normalize_dims=normalization_cfg.get("action_dims"),
-            augment=bool(augment_cfg.get("enabled", False)) and split == data_cfg.get("split", "train"),
+            augment=bool(augment_cfg.get("enabled", False)) and is_training,
             image_normalization=data_cfg.get("image_normalization", normalization_cfg.get("images")),
             load_older_context=bool(episode_cfg.get("load_older_context", True)),
             task_filter=episode_cfg.get("task_filter"),
@@ -93,6 +94,7 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             placement_ready_stability_window=int(episode_cfg.get("placement_ready_stability_window", 4)),
             cache_episodes=bool(episode_cfg.get("cache_episodes", False)),
             cache_max_episodes=int(episode_cfg.get("cache_max_episodes", 32)),
+            training=is_training,
         )
         generator = torch.Generator()
         generator.manual_seed(int(config.get("seed", 42)))
@@ -122,10 +124,11 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             image_size=int(data_cfg.get("image_size", 224)),
             max_older_steps=int(episode_cfg.get("max_older_steps", int(memory_cfg.get("chunk_size", 8)) * int(memory_cfg.get("max_memory_tokens", 8)))),
             seed=int(config.get("seed", 42)),
-            augment=bool(augment_cfg.get("enabled", False)) and split == data_cfg.get("split", "train"),
+            augment=bool(augment_cfg.get("enabled", False)) and is_training,
             stats_path=data_cfg.get("normalization", {}).get("stats_path"),
-            samples_per_epoch=episode_cfg.get("samples_per_epoch") if split == data_cfg.get("split", "train") else None,
+            samples_per_epoch=episode_cfg.get("samples_per_epoch") if is_training else None,
             eval_windows_per_episode=int(episode_cfg.get("eval_windows_per_episode", 1)),
+            training=is_training,
         )
         generator = torch.Generator()
         generator.manual_seed(int(config.get("seed", 42)))
@@ -160,10 +163,10 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             image_size=int(data_cfg.get("image_size", 224)),
             max_older_steps=int(libero_cfg.get("max_older_steps", int(memory_cfg.get("chunk_size", 4)) * int(memory_cfg.get("max_memory_tokens", 16)))),
             seed=int(config.get("seed", 42)),
-            augment=bool(augment_cfg.get("enabled", False)) and split == data_cfg.get("split", "train"),
+            augment=bool(augment_cfg.get("enabled", False)) and is_training,
             hdf5_glob=str(libero_cfg.get("hdf5_glob", "**/*.hdf5")),
             split_dir=libero_cfg.get("split_dir"),
-            samples_per_epoch=libero_cfg.get("samples_per_epoch") if split == data_cfg.get("split", "train") else None,
+            samples_per_epoch=libero_cfg.get("samples_per_epoch") if is_training else None,
             eval_windows_per_episode=int(libero_cfg.get("eval_windows_per_episode", 1)),
             max_episodes=libero_cfg.get("max_episodes"),
         )
@@ -211,7 +214,7 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
             T_action=int(data_cfg["T_action"]),
             batch_size=int(batch_size),
             shuffle=shuffle,
-            augment=bool(augment_cfg.get("enabled", False)) and split == data_cfg.get("split", "train"),
+            augment=bool(augment_cfg.get("enabled", False)) and is_training,
             stats_path=data_cfg.get("normalization", {}).get("stats_path") or urls_cfg.get("stats_path"),
             num_workers=num_workers,
             prefetch_factor=int(data_cfg.get("prefetch_factor", 4)),
@@ -227,7 +230,7 @@ def build_dataloader(config: dict[str, Any], split: str, shuffle: bool) -> DataL
         T_action=data_cfg["T_action"],
         image_size=data_cfg.get("image_size", 224),
         baseline=model_cfg.get("baseline", "sliding_window"),
-        augment=bool(augment_cfg.get("enabled", False)) and split == data_cfg.get("split", "train"),
+        augment=bool(augment_cfg.get("enabled", False)) and is_training,
         stats_path=data_cfg.get("normalization", {}).get("stats_path"),
     )
 

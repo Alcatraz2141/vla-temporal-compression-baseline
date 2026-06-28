@@ -2,6 +2,62 @@
 
 Date: 2026-05-30
 
+## 2026-06-28 Seed-44 Event-Gated Restart And Validation Decoupling
+
+The task-2 seed-44 event-gated ACT run was restarted from scratch after fixing training-time
+validation overhead.
+
+Implementation:
+
+```text
+datasets/data_loader.py:
+  build_dataloader now uses shuffle=True/False as the train/eval mode signal.
+
+datasets/episode_loader.py and datasets/episode_dataset.py:
+  datasets now accept an explicit training flag, so validation can read train-split records
+  deterministically without stochastic train sampling.
+
+training/train.py:
+  epoch summaries now print train_seconds and val_seconds.
+```
+
+Effect:
+
+```text
+before:
+  val_split=train caused validation to run 20k stochastic train-mode samples.
+  validation cost was roughly 9-10 minutes per epoch.
+
+after:
+  validation over the task-2 train split is 148 deterministic samples / 5 batches.
+  validation cost is about 3-4 seconds per epoch.
+  event-gated seed-44 epoch time is about 10.2 minutes.
+```
+
+Seed-44 outcome:
+
+```text
+checkpoint root: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory
+stopped epoch: 50
+epoch-50 last.pt offline continuous_mse: 0.04505929201841354
+epoch-50 last.pt offline continuous_mae: 0.14305126070976257
+epoch-50 rollout train30 / val5 / test5: 17/30, 3/5, 4/5 = 24/40
+epoch-50 held-out val+test: 7/10
+
+epoch-46 best.pt rollout train30 / val5 / test5: 17/30, 2/5, 2/5 = 21/40
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/40def1523780664f7d84a1402c8294be0b8fdffa
+```
+
+Conclusion:
+
+```text
+The speed fix should be kept. It changes training-time validation and best.pt selection, not
+policy training updates or rollout logic.
+
+For seed-44 event-gated reporting, use epoch-50 last.pt rather than the decoupled-validation
+best.pt. The best.pt checkpoint was worse on held-out rollout.
+```
+
 ## 2026-06-27 Seed-44 Stop And Frozen-Vision Speed Diagnostic
 
 The next matched from-scratch task-2 event-gated seed was started and then stopped on request.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -407,9 +408,16 @@ def main() -> None:
         model = torch.compile(model, mode=cfg["training"].get("compile_mode", "reduce-overhead"))
 
     for epoch in range(start_epoch, int(cfg["training"].get("epochs", 5)) + 1):
+        train_start = time.perf_counter()
         train_loss = run_epoch(model, train_loader, optimizer, scaler, device, cfg, scheduler=scheduler)
+        train_seconds = time.perf_counter() - train_start
+        val_start = time.perf_counter()
         val_loss = validate(model, val_loader, device, cfg)
-        print(f"epoch={epoch} train_loss={train_loss:.6f} val_loss={val_loss:.6f}")
+        val_seconds = time.perf_counter() - val_start
+        print(
+            f"epoch={epoch} train_loss={train_loss:.6f} val_loss={val_loss:.6f} "
+            f"train_seconds={train_seconds:.2f} val_seconds={val_seconds:.2f}"
+        )
         checkpoint = {
             "model": _unwrap_model(model).state_dict(),
             "optimizer": optimizer.state_dict(),
