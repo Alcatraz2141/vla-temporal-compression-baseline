@@ -192,6 +192,23 @@ summary: results/paper_event_gated_task2_seed44_epoch60_20260629.md
 Epoch 60 improved offline prediction but degraded closed-loop rollout. Keep epoch-50 `last.pt`
 for seed-44 reporting unless a later rollout audit supersedes it.
 
+2026-06-29 seed-187 event-gated handoff:
+
+```text
+event-gated task-2 seed 187, trained from scratch
+config: configs/paper_event_gated_act_task2_seed187.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed187/event_gated_act_h20_task2_phase_memory/last.pt
+stopped after completed epoch: 50
+offline continuous_mse: 0.04214628413319588
+offline continuous_mae: 0.13997110724449158
+rollout train30 / val5 / test5: 17/30, 2/5, 1/5 = 20/40
+held-out val+test: 3/10
+summary: results/paper_event_gated_task2_seed187_epoch50_20260629.md
+```
+
+Seed-187 event-gated underperforms matched seed-187 phase ACT rollout, so the matched
+from-scratch task-2 event-gated result is mixed/negative overall.
+
 The epoch-46 `best.pt` selected by quick training validation was also rolled out and was worse:
 
 ```text

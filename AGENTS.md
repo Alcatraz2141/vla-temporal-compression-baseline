@@ -171,6 +171,24 @@ summary: results/paper_event_gated_task2_seed44_epoch60_20260629.md
 Epoch 60 improved offline action prediction but worsened rollout substantially. Keep epoch-50
 `last.pt` as the seed-44 event-gated reporting checkpoint unless a later rollout audit supersedes it.
 
+Task-2 from-scratch event-gated seed-187 was trained to epoch 50 and evaluated on 2026-06-29:
+
+```text
+config: configs/paper_event_gated_act_task2_seed187.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed187/event_gated_act_h20_task2_phase_memory/last.pt
+stopped after completed epoch: 50
+best checkpoint by training validation: epoch 39
+epoch-50 offline continuous_mse: 0.04214628413319588
+epoch-50 offline continuous_mae: 0.13997110724449158
+epoch-50 gripper_sign_accuracy: 0.9911875009536744
+epoch-50 rollout train30 / val5 / test5: 17/30, 2/5, 1/5 = 20/40
+epoch-50 held-out val+test: 3/10
+summary: results/paper_event_gated_task2_seed187_epoch50_20260629.md
+```
+
+Seed-187 event-gated underperforms matched seed-187 phase ACT on total rollout and held-out
+rollout. Do not claim the matched from-scratch task-2 event-gated runs beat phase ACT.
+
 Important speed/protocol update from 2026-06-28:
 
 ```text

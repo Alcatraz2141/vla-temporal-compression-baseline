@@ -268,6 +268,16 @@ Task-2 event-gated seed 44 epoch-60 audit:
   summary: results/paper_event_gated_task2_seed44_epoch60_20260629.md
   interpretation: offline improved but rollout worsened; keep epoch-50 last.pt for seed-44 reporting
 
+Task-2 event-gated seed 187, from scratch:
+  config: configs/paper_event_gated_act_task2_seed187.yaml
+  checkpoint: checkpoints/paper_event_gated_task2_seed187/event_gated_act_h20_task2_phase_memory/last.pt
+  stopped epoch: 50
+  offline continuous_mse: 0.04214628413319588
+  rollouts: train30 17/30, val5 2/5, test5 1/5 = 20/40
+  held-out val+test: 3/10
+  summary: results/paper_event_gated_task2_seed187_epoch50_20260629.md
+  interpretation: underperforms matched seed-187 phase ACT on total and held-out rollout
+
 Validation speed fix:
   val_split=train no longer triggers stochastic 20k train-mode validation.
   event-gated task-2 epoch time is now about 10.2 minutes, with validation around 3-4 seconds.

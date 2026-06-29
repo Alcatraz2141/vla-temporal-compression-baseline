@@ -133,6 +133,56 @@ This is another concrete example that offline action prediction is not a reliabl
 selector for the current closed-loop LIBERO policy.
 ```
 
+### 2026-06-29 Task-2 Event-Gated Seed 187 Epoch-50 Stop
+
+The matched from-scratch task-2 event-gated seed-187 run was stopped after epoch 50 because the
+pod needed to be terminated. Epoch 50 was fully checkpointed; partial epoch-51 work was discarded.
+
+```text
+config: configs/paper_event_gated_act_task2_seed187.yaml
+checkpoint root: checkpoints/paper_event_gated_task2_seed187/event_gated_act_h20_task2_phase_memory
+last.pt epoch: 50
+best.pt epoch: 39
+best_val: 0.050476256757974625
+```
+
+Offline eval:
+
+```text
+epoch-50 last.pt continuous_mse: 0.04214628413319588
+epoch-50 last.pt continuous_mae: 0.13997110724449158
+epoch-50 last.pt gripper_sign_accuracy: 0.9911875009536744
+
+epoch-39 best.pt continuous_mse: 0.04945923686027527
+epoch-39 best.pt continuous_mae: 0.15443556308746337
+epoch-39 best.pt gripper_sign_accuracy: 0.9894374966621399
+```
+
+Rollout on epoch-50 last.pt:
+
+```text
+train30 / val5 / test5 = 17/30, 2/5, 1/5 = 20/40
+held-out val+test = 3/10
+summary: results/paper_event_gated_task2_seed187_epoch50_20260629.md
+```
+
+Interpretation:
+
+```text
+Seed-187 event-gated underperforms matched seed-187 phase ACT:
+
+phase ACT seed 187:
+  train30 / val5 / test5 = 20/30, 1/5, 4/5 = 25/40
+  held-out val+test = 5/10
+
+event-gated seed 187:
+  train30 / val5 / test5 = 17/30, 2/5, 1/5 = 20/40
+  held-out val+test = 3/10
+
+The matched from-scratch task-2 event-gated paper-seed set is now negative/mixed relative to
+phase ACT. Do not claim task-2 event-gated from-scratch improves phase ACT across seeds.
+```
+
 ## 2026-06-27 Task-2 Event-Gated Seed 44 Partial Run And Frozen-Vision Diagnostic
 
 Seed-44 event-gated ACT was started from scratch for the matched task-2 paper protocol.

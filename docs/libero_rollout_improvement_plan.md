@@ -71,6 +71,23 @@ best.pt or epoch-60 last.pt. The best.pt checkpoint was worse on held-out rollou
 improved offline prediction while substantially worsening rollout.
 ```
 
+Seed-187 event-gated epoch-50 stop and rollout:
+
+```text
+config: configs/paper_event_gated_act_task2_seed187.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed187/event_gated_act_h20_task2_phase_memory/last.pt
+stopped after completed epoch: 50
+offline continuous_mse: 0.04214628413319588
+offline continuous_mae: 0.13997110724449158
+rollout train30 / val5 / test5: 17/30, 2/5, 1/5 = 20/40
+held-out val+test: 3/10
+summary: results/paper_event_gated_task2_seed187_epoch50_20260629.md
+```
+
+Compared with matched phase ACT seed 187 at `25/40` total and `5/10` held-out, seed-187
+event-gated is weaker in rollout. The task-2 from-scratch event-gated paper-seed result should
+be framed as mixed/negative relative to phase ACT, despite reasonable offline metrics.
+
 ## 2026-06-27 Seed-44 Stop And Frozen-Vision Speed Diagnostic
 
 The next matched from-scratch task-2 event-gated seed was started and then stopped on request.
