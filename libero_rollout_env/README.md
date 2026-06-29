@@ -173,8 +173,24 @@ offline continuous_mae: 0.14305126070976257
 rollout train30 / val5 / test5: 17/30, 3/5, 4/5 = 24/40
 held-out val+test: 7/10
 summary: results/paper_event_gated_task2_seed44_epoch50_20260628.md
-artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/40def1523780664f7d84a1402c8294be0b8fdffa
 ```
+
+2026-06-29 epoch-60 continuation audit:
+
+```text
+event-gated task-2 seed 44, trained from scratch
+config: configs/paper_event_gated_act_task2_seed44_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory/last.pt
+completed epoch: 60
+offline continuous_mse: 0.04118259623646736
+offline continuous_mae: 0.13802042752504348
+rollout train30 / val5 / test5: 16/30, 1/5, 1/5 = 18/40
+held-out val+test: 2/10
+summary: results/paper_event_gated_task2_seed44_epoch60_20260629.md
+```
+
+Epoch 60 improved offline prediction but degraded closed-loop rollout. Keep epoch-50 `last.pt`
+for seed-44 reporting unless a later rollout audit supersedes it.
 
 The epoch-46 `best.pt` selected by quick training validation was also rolled out and was worse:
 

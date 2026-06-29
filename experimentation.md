@@ -94,7 +94,43 @@ Summary:
 
 ```text
 results/paper_event_gated_task2_seed44_epoch50_20260628.md
-artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/40def1523780664f7d84a1402c8294be0b8fdffa
+```
+
+### 2026-06-29 Seed-44 Epoch-60 Continuation Audit
+
+Seed-44 event-gated ACT was resumed from epoch-50 `last.pt` and completed to epoch 60.
+
+```text
+config: configs/paper_event_gated_act_task2_seed44_resume.yaml
+checkpoint root: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory
+completed epoch: 60
+epoch-60 train_loss: 0.025051
+epoch-60 val_loss: 0.053994
+```
+
+Offline eval on epoch-60 `last.pt`:
+
+```text
+continuous_mse: 0.04118259623646736
+continuous_mae: 0.13802042752504348
+gripper_sign_accuracy: 0.9870000004768371
+```
+
+Rollout:
+
+```text
+train30 / val5 / test5 = 16/30, 1/5, 1/5 = 18/40
+held-out val+test = 2/10
+summary: results/paper_event_gated_task2_seed44_epoch60_20260629.md
+```
+
+Interpretation:
+
+```text
+Epoch 60 improved offline MSE/MAE relative to epoch 50 but hurt closed-loop rollout badly.
+Keep epoch-50 last.pt for seed-44 reporting unless a later rollout audit supersedes it.
+This is another concrete example that offline action prediction is not a reliable checkpoint
+selector for the current closed-loop LIBERO policy.
 ```
 
 ## 2026-06-27 Task-2 Event-Gated Seed 44 Partial Run And Frozen-Vision Diagnostic

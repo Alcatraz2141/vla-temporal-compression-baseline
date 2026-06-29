@@ -149,11 +149,27 @@ epoch-50 rollout train30 / val5 / test5: 17/30, 3/5, 4/5 = 24/40
 epoch-50 held-out val+test: 7/10
 epoch-46 best.pt rollout train30 / val5 / test5: 17/30, 2/5, 2/5 = 21/40
 summary: results/paper_event_gated_task2_seed44_epoch50_20260628.md
-artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/40def1523780664f7d84a1402c8294be0b8fdffa
 ```
 
 Use epoch-50 `last.pt` for seed-44 event-gated reporting unless a later audit supersedes it.
 The decoupled quick-validation `best.pt` did not select the stronger rollout checkpoint.
+
+Task-2 from-scratch event-gated seed-44 was continued to epoch 60 and evaluated on 2026-06-29:
+
+```text
+config: configs/paper_event_gated_act_task2_seed44_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory/last.pt
+completed epoch: 60
+epoch-60 offline continuous_mse: 0.04118259623646736
+epoch-60 offline continuous_mae: 0.13802042752504348
+epoch-60 gripper_sign_accuracy: 0.9870000004768371
+epoch-60 rollout train30 / val5 / test5: 16/30, 1/5, 1/5 = 18/40
+epoch-60 held-out val+test: 2/10
+summary: results/paper_event_gated_task2_seed44_epoch60_20260629.md
+```
+
+Epoch 60 improved offline action prediction but worsened rollout substantially. Keep epoch-50
+`last.pt` as the seed-44 event-gated reporting checkpoint unless a later rollout audit supersedes it.
 
 Important speed/protocol update from 2026-06-28:
 

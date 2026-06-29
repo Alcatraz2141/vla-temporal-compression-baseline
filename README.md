@@ -257,7 +257,16 @@ Task-2 event-gated seed 44, from scratch:
   rollouts: train30 17/30, val5 3/5, test5 4/5 = 24/40
   held-out val+test: 7/10
   summary: results/paper_event_gated_task2_seed44_epoch50_20260628.md
-  artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/40def1523780664f7d84a1402c8294be0b8fdffa
+
+Task-2 event-gated seed 44 epoch-60 audit:
+  config: configs/paper_event_gated_act_task2_seed44_resume.yaml
+  checkpoint: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory/last.pt
+  completed epoch: 60
+  offline continuous_mse: 0.04118259623646736
+  rollouts: train30 16/30, val5 1/5, test5 1/5 = 18/40
+  held-out val+test: 2/10
+  summary: results/paper_event_gated_task2_seed44_epoch60_20260629.md
+  interpretation: offline improved but rollout worsened; keep epoch-50 last.pt for seed-44 reporting
 
 Validation speed fix:
   val_split=train no longer triggers stochastic 20k train-mode validation.

@@ -48,6 +48,18 @@ epoch-46 best.pt rollout train30 / val5 / test5: 17/30, 2/5, 2/5 = 21/40
 artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/40def1523780664f7d84a1402c8294be0b8fdffa
 ```
 
+Seed-44 epoch-60 continuation audit:
+
+```text
+checkpoint: checkpoints/paper_event_gated_task2_seed44/event_gated_act_h20_task2_phase_memory/last.pt
+completed epoch: 60
+offline continuous_mse: 0.04118259623646736
+offline continuous_mae: 0.13802042752504348
+rollout train30 / val5 / test5: 16/30, 1/5, 1/5 = 18/40
+held-out val+test: 2/10
+summary: results/paper_event_gated_task2_seed44_epoch60_20260629.md
+```
+
 Conclusion:
 
 ```text
@@ -55,7 +67,8 @@ The speed fix should be kept. It changes training-time validation and best.pt se
 policy training updates or rollout logic.
 
 For seed-44 event-gated reporting, use epoch-50 last.pt rather than the decoupled-validation
-best.pt. The best.pt checkpoint was worse on held-out rollout.
+best.pt or epoch-60 last.pt. The best.pt checkpoint was worse on held-out rollout, and epoch 60
+improved offline prediction while substantially worsening rollout.
 ```
 
 ## 2026-06-27 Seed-44 Stop And Frozen-Vision Speed Diagnostic
