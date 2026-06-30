@@ -316,6 +316,59 @@ This reinforces the current interpretation that offline action prediction is not
 checkpoint selection and that task-2 event-gated ACT is negative relative to cold-start phase ACT.
 ```
 
+### 2026-06-30 Task-2 Age-Gated ACT Seed 43 Epoch-50 Audit
+
+Age-gated ACT seed-43 was trained from scratch and intentionally stopped after epoch 50.
+
+```text
+config: configs/paper_age_gated_act_task2_seed43_resume.yaml
+checkpoint: checkpoints/paper_age_gated_task2_seed43/age_gated_act_h20_task2_phase_memory_seed43/last.pt
+stopped after completed epoch: 50
+epoch-50 val_mse: 0.04710079990327358
+summary: results/paper_age_gated_task2_seed43_epoch50_20260630.md
+```
+
+Offline eval:
+
+```text
+continuous_mse: 0.038894045352935794
+continuous_mae: 0.13535064458847046
+gripper_sign_accuracy: 0.9896250009536743
+```
+
+Rollout:
+
+```text
+train30 / val5 / test5 = 20/30, 4/5, 3/5 = 27/40
+held-out val+test = 7/10
+failure episode IDs:
+  train: [0, 4, 8, 12, 14, 19, 27, 28, 35, 37]
+  val: [40]
+  test: [7, 20]
+```
+
+Interpretation:
+
+```text
+Age-gated ACT seed 43 is stronger online than event-gated ACT seed 43 and cold-start phase ACT
+seed 43, despite weaker offline MSE:
+
+age-gated ACT seed 43:
+  continuous_mse = 0.038894045352935794
+  rollout = 27/40 total, 7/10 held-out
+
+event-gated ACT seed 43:
+  continuous_mse = 0.01848969299942255
+  rollout = 24/40 total, 6/10 held-out
+
+cold-start phase ACT seed 43:
+  continuous_mse = 0.030674645383107036
+  rollout = 23/40 total, 5/10 held-out
+
+The current event-gating score is not demonstrating an advantage on task 2. This result also
+reinforces that offline continuous_mse is not a reliable closed-loop method selector.
+```
+
 ## 2026-06-27 Task-2 Event-Gated Seed 44 Partial Run And Frozen-Vision Diagnostic
 
 Seed-44 event-gated ACT was started from scratch for the matched task-2 paper protocol.

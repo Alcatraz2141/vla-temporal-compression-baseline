@@ -135,6 +135,23 @@ Epoch 60 improves offline action prediction but worsens total rollout relative t
 The task-2 event-gated result remains negative relative to cold-start phase ACT, especially seed
 187 where phase ACT reaches 33/40 total and 8/10 held-out.
 
+Age-gated ACT seed-43 epoch-50 audit:
+
+```text
+config: configs/paper_age_gated_act_task2_seed43_resume.yaml
+checkpoint: checkpoints/paper_age_gated_task2_seed43/age_gated_act_h20_task2_phase_memory_seed43/last.pt
+stopped after completed epoch: 50
+offline continuous_mse: 0.038894045352935794
+offline continuous_mae: 0.13535064458847046
+rollout train30 / val5 / test5: 20/30, 4/5, 3/5 = 27/40
+held-out val+test: 7/10
+summary: results/paper_age_gated_task2_seed43_epoch50_20260630.md
+```
+
+This age-gated control outperforms event-gated seed 43 online while underperforming it offline.
+That is a direct warning that the current event gate is not selecting memory better than simple
+age weighting on task 2, and that offline MSE cannot be used as the primary method selector.
+
 ## 2026-06-27 Seed-44 Stop And Frozen-Vision Speed Diagnostic
 
 The next matched from-scratch task-2 event-gated seed was started and then stopped on request.

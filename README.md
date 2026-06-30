@@ -309,6 +309,16 @@ Task-2 event-gated seed 187 epoch-60 result:
   summary: results/paper_event_gated_task2_seed187_epoch60_20260630.md
   interpretation: offline improved over epoch 50 but total rollout worsened; cold-start phase ACT seed 187 remains much stronger
 
+Task-2 age-gated ACT seed 43, from scratch:
+  config: configs/paper_age_gated_act_task2_seed43_resume.yaml
+  checkpoint: checkpoints/paper_age_gated_task2_seed43/age_gated_act_h20_task2_phase_memory_seed43/last.pt
+  stopped epoch: 50
+  offline continuous_mse: 0.038894045352935794
+  rollouts: train30 20/30, val5 4/5, test5 3/5 = 27/40
+  held-out val+test: 7/10
+  summary: results/paper_age_gated_task2_seed43_epoch50_20260630.md
+  interpretation: stronger online than event-gated seed 43 despite much worse offline MSE
+
 Validation speed fix:
   val_split=train no longer triggers stochastic 20k train-mode validation.
   event-gated task-2 epoch time is now about 10.2 minutes, with validation around 3-4 seconds.

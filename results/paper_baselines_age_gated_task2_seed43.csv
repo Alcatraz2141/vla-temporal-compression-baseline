@@ -1,0 +1,2 @@
+timestamp,baseline,checkpoint,seed,mse,mae,continuous_mse,continuous_mae,gripper_sign_accuracy,pred_temporal_smoothness,success_rate,rollout_consistency
+2026-06-30T17:07:24.059729+00:00,age_gated_act_h20_task2_phase_memory_seed43,checkpoints/paper_age_gated_task2_seed43/age_gated_act_h20_task2_phase_memory_seed43/last.pt,43,70.04667510986329,8.854747772216797,0.038894045352935794,0.13535064458847046,0.9896250009536743,0.2244861751794815,nan,nan

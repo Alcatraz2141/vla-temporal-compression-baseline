@@ -254,6 +254,33 @@ Held-out rollout improves only slightly from 3/10 to 4/10 and remains much weake
 phase-ACT seed 187 at 8/10 held-out and 33/40 total. Keep the task-2 fair-comparison conclusion
 negative for event-gated ACT unless a later checkpoint-selection audit changes the rollout picture.
 
+Task-2 age-gated ACT seed-43 was trained from scratch, stopped at epoch 50, and evaluated on
+2026-06-30:
+
+```text
+config: configs/paper_age_gated_act_task2_seed43_resume.yaml
+checkpoint: checkpoints/paper_age_gated_task2_seed43/age_gated_act_h20_task2_phase_memory_seed43/last.pt
+stopped after completed epoch: 50
+epoch-50 val_mse: 0.04710079990327358
+offline continuous_mse: 0.038894045352935794
+offline continuous_mae: 0.13535064458847046
+gripper_sign_accuracy: 0.9896250009536743
+rollout train30 / val5 / test5: 20/30, 4/5, 3/5 = 27/40
+held-out val+test: 7/10
+summary: results/paper_age_gated_task2_seed43_epoch50_20260630.md
+```
+
+Age-gated ACT seed 43 beats event-gated ACT seed 43 online despite much worse offline MSE:
+
+```text
+age-gated seed 43: 27/40 total, 7/10 held-out, continuous_mse 0.038894045352935794
+event-gated seed 43: 24/40 total, 6/10 held-out, continuous_mse 0.01848969299942255
+cold-start phase ACT seed 43: 23/40 total, 5/10 held-out, continuous_mse 0.030674645383107036
+```
+
+This is evidence that the current event-gating mechanism is not providing the intended advantage
+on task 2. Treat age-gated memory as a serious control/baseline, not a weak strawman.
+
 Important speed/protocol update from 2026-06-28:
 
 ```text
