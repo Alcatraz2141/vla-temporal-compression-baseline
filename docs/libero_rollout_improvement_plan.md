@@ -88,6 +88,53 @@ Compared with matched phase ACT seed 187 at `25/40` total and `5/10` held-out, s
 event-gated is weaker in rollout. The task-2 from-scratch event-gated paper-seed result should
 be framed as mixed/negative relative to phase ACT, despite reasonable offline metrics.
 
+Seed-187 cold-start phase ACT audit:
+
+```text
+config: configs/paper_phase_act_task2_seed187_cold_start_resume.yaml
+checkpoint: checkpoints/paper_phase_act_task2_seed187_cold_start/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+completed epoch: 60
+best checkpoint by training validation: epoch 58
+offline continuous_mse: 0.03023523513815905
+offline continuous_mae: 0.12312478846625279
+rollout train30 / val5 / test5: 25/30, 4/5, 4/5 = 33/40
+held-out val+test: 8/10
+summary: results/paper_phase_act_task2_seed187_cold_start_20260630.md
+```
+
+This makes the seed-187 comparison more negative for event-gated memory than the older matched
+phase reference: cold-start phase ACT is better offline and much better online. Continue
+event-gated seed 187 to epoch 60 as an audit, not because epoch 50 supports the memory claim.
+
+Event-gated seed-187 epoch-51-to-60 audit start:
+
+```text
+resume config: configs/paper_event_gated_act_task2_seed187_resume.yaml
+restored epoch-50 checkpoint from: Alcatraz1412/vla-run-backups/vla_run_artifacts_20260629_180122.tar.gz
+log: logs/paper_event_gated_task2_seed187_resume_51_60_20260630.log
+epoch 51: train_loss 0.027196, val_loss 0.069595
+epoch 52: train_loss 0.026709, val_loss 0.056911
+status after stability check: stable, last.pt at epoch 52, continuing toward epoch 60
+```
+
+Event-gated seed-187 epoch-60 audit result:
+
+```text
+config: configs/paper_event_gated_act_task2_seed187_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed187/event_gated_act_h20_task2_phase_memory/last.pt
+completed epoch: 60
+best checkpoint by training validation: epoch 56
+epoch-60 offline continuous_mse: 0.03697693571448326
+epoch-56 best.pt offline continuous_mse: 0.036199239641427995
+rollout train30 / val5 / test5: 13/30, 2/5, 2/5 = 17/40
+held-out val+test: 4/10
+summary: results/paper_event_gated_task2_seed187_epoch60_20260630.md
+```
+
+Epoch 60 improves offline action prediction but worsens total rollout relative to epoch 50.
+The task-2 event-gated result remains negative relative to cold-start phase ACT, especially seed
+187 where phase ACT reaches 33/40 total and 8/10 held-out.
+
 ## 2026-06-27 Seed-44 Stop And Frozen-Vision Speed Diagnostic
 
 The next matched from-scratch task-2 event-gated seed was started and then stopped on request.
@@ -1429,8 +1476,9 @@ Current best next steps:
 2. Run larger or multi-seed confirmation on tasks 2 and 5.
 3. Then add ACT-memory ablations:
    - age gate
-   - concat query
+   - ACT query/mechanism cleanup; current memory.query_type is ignored by event_gated_act
    - memory-token count
+   - phase-aware older memory by passing older_phase_ids into event-memory context encoding
 ```
 
 Relevant summaries:

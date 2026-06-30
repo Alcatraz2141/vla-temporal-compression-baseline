@@ -183,6 +183,139 @@ The matched from-scratch task-2 event-gated paper-seed set is now negative/mixed
 phase ACT. Do not claim task-2 event-gated from-scratch improves phase ACT across seeds.
 ```
 
+### 2026-06-30 Task-2 Cold-Start Phase ACT Seed 187
+
+Phase ACT seed-187 was retrained from scratch for the fair cold-start comparison.
+
+```text
+config: configs/paper_phase_act_task2_seed187_cold_start_resume.yaml
+checkpoint: checkpoints/paper_phase_act_task2_seed187_cold_start/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+completed epoch: 60
+best checkpoint by training validation: epoch 58
+best_val: 0.02903650622618826
+summary: results/paper_phase_act_task2_seed187_cold_start_20260630.md
+```
+
+Offline eval on `best.pt`:
+
+```text
+continuous_mse: 0.03023523513815905
+continuous_mae: 0.12312478846625279
+gripper_sign_accuracy: 0.9893914555248461
+```
+
+Rollout:
+
+```text
+train30 / val5 / test5 = 25/30, 4/5, 4/5 = 33/40
+held-out val+test = 8/10
+failure episode IDs:
+  train: [17, 21, 24, 32, 36]
+  val: [41]
+  test: [20]
+```
+
+Interpretation:
+
+```text
+Seed-187 cold-start phase ACT strongly outperforms the epoch-50 event-gated seed-187 checkpoint:
+
+phase ACT cold-start seed 187:
+  continuous_mse = 0.03023523513815905
+  train30 / val5 / test5 = 25/30, 4/5, 4/5 = 33/40
+  held-out val+test = 8/10
+
+event-gated seed 187 epoch 50:
+  continuous_mse = 0.04214628413319588
+  train30 / val5 / test5 = 17/30, 2/5, 1/5 = 20/40
+  held-out val+test = 3/10
+
+Continue event-gated seed 187 from epoch 51 to 60 only as an audit. The current fair comparison
+does not support claiming event-gated memory beats phase ACT on task 2.
+```
+
+### 2026-06-30 Event-Gated Seed 187 Epoch-51-to-60 Resume
+
+The epoch-50 event-gated seed-187 checkpoint was restored from the backup artifact and resumed.
+
+```text
+resume config: configs/paper_event_gated_act_task2_seed187_resume.yaml
+restored checkpoint: checkpoints/paper_event_gated_task2_seed187/event_gated_act_h20_task2_phase_memory/last.pt
+source artifact: Alcatraz1412/vla-run-backups/vla_run_artifacts_20260629_180122.tar.gz
+resume log: logs/paper_event_gated_task2_seed187_resume_51_60_20260630.log
+```
+
+Two-epoch stability check:
+
+```text
+epoch 51 train_loss: 0.027196
+epoch 51 val_loss: 0.069595
+epoch 52 train_loss: 0.026709
+epoch 52 val_loss: 0.056911
+last checkpoint after check: epoch 52
+```
+
+Interpretation:
+
+```text
+The run is numerically stable and continuing toward epoch 60. Validation improved from epoch 51
+to 52, but it is still worse than the restored epoch-50 best_val value. Evaluate rollout after
+epoch 60 before changing the reporting checkpoint.
+```
+
+### 2026-06-30 Task-2 Event-Gated Seed 187 Epoch-60 Audit
+
+The event-gated seed-187 continuation completed epoch 60.
+
+```text
+config: configs/paper_event_gated_act_task2_seed187_resume.yaml
+checkpoint root: checkpoints/paper_event_gated_task2_seed187/event_gated_act_h20_task2_phase_memory
+last.pt epoch: 60
+best.pt epoch: 56
+best_val: 0.03878678865730763
+summary: results/paper_event_gated_task2_seed187_epoch60_20260630.md
+```
+
+Offline eval:
+
+```text
+epoch-60 last.pt continuous_mse: 0.03697693571448326
+epoch-60 last.pt continuous_mae: 0.13206598460674285
+epoch-60 last.pt gripper_sign_accuracy: 0.987250006198883
+
+epoch-56 best.pt continuous_mse: 0.036199239641427995
+epoch-56 best.pt continuous_mae: 0.1305200546979904
+epoch-56 best.pt gripper_sign_accuracy: 0.9880625009536743
+```
+
+Rollout on epoch-60 last.pt:
+
+```text
+train30 / val5 / test5 = 13/30, 2/5, 2/5 = 17/40
+held-out val+test = 4/10
+failure episode IDs:
+  train: [4, 5, 8, 10, 13, 15, 16, 17, 18, 24, 25, 26, 27, 33, 35, 37, 38]
+  val: [3, 9, 40]
+  test: [2, 7, 20]
+```
+
+Interpretation:
+
+```text
+Epoch 60 improved offline continuous_mse relative to epoch 50:
+  0.04214628413319588 -> 0.03697693571448326
+
+But rollout worsened on total success:
+  epoch 50: 17/30, 2/5, 1/5 = 20/40, held-out 3/10
+  epoch 60: 13/30, 2/5, 2/5 = 17/40, held-out 4/10
+
+Cold-start phase ACT seed 187 remains much stronger:
+  25/30, 4/5, 4/5 = 33/40, held-out 8/10
+
+This reinforces the current interpretation that offline action prediction is not sufficient for
+checkpoint selection and that task-2 event-gated ACT is negative relative to cold-start phase ACT.
+```
+
 ## 2026-06-27 Task-2 Event-Gated Seed 44 Partial Run And Frozen-Vision Diagnostic
 
 Seed-44 event-gated ACT was started from scratch for the matched task-2 paper protocol.

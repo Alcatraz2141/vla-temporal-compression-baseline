@@ -1,0 +1,2 @@
+timestamp,baseline,checkpoint,seed,mse,mae,continuous_mse,continuous_mae,gripper_sign_accuracy,pred_temporal_smoothness,success_rate,rollout_consistency
+2026-06-30T07:47:10.721003+00:00,act_chunked_corrected_h20_task2_phase_conditioned,checkpoints/paper_phase_act_task2_seed44_cold_start/act_chunked_corrected_h20_task2_phase_conditioned/best.pt,44,84.49122459010074,9.69387802324797,0.032117152782647235,0.1270702810663926,0.9901315852215415,0.22582799431524778,nan,nan

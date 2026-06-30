@@ -278,6 +278,37 @@ Task-2 event-gated seed 187, from scratch:
   summary: results/paper_event_gated_task2_seed187_epoch50_20260629.md
   interpretation: underperforms matched seed-187 phase ACT on total and held-out rollout
 
+Task-2 phase ACT seed 187, cold start:
+  config: configs/paper_phase_act_task2_seed187_cold_start_resume.yaml
+  checkpoint: checkpoints/paper_phase_act_task2_seed187_cold_start/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+  completed epoch: 60
+  best checkpoint by training validation: epoch 58
+  offline continuous_mse: 0.03023523513815905
+  rollouts: train30 25/30, val5 4/5, test5 4/5 = 33/40
+  held-out val+test: 8/10
+  summary: results/paper_phase_act_task2_seed187_cold_start_20260630.md
+  interpretation: strongly outperforms event-gated seed-187 epoch-50 on offline MSE and rollout
+
+Task-2 event-gated seed 187 epoch-51-to-60 audit:
+  resume config: configs/paper_event_gated_act_task2_seed187_resume.yaml
+  restored epoch-50 checkpoint from: Alcatraz1412/vla-run-backups/vla_run_artifacts_20260629_180122.tar.gz
+  log: logs/paper_event_gated_task2_seed187_resume_51_60_20260630.log
+  epoch 51: train_loss 0.027196, val_loss 0.069595
+  epoch 52: train_loss 0.026709, val_loss 0.056911
+  status: stable through two monitored epochs, continuing toward epoch 60
+  note: evaluate offline and rollout after epoch 60 before changing event-gated reporting checkpoint
+
+Task-2 event-gated seed 187 epoch-60 result:
+  config: configs/paper_event_gated_act_task2_seed187_resume.yaml
+  checkpoint: checkpoints/paper_event_gated_task2_seed187/event_gated_act_h20_task2_phase_memory/last.pt
+  completed epoch: 60
+  best checkpoint by training validation: epoch 56
+  offline continuous_mse: 0.03697693571448326
+  rollouts: train30 13/30, val5 2/5, test5 2/5 = 17/40
+  held-out val+test: 4/10
+  summary: results/paper_event_gated_task2_seed187_epoch60_20260630.md
+  interpretation: offline improved over epoch 50 but total rollout worsened; cold-start phase ACT seed 187 remains much stronger
+
 Validation speed fix:
   val_split=train no longer triggers stochastic 20k train-mode validation.
   event-gated task-2 epoch time is now about 10.2 minutes, with validation around 3-4 seconds.

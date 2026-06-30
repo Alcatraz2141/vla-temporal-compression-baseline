@@ -189,6 +189,71 @@ summary: results/paper_event_gated_task2_seed187_epoch50_20260629.md
 Seed-187 event-gated underperforms matched seed-187 phase ACT on total rollout and held-out
 rollout. Do not claim the matched from-scratch task-2 event-gated runs beat phase ACT.
 
+Task-2 cold-start phase-ACT seed-187 was trained/evaluated on 2026-06-30 to remove the
+warm-start protocol confound:
+
+```text
+config: configs/paper_phase_act_task2_seed187_cold_start_resume.yaml
+checkpoint: checkpoints/paper_phase_act_task2_seed187_cold_start/act_chunked_corrected_h20_task2_phase_conditioned/best.pt
+completed epoch: 60
+best checkpoint by training validation: epoch 58
+best val_mse: 0.02903650622618826
+offline continuous_mse: 0.03023523513815905
+offline continuous_mae: 0.12312478846625279
+gripper_sign_accuracy: 0.9893914555248461
+rollout train30 / val5 / test5: 25/30, 4/5, 4/5 = 33/40
+held-out val+test: 8/10
+summary: results/paper_phase_act_task2_seed187_cold_start_20260630.md
+```
+
+This cold-start phase-ACT seed is substantially stronger than event-gated seed-187 epoch 50
+on both offline action prediction and rollout. The fair cold-start task-2 comparison remains
+negative/mixed for event-gated memory; do not claim event-gated improves over phase ACT.
+
+Event-gated seed-187 epoch-50 checkpoint was restored from the 2026-06-29 artifact backup on
+2026-06-30 so it can be continued from epoch 51 to 60:
+
+```text
+resume config: configs/paper_event_gated_act_task2_seed187_resume.yaml
+restored checkpoint: checkpoints/paper_event_gated_task2_seed187/event_gated_act_h20_task2_phase_memory/last.pt
+restored checkpoint epoch: 50
+source artifact: Alcatraz1412/vla-run-backups/vla_run_artifacts_20260629_180122.tar.gz
+```
+
+The epoch-51-to-60 continuation was launched on 2026-06-30:
+
+```text
+log: logs/paper_event_gated_task2_seed187_resume_51_60_20260630.log
+pid at launch: 58067
+epoch 51: train_loss 0.027196, val_loss 0.069595
+epoch 52: train_loss 0.026709, val_loss 0.056911
+checkpoint after stability check: last.pt epoch 52
+```
+
+Training was stable through two monitored epochs and left running toward epoch 60.
+
+Task-2 event-gated seed-187 was continued to epoch 60 and evaluated on 2026-06-30:
+
+```text
+config: configs/paper_event_gated_act_task2_seed187_resume.yaml
+checkpoint: checkpoints/paper_event_gated_task2_seed187/event_gated_act_h20_task2_phase_memory/last.pt
+completed epoch: 60
+best checkpoint by training validation: epoch 56
+best val_mse: 0.03878678865730763
+epoch-60 offline continuous_mse: 0.03697693571448326
+epoch-60 offline continuous_mae: 0.13206598460674285
+epoch-60 gripper_sign_accuracy: 0.987250006198883
+epoch-56 best.pt offline continuous_mse: 0.036199239641427995
+epoch-60 rollout train30 / val5 / test5: 13/30, 2/5, 2/5 = 17/40
+epoch-60 held-out val+test: 4/10
+summary: results/paper_event_gated_task2_seed187_epoch60_20260630.md
+```
+
+Epoch 60 improves offline MSE over epoch 50 but worsens total rollout from 20/40 to 17/40.
+Held-out rollout improves only slightly from 3/10 to 4/10 and remains much weaker than cold-start
+phase-ACT seed 187 at 8/10 held-out and 33/40 total. Keep the task-2 fair-comparison conclusion
+negative for event-gated ACT unless a later checkpoint-selection audit changes the rollout picture.
+
 Important speed/protocol update from 2026-06-28:
 
 ```text
@@ -2670,6 +2735,20 @@ Task 2 has a tied test-only subset at 4/5 against original phase ACT, so the exa
 aggregate split-aware improvement, not universal held-out dominance.
 Next work should either repeat the same protocol on another task or run larger/multi-seed
 confirmation for tasks 2 and 5 before adding broad ablations.
+```
+
+Implementation TODO for later ACT-memory ablations:
+
+```text
+Add phase-aware older memory for event_gated_act. Recent ACT context receives recent_phase_ids
+and action queries receive target_phase_ids, but older event-memory context is currently encoded
+without older_phase_ids. This may underuse phase-conditioned control information in compressed
+older context. Treat this as a plausible improvement/ablation, not as an assumed guaranteed gain.
+
+Also note that memory.query_type is not an implemented concat-vs-cross-attention ablation for
+event_gated_act. ACT event memory always encodes memory_tokens + recent_context and decodes
+action queries over that encoded context. The older EventGatedMemoryVLA path is where query_type
+selects concat versus cross_attention.
 ```
 
 Current artifact backup:
