@@ -452,6 +452,33 @@ results remain noisy and checkpoint-sensitive. The current task-2 evidence does 
 clean event-gated-over-age-gated claim.
 ```
 
+Age-gated seed-187 was then started from scratch and stopped after epoch 27.
+
+```text
+config: configs/paper_age_gated_act_task2_seed187.yaml
+resume config: configs/paper_age_gated_act_task2_seed187_resume.yaml
+checkpoint root: checkpoints/paper_age_gated_task2_seed187/age_gated_act_h20_task2_phase_memory_seed187
+last.pt epoch: 27
+best checkpoint by training validation: epoch 24
+best_val: 0.05992962270975113
+log: logs/paper_age_gated_task2_seed187_20260701.log
+summary: results/paper_age_gated_task2_seed187_epoch27_20260701.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/dfc6e281436abc176783f2f59c57b4ce87e6d95d
+```
+
+Recent training losses:
+
+```text
+epoch 24 train_loss: 0.045836, val_loss: 0.059930
+epoch 25 train_loss: 0.046007, val_loss: 0.073385
+epoch 26 train_loss: 0.043826, val_loss: 0.066062
+epoch 27 train_loss: 0.043381, val_loss: 0.061624
+```
+
+The stop request landed just after epoch 28 began, so the log contains an epoch-28 `step=50`
+line. The saved checkpoint is epoch 27, and partial epoch-28 work was intentionally discarded.
+Resume with `configs/paper_age_gated_act_task2_seed187_resume.yaml` if continuing.
+
 ## 2026-06-27 Task-2 Event-Gated Seed 44 Partial Run And Frozen-Vision Diagnostic
 
 Seed-44 event-gated ACT was started from scratch for the matched task-2 paper protocol.

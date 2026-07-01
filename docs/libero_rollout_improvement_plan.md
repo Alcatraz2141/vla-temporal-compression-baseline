@@ -183,6 +183,23 @@ Seed-44 age-gated total rollout is competitive with seed-43, but held-out rollou
 The validation-selected best.pt is much better offline than epoch-58 last.pt, so it should be
 rolled out before finalizing seed-44 reporting.
 
+Age-gated seed-187 partial run:
+
+```text
+config: configs/paper_age_gated_act_task2_seed187.yaml
+resume config: configs/paper_age_gated_act_task2_seed187_resume.yaml
+checkpoint: checkpoints/paper_age_gated_task2_seed187/age_gated_act_h20_task2_phase_memory_seed187/last.pt
+stopped after completed epoch: 27
+best checkpoint by training validation: epoch 24
+best val_mse: 0.05992962270975113
+epoch 27 val_mse: 0.061624
+summary: results/paper_age_gated_task2_seed187_epoch27_20260701.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/dfc6e281436abc176783f2f59c57b4ce87e6d95d
+```
+
+The log contains one epoch-28 step because the stop command landed after epoch 28 started. The
+saved checkpoint is epoch 27; resume from `last.pt` with the seed-187 resume config.
+
 ## 2026-06-27 Seed-44 Stop And Frozen-Vision Speed Diagnostic
 
 The next matched from-scratch task-2 event-gated seed was started and then stopped on request.

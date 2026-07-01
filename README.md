@@ -341,6 +341,18 @@ Task-2 age-gated ACT seed 44 epoch-58 audit:
   artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cffb17c7e30e71e53d06ed368511abcf627601e2
   interpretation: total rollout is competitive, but held-out is weak; roll out best.pt before final reporting
 
+Task-2 age-gated ACT seed 187 partial run:
+  config: configs/paper_age_gated_act_task2_seed187.yaml
+  resume config: configs/paper_age_gated_act_task2_seed187_resume.yaml
+  checkpoint: checkpoints/paper_age_gated_task2_seed187/age_gated_act_h20_task2_phase_memory_seed187/last.pt
+  stopped after completed epoch: 27
+  best checkpoint by training validation: epoch 24
+  best val_mse: 0.05992962270975113
+  epoch 27 val_mse: 0.061624
+  summary: results/paper_age_gated_task2_seed187_epoch27_20260701.md
+  artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/dfc6e281436abc176783f2f59c57b4ce87e6d95d
+  note: partial epoch-28 work was discarded; resume from epoch-27 last.pt
+
 Validation speed fix:
   val_split=train no longer triggers stochastic 20k train-mode validation.
   event-gated task-2 epoch time is now about 10.2 minutes, with validation around 3-4 seconds.

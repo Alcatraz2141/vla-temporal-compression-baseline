@@ -322,6 +322,24 @@ Seed 44 age-gated is similar to seed 43 on total rollout but weaker on held-out 
 validation-selected best.pt is much stronger offline than epoch-58 last.pt, so roll out best.pt
 before using seed 44 as a final age-gated reporting checkpoint.
 
+Task-2 age-gated ACT seed-187 was started from scratch and stopped after epoch 27 on 2026-07-01:
+
+```text
+config: configs/paper_age_gated_act_task2_seed187.yaml
+resume config: configs/paper_age_gated_act_task2_seed187_resume.yaml
+checkpoint: checkpoints/paper_age_gated_task2_seed187/age_gated_act_h20_task2_phase_memory_seed187/last.pt
+stopped after completed epoch: 27
+best checkpoint by training validation: epoch 24
+best val_mse: 0.05992962270975113
+epoch 27 val_mse: 0.061624
+summary: results/paper_age_gated_task2_seed187_epoch27_20260701.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/dfc6e281436abc176783f2f59c57b4ce87e6d95d
+```
+
+The stop command landed after epoch 28 had begun, so the log contains one epoch-28 step line.
+The saved `last.pt` is epoch 27; partial epoch-28 work was intentionally discarded. Resume with
+`configs/paper_age_gated_act_task2_seed187_resume.yaml` if continuing.
+
 Important speed/protocol update from 2026-06-28:
 
 ```text
