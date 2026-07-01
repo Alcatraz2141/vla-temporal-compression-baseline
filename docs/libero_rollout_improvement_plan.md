@@ -152,6 +152,37 @@ This age-gated control outperforms event-gated seed 43 online while underperform
 That is a direct warning that the current event gate is not selecting memory better than simple
 age weighting on task 2, and that offline MSE cannot be used as the primary method selector.
 
+Age-gated seed-43 epoch-60 audit:
+
+```text
+config: configs/paper_age_gated_act_task2_seed43_resume.yaml
+checkpoint: checkpoints/paper_age_gated_task2_seed43/age_gated_act_h20_task2_phase_memory_seed43/last.pt
+completed epoch: 60
+offline continuous_mse: 0.036862388253211975
+offline continuous_mae: 0.13023996502161025
+rollout train30 / val5 / test5: 21/30, 2/5, 3/5 = 26/40
+held-out val+test: 5/10
+```
+
+Age-gated seed-44 epoch-58 audit:
+
+```text
+config: configs/paper_age_gated_act_task2_seed44.yaml
+checkpoint: checkpoints/paper_age_gated_task2_seed44/age_gated_act_h20_task2_phase_memory_seed44/last.pt
+stopped after completed epoch: 58
+best checkpoint by training validation: epoch 56
+epoch-58 offline continuous_mse: 0.05122858919203281
+best.pt offline continuous_mse: 0.03577113375067711
+rollout train30 / val5 / test5: 21/30, 3/5, 1/5 = 25/40
+held-out val+test: 4/10
+summary: results/paper_age_gated_task2_seed44_epoch58_20260701.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cffb17c7e30e71e53d06ed368511abcf627601e2
+```
+
+Seed-44 age-gated total rollout is competitive with seed-43, but held-out rollout is weaker.
+The validation-selected best.pt is much better offline than epoch-58 last.pt, so it should be
+rolled out before finalizing seed-44 reporting.
+
 ## 2026-06-27 Seed-44 Stop And Frozen-Vision Speed Diagnostic
 
 The next matched from-scratch task-2 event-gated seed was started and then stopped on request.

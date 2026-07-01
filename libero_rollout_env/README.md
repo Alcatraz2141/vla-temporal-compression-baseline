@@ -517,6 +517,21 @@ age-gated ACT:
   checkpoint: checkpoints/libero_long_corrected_task2/age_gated_act_h20_task2_phase_memory20/last.pt
   train10 / val5 / test5 = 3/10, 2/5, 0/5 = 5/20
 
+age-gated ACT paper seed 43:
+  config: configs/paper_age_gated_act_task2_seed43_resume.yaml
+  checkpoint: checkpoints/paper_age_gated_task2_seed43/age_gated_act_h20_task2_phase_memory_seed43/last.pt
+  train30 / val5 / test5 = 21/30, 2/5, 3/5 = 26/40
+  held-out val+test = 5/10
+
+age-gated ACT paper seed 44:
+  config: configs/paper_age_gated_act_task2_seed44.yaml
+  checkpoint: checkpoints/paper_age_gated_task2_seed44/age_gated_act_h20_task2_phase_memory_seed44/last.pt
+  stopped after epoch 58
+  train30 / val5 / test5 = 21/30, 3/5, 1/5 = 25/40
+  held-out val+test = 4/10
+  summary: results/paper_age_gated_task2_seed44_epoch58_20260701.md
+  artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cffb17c7e30e71e53d06ed368511abcf627601e2
+
 event-gated ACT:
   config: configs/libero_long_event_gated_act_h20_task2_phase_memory.yaml
   checkpoint: checkpoints/libero_long_corrected_task2/event_gated_act_h20_task2_phase_memory/best.pt

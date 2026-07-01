@@ -369,6 +369,89 @@ The current event-gating score is not demonstrating an advantage on task 2. This
 reinforces that offline continuous_mse is not a reliable closed-loop method selector.
 ```
 
+### 2026-07-01 Task-2 Age-Gated ACT Seed 43 Epoch-60 And Seed 44 Epoch-58
+
+Age-gated seed-43 was resumed from epoch 50 to epoch 60.
+
+```text
+config: configs/paper_age_gated_act_task2_seed43_resume.yaml
+checkpoint root: checkpoints/paper_age_gated_task2_seed43/age_gated_act_h20_task2_phase_memory_seed43
+last.pt epoch: 60
+best checkpoint by training validation: epoch 52
+best_val: 0.039888565242290494
+```
+
+Offline eval:
+
+```text
+epoch-60 last.pt continuous_mse: 0.036862388253211975
+epoch-60 last.pt continuous_mae: 0.13023996502161025
+epoch-60 last.pt gripper_sign_accuracy: 0.9853124976158142
+
+best.pt continuous_mse: 0.03696778081357479
+best.pt continuous_mae: 0.13132618069648744
+best.pt gripper_sign_accuracy: 0.9831875085830688
+```
+
+Rollout on epoch-60 `last.pt`:
+
+```text
+train30 / val5 / test5 = 21/30, 2/5, 3/5 = 26/40
+held-out val+test = 5/10
+failure episode IDs:
+  train: [1, 10, 12, 17, 18, 19, 21, 28, 33]
+  val: [29, 40, 41]
+  test: [7, 20]
+```
+
+Age-gated seed-44 was trained from scratch and stopped after epoch 58.
+
+```text
+config: configs/paper_age_gated_act_task2_seed44.yaml
+resume config: configs/paper_age_gated_act_task2_seed44_resume.yaml
+checkpoint root: checkpoints/paper_age_gated_task2_seed44/age_gated_act_h20_task2_phase_memory_seed44
+last.pt epoch: 58
+best checkpoint by training validation: epoch 56
+best_val: 0.044679350405931476
+summary: results/paper_age_gated_task2_seed44_epoch58_20260701.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cffb17c7e30e71e53d06ed368511abcf627601e2
+```
+
+Offline eval:
+
+```text
+epoch-58 last.pt continuous_mse: 0.05122858919203281
+epoch-58 last.pt continuous_mae: 0.1402573436498642
+epoch-58 last.pt gripper_sign_accuracy: 0.9779375076293946
+
+best.pt continuous_mse: 0.03577113375067711
+best.pt continuous_mae: 0.12979439795017242
+best.pt gripper_sign_accuracy: 0.9845625162124634
+```
+
+Rollout on epoch-58 `last.pt`:
+
+```text
+train30 / val5 / test5 = 21/30, 3/5, 1/5 = 25/40
+held-out val+test = 4/10
+failure episode IDs:
+  train: [4, 6, 8, 12, 17, 18, 19, 26, 35]
+  val: [29, 40]
+  test: [7, 11, 20, 22]
+```
+
+Interpretation:
+
+```text
+Age-gated seed 44 is competitive on total rollout but weak on held-out test. Its best.pt is
+substantially better offline than epoch-58 last.pt, so best.pt should be rolled out before final
+checkpoint reporting for this seed.
+
+Across age-gated seeds 43 and 44, total rollout is similar to event-gated seeds, but held-out
+results remain noisy and checkpoint-sensitive. The current task-2 evidence does not support a
+clean event-gated-over-age-gated claim.
+```
+
 ## 2026-06-27 Task-2 Event-Gated Seed 44 Partial Run And Frozen-Vision Diagnostic
 
 Seed-44 event-gated ACT was started from scratch for the matched task-2 paper protocol.

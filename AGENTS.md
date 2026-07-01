@@ -281,6 +281,47 @@ cold-start phase ACT seed 43: 23/40 total, 5/10 held-out, continuous_mse 0.03067
 This is evidence that the current event-gating mechanism is not providing the intended advantage
 on task 2. Treat age-gated memory as a serious control/baseline, not a weak strawman.
 
+Task-2 age-gated ACT seed-43 was continued to epoch 60 and evaluated on 2026-07-01:
+
+```text
+config: configs/paper_age_gated_act_task2_seed43_resume.yaml
+checkpoint: checkpoints/paper_age_gated_task2_seed43/age_gated_act_h20_task2_phase_memory_seed43/last.pt
+completed epoch: 60
+best checkpoint by training validation: epoch 52
+epoch-60 offline continuous_mse: 0.036862388253211975
+epoch-60 offline continuous_mae: 0.13023996502161025
+epoch-60 gripper_sign_accuracy: 0.9853124976158142
+epoch-60 rollout train30 / val5 / test5: 21/30, 2/5, 3/5 = 26/40
+epoch-60 held-out val+test: 5/10
+```
+
+Epoch 60 improved offline MSE over epoch 50 but worsened held-out rollout from 7/10 to 5/10.
+This is another example that offline action prediction is not a reliable checkpoint selector.
+
+Task-2 age-gated ACT seed-44 was trained from scratch, stopped at epoch 58, and evaluated on
+2026-07-01:
+
+```text
+config: configs/paper_age_gated_act_task2_seed44.yaml
+resume config: configs/paper_age_gated_act_task2_seed44_resume.yaml
+checkpoint: checkpoints/paper_age_gated_task2_seed44/age_gated_act_h20_task2_phase_memory_seed44/last.pt
+stopped after completed epoch: 58
+best checkpoint by training validation: epoch 56
+best val_mse: 0.044679350405931476
+epoch-58 last.pt offline continuous_mse: 0.05122858919203281
+epoch-58 last.pt offline continuous_mae: 0.1402573436498642
+epoch-58 last.pt gripper_sign_accuracy: 0.9779375076293946
+best.pt offline continuous_mse: 0.03577113375067711
+epoch-58 rollout train30 / val5 / test5: 21/30, 3/5, 1/5 = 25/40
+epoch-58 held-out val+test: 4/10
+summary: results/paper_age_gated_task2_seed44_epoch58_20260701.md
+artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cffb17c7e30e71e53d06ed368511abcf627601e2
+```
+
+Seed 44 age-gated is similar to seed 43 on total rollout but weaker on held-out rollout. The
+validation-selected best.pt is much stronger offline than epoch-58 last.pt, so roll out best.pt
+before using seed 44 as a final age-gated reporting checkpoint.
+
 Important speed/protocol update from 2026-06-28:
 
 ```text

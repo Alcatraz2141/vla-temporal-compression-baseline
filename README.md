@@ -319,6 +319,28 @@ Task-2 age-gated ACT seed 43, from scratch:
   summary: results/paper_age_gated_task2_seed43_epoch50_20260630.md
   interpretation: stronger online than event-gated seed 43 despite much worse offline MSE
 
+Task-2 age-gated ACT seed 43 epoch-60 audit:
+  config: configs/paper_age_gated_act_task2_seed43_resume.yaml
+  checkpoint: checkpoints/paper_age_gated_task2_seed43/age_gated_act_h20_task2_phase_memory_seed43/last.pt
+  completed epoch: 60
+  offline continuous_mse: 0.036862388253211975
+  rollouts: train30 21/30, val5 2/5, test5 3/5 = 26/40
+  held-out val+test: 5/10
+  interpretation: offline improved versus epoch 50, but held-out rollout worsened from 7/10 to 5/10
+
+Task-2 age-gated ACT seed 44 epoch-58 audit:
+  config: configs/paper_age_gated_act_task2_seed44.yaml
+  checkpoint: checkpoints/paper_age_gated_task2_seed44/age_gated_act_h20_task2_phase_memory_seed44/last.pt
+  stopped epoch: 58
+  best checkpoint by training validation: epoch 56
+  epoch-58 offline continuous_mse: 0.05122858919203281
+  best.pt offline continuous_mse: 0.03577113375067711
+  rollouts: train30 21/30, val5 3/5, test5 1/5 = 25/40
+  held-out val+test: 4/10
+  summary: results/paper_age_gated_task2_seed44_epoch58_20260701.md
+  artifact backup: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cffb17c7e30e71e53d06ed368511abcf627601e2
+  interpretation: total rollout is competitive, but held-out is weak; roll out best.pt before final reporting
+
 Validation speed fix:
   val_split=train no longer triggers stochastic 20k train-mode validation.
   event-gated task-2 epoch time is now about 10.2 minutes, with validation around 3-4 seconds.
