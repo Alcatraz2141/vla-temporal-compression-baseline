@@ -52,7 +52,9 @@ Next new-task event-gated diagnostic:
 task: KITCHEN_SCENE8_put_both_moka_pots_on_the_stove
 config: configs/diagnostic_event_gated_act_task8_seed44_fast_tokens8.yaml
 summary stub: results/diagnostic_event_gated_task8_seed44_fast_tokens8_20260704.md
-status: not started at commit time
+result: event-gated tokens8 held-out 0/7; age-gated tokens8 held-out 0/7;
+        event-gated tokens16 held-out 0/7
+tokens16 summary: results/diagnostic_event_gated_task8_seed44_tokens16_20260704.md
 ```
 
 ## 2026-06-28 Task-2 Event-Gated Seed 44 Restart, Speed Fix, And Rollouts

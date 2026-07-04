@@ -75,8 +75,10 @@ Next new-task diagnostic:
 task: KITCHEN_SCENE8_put_both_moka_pots_on_the_stove
 config: configs/diagnostic_event_gated_act_task8_seed44_fast_tokens8.yaml
 protocol: event-gated first, seed 44, samples_per_epoch 5000, max_memory_tokens 8, 30 epochs
-status: not started at commit time
+result: event-gated tokens8 held-out 0/7; age-gated tokens8 held-out 0/7;
+        event-gated tokens16 held-out 0/7
 summary stub: results/diagnostic_event_gated_task8_seed44_fast_tokens8_20260704.md
+tokens16 summary: results/diagnostic_event_gated_task8_seed44_tokens16_20260704.md
 ```
 
 Latest paper-seed task-2 phase-ACT state as of 2026-06-23:

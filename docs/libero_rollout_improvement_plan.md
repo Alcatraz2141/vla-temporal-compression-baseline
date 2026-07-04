@@ -1588,5 +1588,7 @@ Next planned rollout-facing diagnostic:
 ```text
 task: KITCHEN_SCENE8_put_both_moka_pots_on_the_stove
 config: configs/diagnostic_event_gated_act_task8_seed44_fast_tokens8.yaml
-status: not started at commit time
+result: event-gated tokens8 held-out 0/7; age-gated tokens8 held-out 0/7;
+        event-gated tokens16 held-out 0/7
+tokens16 summary: results/diagnostic_event_gated_task8_seed44_tokens16_20260704.md
 ```
