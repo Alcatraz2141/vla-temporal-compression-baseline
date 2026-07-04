@@ -38,6 +38,47 @@ The repository contains a PyTorch behavior-cloning pipeline with:
 - LIBERO-Long HDF5 reading through direct `h5py`
 - a unified episode-level loader for current milestone experiments
 
+Fast diagnostic update from 2026-07-04:
+
+```text
+task: KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+seed: 44
+protocol: diagnostic fast-token ACT memory, samples_per_epoch 5000, max_memory_tokens 8,
+          chunk_size 4, 30 epochs, temporal-ensemble rollout
+
+event-gated best checkpoint:
+  config: configs/diagnostic_event_gated_act_task2_seed44_fast_tokens8_resume30.yaml
+  best epoch: 26
+  offline continuous_mse: 0.16484375
+  rollout train30 / val5 / test5: 2/30, 0/5, 0/5 = 2/40
+  held-out val+test: 0/10
+
+age-gated best checkpoint:
+  config: configs/diagnostic_age_gated_act_task2_seed44_fast_tokens8_resume30.yaml
+  best epoch: 28
+  offline continuous_mse: 0.1457701027393341
+  rollout train30 / val5 / test5: 13/30, 4/5, 2/5 = 19/40
+  held-out val+test: 6/10
+
+summary: results/diagnostic_fast_tokens8_task2_seed44_20260704.md
+```
+
+Interpretation: `max_memory_tokens=8` may make the task harder because it reduces older-context
+samples from 64 to 32, but it does not explain the event-gated failure by itself. Age-gated used
+the same 8-token budget and recovered useful rollout behavior, while event-gated remained near
+dead online. Treat the current event gate as suspect until a gate-design fix or broader task audit
+changes this picture.
+
+Next new-task diagnostic:
+
+```text
+task: KITCHEN_SCENE8_put_both_moka_pots_on_the_stove
+config: configs/diagnostic_event_gated_act_task8_seed44_fast_tokens8.yaml
+protocol: event-gated first, seed 44, samples_per_epoch 5000, max_memory_tokens 8, 30 epochs
+status: not started at commit time
+summary stub: results/diagnostic_event_gated_task8_seed44_fast_tokens8_20260704.md
+```
+
 Latest paper-seed task-2 phase-ACT state as of 2026-06-23:
 
 ```text

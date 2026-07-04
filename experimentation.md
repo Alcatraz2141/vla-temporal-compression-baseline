@@ -2,6 +2,59 @@
 
 Date: 2026-05-19
 
+## 2026-07-04 Task-2 Fast-Token Event-vs-Age Diagnostic
+
+Matched fast diagnostic protocol:
+
+```text
+task: KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+seed: 44
+samples_per_epoch: 5000
+epochs: 30
+batch_size: 32
+chunk_size: 4
+max_memory_tokens: 8
+older context frames: 32
+cache_max_episodes: 128
+```
+
+Result:
+
+```text
+event-gated best epoch 26:
+  offline continuous_mse: 0.16484375
+  rollout train30 / val5 / test5: 2/30, 0/5, 0/5 = 2/40
+  held-out: 0/10
+
+age-gated best epoch 28:
+  offline continuous_mse: 0.1457701027393341
+  rollout train30 / val5 / test5: 13/30, 4/5, 2/5 = 19/40
+  held-out: 6/10
+```
+
+Summary:
+
+```text
+results/diagnostic_fast_tokens8_task2_seed44_20260704.md
+```
+
+Interpretation:
+
+```text
+The 8-token memory budget is a compressed diagnostic setting and may reduce absolute performance.
+However, compression alone does not explain the event-gated failure because age-gated used the same
+budget and recovered useful rollout behavior. The current event gate remains the main suspect.
+```
+
+Next new-task event-gated diagnostic:
+
+```text
+task: KITCHEN_SCENE8_put_both_moka_pots_on_the_stove
+config: configs/diagnostic_event_gated_act_task8_seed44_fast_tokens8.yaml
+summary stub: results/diagnostic_event_gated_task8_seed44_fast_tokens8_20260704.md
+status: not started at commit time
+```
+
 ## 2026-06-28 Task-2 Event-Gated Seed 44 Restart, Speed Fix, And Rollouts
 
 The task-2 event-gated ACT seed-44 run was restarted from scratch after fixing an expensive

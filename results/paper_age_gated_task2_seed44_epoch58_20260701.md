@@ -34,13 +34,6 @@ failure episode IDs:
   test: [7, 11, 20, 22]
 ```
 
-Artifact backup:
-
-```text
-local: /workspace/run_backups/vla_run_artifacts_20260701_142852.tar.gz
-Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/cffb17c7e30e71e53d06ed368511abcf627601e2
-```
-
 Interpretation:
 
 ```text
@@ -57,3 +50,4 @@ This keeps age-gated memory competitive with event-gated ACT on task 2, but it d
 the checkpoint-selection and online/offline mismatch. Do not claim event-gated ACT beats
 age-gated ACT on task 2 without the seed-44 best.pt rollout audit and additional matched seeds.
 ```
+

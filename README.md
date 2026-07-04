@@ -26,6 +26,39 @@ scripts/       data acquisition helpers
 results/       baseline metrics CSV
 ```
 
+## Current Diagnostic State
+
+Latest fast memory diagnostic from 2026-07-04:
+
+```text
+task: KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+seed: 44
+protocol: samples_per_epoch 5000, max_memory_tokens 8, chunk_size 4, 30 epochs
+
+event-gated best epoch 26:
+  offline continuous_mse: 0.16484375
+  rollout train30 / val5 / test5: 2/30, 0/5, 0/5 = 2/40
+  held-out: 0/10
+
+age-gated best epoch 28:
+  offline continuous_mse: 0.1457701027393341
+  rollout train30 / val5 / test5: 13/30, 4/5, 2/5 = 19/40
+  held-out: 6/10
+
+summary: results/diagnostic_fast_tokens8_task2_seed44_20260704.md
+```
+
+The 8-token budget may make the diagnostic harder, but it does not explain the event-gated failure
+by itself because age-gated used the same compression and performed much better online.
+
+Next new-task diagnostic:
+
+```text
+task: KITCHEN_SCENE8_put_both_moka_pots_on_the_stove
+config: configs/diagnostic_event_gated_act_task8_seed44_fast_tokens8.yaml
+status: not started at commit time
+```
+
 ## Data
 
 Preferred real-data route:

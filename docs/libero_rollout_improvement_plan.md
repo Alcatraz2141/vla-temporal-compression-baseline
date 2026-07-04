@@ -1555,3 +1555,38 @@ results/task2_phase_continued_control_20260608.md
 results/task2_age_gated_control_20260608.md
 results/task2_final_control_audit_20260608.md
 ```
+# 2026-07-04 Fast-Token Diagnostic Update
+
+Task-2 fast diagnostic:
+
+```text
+task: KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+seed: 44
+samples_per_epoch: 5000
+max_memory_tokens: 8
+epochs: 30
+summary: results/diagnostic_fast_tokens8_task2_seed44_20260704.md
+```
+
+Rollout result:
+
+```text
+event-gated best epoch 26: train30 / val5 / test5 = 2/30, 0/5, 0/5 = 2/40
+age-gated best epoch 28:   train30 / val5 / test5 = 13/30, 4/5, 2/5 = 19/40
+```
+
+Readout:
+
+```text
+The compressed 8-token diagnostic is fast enough for gate debugging, but the task-2 result
+strongly favors age-gated memory. The 8-token budget may lower absolute performance, yet it is
+not sufficient to explain event-gated failure because age-gated used the same budget.
+```
+
+Next planned rollout-facing diagnostic:
+
+```text
+task: KITCHEN_SCENE8_put_both_moka_pots_on_the_stove
+config: configs/diagnostic_event_gated_act_task8_seed44_fast_tokens8.yaml
+status: not started at commit time
+```
