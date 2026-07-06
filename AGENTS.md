@@ -101,15 +101,15 @@ task 3: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_an
                         held-out val+test 4/9
   event-gated tokens16: best epoch 24, offline continuous_mse 0.1961492970585823,
                         held-out val+test 0/9
-  age-gated tokens16:   training in progress when docs were updated; latest observed epoch 15,
-                        best observed val_loss 0.19999533146619797
+  age-gated tokens16:   best epoch 28, offline continuous_mse 0.17082886149485907,
+                        held-out val+test 4/9
   summaries:
     results/diagnostic_fast_tokens8_task3_seed44_20260706.md
     results/diagnostic_tokens16_task3_seed44_20260706.md
 
 artifact backup:
-  local: /workspace/run_backups/vla_run_artifacts_20260706_122921.tar.gz
-  Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/9787317e30fe4962ee71cc64d430bb53a9e451a7
+  local: /workspace/run_backups/vla_run_artifacts_20260706_142909.tar.gz
+  Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/ba97afc794b6c739fb8b2f2a26704bf9564a892c
 ```
 
 The old positive Kitchen4/task-3 event-gated result used seed 42, 20k samples per epoch, and

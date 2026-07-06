@@ -50,17 +50,17 @@ event-gated tokens16:
   held-out rollout: val 0/4, test 0/5 = 0/9
 
 age-gated tokens16:
-  status: training still active when docs were updated
-  latest completed epoch observed: 15
-  best val_loss observed: 0.19999533146619797
+  best epoch: 28
+  offline continuous_mse: 0.17082886149485907
+  held-out rollout: val 1/4, test 3/5 = 4/9
 
 summaries:
   results/diagnostic_fast_tokens8_task3_seed44_20260706.md
   results/diagnostic_tokens16_task3_seed44_20260706.md
 
 artifact backup:
-  /workspace/run_backups/vla_run_artifacts_20260706_122921.tar.gz
-  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/9787317e30fe4962ee71cc64d430bb53a9e451a7
+  /workspace/run_backups/vla_run_artifacts_20260706_142909.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/ba97afc794b6c739fb8b2f2a26704bf9564a892c
 ```
 
 Investigation of the older positive Kitchen4/task-3 event-gated run found that it differed from

@@ -1,0 +1,2 @@
+timestamp,baseline,checkpoint,seed,mse,mae,continuous_mse,continuous_mae,gripper_sign_accuracy,pred_temporal_smoothness,success_rate,rollout_consistency
+2026-07-06T14:25:14.544727+00:00,diagnostic_age_gated_act_h20_task3_tokens16_seed44,checkpoints/diagnostic_age_gated_task3_seed44_tokens16/diagnostic_age_gated_act_h20_task3_tokens16_seed44/best.pt,44,34.26290353139242,7.2257827917734785,0.17082886149485907,0.2828063517808914,0.9580729206403097,0.07594311982393265,nan,nan

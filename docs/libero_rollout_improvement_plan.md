@@ -25,13 +25,13 @@ task 3, event-gated tokens16:
   summary: results/diagnostic_tokens16_task3_seed44_20260706.md
 
 task 3, age-gated tokens16:
-  status when this note was written: still training
-  latest observed completed epoch: 15
-  best observed val_loss: 0.19999533146619797
+  best epoch: 28
+  offline continuous_mse: 0.17082886149485907
+  held-out: 4/9
 
 artifact backup:
-  /workspace/run_backups/vla_run_artifacts_20260706_122921.tar.gz
-  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/9787317e30fe4962ee71cc64d430bb53a9e451a7
+  /workspace/run_backups/vla_run_artifacts_20260706_142909.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/ba97afc794b6c739fb8b2f2a26704bf9564a892c
 ```
 
 The old positive Kitchen4/task-3 event-gated run remains a protocol-sensitive result. It used seed

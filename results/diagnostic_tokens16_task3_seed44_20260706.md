@@ -50,14 +50,27 @@ results/diagnostic_trace_event_gated_task3_seed44_tokens16_test5_epoch24_best_20
 
 ```text
 config: configs/diagnostic_age_gated_act_task3_seed44_tokens16.yaml
-log: logs/diagnostic_age_gated_task3_seed44_tokens16_20260706.log
-status when this summary was written: still training
-latest completed epoch observed: 15
-best epoch observed: 15
-best val_loss observed: 0.19999533146619797
+checkpoint: checkpoints/diagnostic_age_gated_task3_seed44_tokens16/diagnostic_age_gated_act_h20_task3_tokens16_seed44/best.pt
+best epoch: 28
+best val_loss: 0.133718
+
+offline continuous_mse: 0.17082886149485907
+offline continuous_mae: 0.2828063517808914
+gripper_sign_accuracy: 0.9580729206403097
+
+rollout val5: 1/4
+rollout test5: 3/5
+held-out val+test: 4/9
 ```
 
-Age-gated tokens16 needs offline eval and val/test rollout after training completes.
+Rollout files:
+
+```text
+results/diagnostic_rollouts_age_gated_task3_seed44_tokens16_val5_epoch28_best_20260706.csv
+results/diagnostic_rollouts_age_gated_task3_seed44_tokens16_test5_epoch28_best_20260706.csv
+results/diagnostic_trace_age_gated_task3_seed44_tokens16_val5_epoch28_best_20260706.csv
+results/diagnostic_trace_age_gated_task3_seed44_tokens16_test5_epoch28_best_20260706.csv
+```
 
 ## Interpretation
 
@@ -68,6 +81,7 @@ and online:
 ```text
 event-gated tokens8:  continuous_mse 0.17221714556217194, held-out 1/9
 event-gated tokens16: continuous_mse 0.1961492970585823, held-out 0/9
+age-gated tokens16:   continuous_mse 0.17082886149485907, held-out 4/9
 ```
 
 The old positive Kitchen4 result remains most plausibly explained by the combined protocol

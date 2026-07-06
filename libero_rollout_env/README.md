@@ -98,12 +98,13 @@ task 3 event-gated tokens16:
   summary: results/diagnostic_tokens16_task3_seed44_20260706.md
 
 task 3 age-gated tokens16:
-  status: training in progress when this note was written
-  log: logs/diagnostic_age_gated_task3_seed44_tokens16_20260706.log
+  held-out: 4/9
+  offline continuous_mse: 0.17082886149485907
+  checkpoint: checkpoints/diagnostic_age_gated_task3_seed44_tokens16/diagnostic_age_gated_act_h20_task3_tokens16_seed44/best.pt
 
 artifact backup:
-  /workspace/run_backups/vla_run_artifacts_20260706_122921.tar.gz
-  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/9787317e30fe4962ee71cc64d430bb53a9e451a7
+  /workspace/run_backups/vla_run_artifacts_20260706_142909.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/ba97afc794b6c739fb8b2f2a26704bf9564a892c
 ```
 
 These cheap reruns reinforce that rollout behavior is not reliably predicted by offline MSE, and
