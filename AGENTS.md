@@ -81,6 +81,41 @@ summary stub: results/diagnostic_event_gated_task8_seed44_fast_tokens8_20260704.
 tokens16 summary: results/diagnostic_event_gated_task8_seed44_tokens16_20260704.md
 ```
 
+Additional fast diagnostics from 2026-07-06:
+
+```text
+protocol: diagnostic fast-token ACT memory, seed 44, samples_per_epoch 5000,
+          chunk_size 4, 30 epochs, temporal-ensemble held-out rollouts
+
+task 5: STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy
+  event-gated tokens8: best epoch 29, offline continuous_mse 0.06712389662861824,
+                       held-out val+test 5/10
+  age-gated tokens8:   best epoch 28, offline continuous_mse 0.06931269615888595,
+                       held-out val+test 8/10
+  summary: results/diagnostic_fast_tokens8_task5_seed44_20260706.md
+
+task 3: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
+  event-gated tokens8:  best epoch 30, offline continuous_mse 0.17221714556217194,
+                        held-out val+test 1/9
+  age-gated tokens8:    best epoch 24, offline continuous_mse 0.16428105533123016,
+                        held-out val+test 4/9
+  event-gated tokens16: best epoch 24, offline continuous_mse 0.1961492970585823,
+                        held-out val+test 0/9
+  age-gated tokens16:   training in progress when docs were updated; latest observed epoch 15,
+                        best observed val_loss 0.19999533146619797
+  summaries:
+    results/diagnostic_fast_tokens8_task3_seed44_20260706.md
+    results/diagnostic_tokens16_task3_seed44_20260706.md
+
+artifact backup:
+  local: /workspace/run_backups/vla_run_artifacts_20260706_122921.tar.gz
+  Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/9787317e30fe4962ee71cc64d430bb53a9e451a7
+```
+
+The old positive Kitchen4/task-3 event-gated result used seed 42, 20k samples per epoch, and
+tokens16/64 older frames. The current seed-44 cheap tokens16 rerun did not reproduce it. Do not
+attribute the old result to tokens16 alone; seed and training-sample budget remain major confounds.
+
 Latest paper-seed task-2 phase-ACT state as of 2026-06-23:
 
 ```text

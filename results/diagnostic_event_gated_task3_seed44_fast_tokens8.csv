@@ -1,0 +1,2 @@
+timestamp,baseline,checkpoint,seed,mse,mae,continuous_mse,continuous_mae,gripper_sign_accuracy,pred_temporal_smoothness,success_rate,rollout_consistency
+2026-07-06T09:12:43.781561+00:00,diagnostic_event_gated_act_h20_task3_fast_tokens8_seed44,checkpoints/diagnostic_event_gated_task3_seed44_fast_tokens8/diagnostic_event_gated_act_h20_task3_fast_tokens8_seed44/best.pt,44,34.771453857421875,7.151001612345378,0.17221714556217194,0.27457812428474426,0.9492187400658926,0.06464940433700879,nan,nan

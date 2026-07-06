@@ -78,6 +78,37 @@ eval or rollout.
 
 ## Current Checkpoint And Rollout State
 
+As of 2026-07-06, additional fast diagnostics were completed or started under the cheap seed-44
+protocol:
+
+```text
+task 5 tokens8:
+  event-gated held-out: 5/10
+  age-gated held-out: 8/10
+  summary: results/diagnostic_fast_tokens8_task5_seed44_20260706.md
+
+task 3 tokens8:
+  event-gated held-out: 1/9
+  age-gated held-out: 4/9
+  summary: results/diagnostic_fast_tokens8_task3_seed44_20260706.md
+
+task 3 event-gated tokens16:
+  held-out: 0/9
+  offline continuous_mse: 0.1961492970585823
+  summary: results/diagnostic_tokens16_task3_seed44_20260706.md
+
+task 3 age-gated tokens16:
+  status: training in progress when this note was written
+  log: logs/diagnostic_age_gated_task3_seed44_tokens16_20260706.log
+
+artifact backup:
+  /workspace/run_backups/vla_run_artifacts_20260706_122921.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/9787317e30fe4962ee71cc64d430bb53a9e451a7
+```
+
+These cheap reruns reinforce that rollout behavior is not reliably predicted by offline MSE, and
+that the old positive Kitchen4/task-3 event-gated result should be treated as protocol-sensitive.
+
 As of 2026-06-24, random task-2 phase-ACT seed `187` completed:
 
 ```text

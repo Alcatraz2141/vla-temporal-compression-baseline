@@ -2,6 +2,43 @@
 
 Date: 2026-05-30
 
+## 2026-07-06 Fast Diagnostic Rollout Audit
+
+Additional cheap ACT-memory diagnostics were run with seed 44, 5k samples per epoch, 30 epochs,
+chunk size 4, and held-out val/test temporal-ensemble rollouts.
+
+```text
+task 5, tokens8:
+  event-gated: offline continuous_mse 0.06712389662861824, held-out 5/10
+  age-gated:   offline continuous_mse 0.06931269615888595, held-out 8/10
+  summary: results/diagnostic_fast_tokens8_task5_seed44_20260706.md
+
+task 3, tokens8:
+  event-gated: offline continuous_mse 0.17221714556217194, held-out 1/9
+  age-gated:   offline continuous_mse 0.16428105533123016, held-out 4/9
+  summary: results/diagnostic_fast_tokens8_task3_seed44_20260706.md
+
+task 3, event-gated tokens16:
+  best epoch: 24
+  offline continuous_mse: 0.1961492970585823
+  held-out: 0/9
+  summary: results/diagnostic_tokens16_task3_seed44_20260706.md
+
+task 3, age-gated tokens16:
+  status when this note was written: still training
+  latest observed completed epoch: 15
+  best observed val_loss: 0.19999533146619797
+
+artifact backup:
+  /workspace/run_backups/vla_run_artifacts_20260706_122921.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/9787317e30fe4962ee71cc64d430bb53a9e451a7
+```
+
+The old positive Kitchen4/task-3 event-gated run remains a protocol-sensitive result. It used seed
+42, 20k samples per epoch, and tokens16/64 older frames. The current seed-44 tokens16 rerun did not
+recover the positive behavior, so future analysis should not attribute the old result to the
+larger memory-token budget alone.
+
 ## 2026-06-28 Seed-44 Event-Gated Restart And Validation Decoupling
 
 The task-2 seed-44 event-gated ACT run was restarted from scratch after fixing training-time

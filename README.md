@@ -28,6 +28,38 @@ results/       baseline metrics CSV
 
 ## Current Diagnostic State
 
+Latest fast diagnostics from 2026-07-06:
+
+```text
+protocol: seed 44, samples_per_epoch 5000, chunk_size 4, 30 epochs,
+          held-out val/test temporal-ensemble rollouts
+
+task 5, tokens8:
+  event-gated: offline continuous_mse 0.06712389662861824, held-out 5/10
+  age-gated:   offline continuous_mse 0.06931269615888595, held-out 8/10
+  summary: results/diagnostic_fast_tokens8_task5_seed44_20260706.md
+
+task 3, tokens8:
+  event-gated: offline continuous_mse 0.17221714556217194, held-out 1/9
+  age-gated:   offline continuous_mse 0.16428105533123016, held-out 4/9
+  summary: results/diagnostic_fast_tokens8_task3_seed44_20260706.md
+
+task 3, event-gated tokens16:
+  offline continuous_mse 0.1961492970585823, held-out 0/9
+  summary: results/diagnostic_tokens16_task3_seed44_20260706.md
+
+task 3, age-gated tokens16:
+  training in progress when docs were updated; latest observed epoch 15
+
+artifact backup:
+  /workspace/run_backups/vla_run_artifacts_20260706_122921.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/9787317e30fe4962ee71cc64d430bb53a9e451a7
+```
+
+The old positive Kitchen4/task-3 event-gated run used seed 42, 20k samples per epoch, and tokens16.
+The current cheap seed-44 tokens16 rerun did not reproduce it, so tokens16 alone should not be
+treated as the explanation.
+
 Latest fast memory diagnostic from 2026-07-04:
 
 ```text

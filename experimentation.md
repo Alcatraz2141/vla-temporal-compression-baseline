@@ -2,6 +2,74 @@
 
 Date: 2026-05-19
 
+## 2026-07-06 Task-5 And Task-3 Fast Diagnostics
+
+Matched cheap diagnostic protocol:
+
+```text
+seed: 44
+samples_per_epoch: 5000
+epochs: 30
+batch_size: 32
+chunk_size: 4
+rollout: split-aware held-out val/test, max_steps 300, temporal ensemble
+```
+
+Task 5, `STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy`:
+
+```text
+event-gated tokens8:
+  best epoch: 29
+  offline continuous_mse: 0.06712389662861824
+  held-out rollout: val 3/5, test 2/5 = 5/10
+
+age-gated tokens8:
+  best epoch: 28
+  offline continuous_mse: 0.06931269615888595
+  held-out rollout: val 3/5, test 5/5 = 8/10
+
+summary: results/diagnostic_fast_tokens8_task5_seed44_20260706.md
+```
+
+Task 3, `KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it`:
+
+```text
+event-gated tokens8:
+  best epoch: 30
+  offline continuous_mse: 0.17221714556217194
+  held-out rollout: val 1/4, test 0/5 = 1/9
+
+age-gated tokens8:
+  best epoch: 24
+  offline continuous_mse: 0.16428105533123016
+  held-out rollout: val 2/4, test 2/5 = 4/9
+
+event-gated tokens16:
+  best epoch: 24
+  offline continuous_mse: 0.1961492970585823
+  held-out rollout: val 0/4, test 0/5 = 0/9
+
+age-gated tokens16:
+  status: training still active when docs were updated
+  latest completed epoch observed: 15
+  best val_loss observed: 0.19999533146619797
+
+summaries:
+  results/diagnostic_fast_tokens8_task3_seed44_20260706.md
+  results/diagnostic_tokens16_task3_seed44_20260706.md
+
+artifact backup:
+  /workspace/run_backups/vla_run_artifacts_20260706_122921.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/9787317e30fe4962ee71cc64d430bb53a9e451a7
+```
+
+Investigation of the older positive Kitchen4/task-3 event-gated run found that it differed from
+the current cheap diagnostic in three material ways: seed 42 instead of seed 44, 20k samples per
+epoch instead of 5k, and tokens16/64 older frames instead of tokens8/32 older frames. The current
+seed-44 tokens16 rerun did not recover the old behavior, so tokens16 alone is not a sufficient
+explanation. The result should be treated as protocol-sensitive until a matched seed-42 and
+sample-budget rerun is available.
+
 ## 2026-07-04 Task-2 Fast-Token Event-vs-Age Diagnostic
 
 Matched fast diagnostic protocol:
