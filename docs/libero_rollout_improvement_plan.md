@@ -30,14 +30,27 @@ task 3, age-gated tokens16:
   held-out: 4/9
 
 artifact backup:
-  /workspace/run_backups/vla_run_artifacts_20260706_142909.tar.gz
-  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/ba97afc794b6c739fb8b2f2a26704bf9564a892c
+  /workspace/run_backups/vla_run_artifacts_20260706_173219.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4780124dc7a4fdf835108a0af718e2a95e9f2f7b
 ```
 
 The old positive Kitchen4/task-3 event-gated run remains a protocol-sensitive result. It used seed
 42, 20k samples per epoch, and tokens16/64 older frames. The current seed-44 tokens16 rerun did not
 recover the positive behavior, so future analysis should not attribute the old result to the
 larger memory-token budget alone.
+
+Current rollout-facing conclusion:
+
+```text
+Do not treat event-gated memory as the proposed-method winner yet.
+The cheap diagnostics now favor age-gated memory online:
+  task 2 tokens8: age 6/10 held-out vs event 0/10
+  task 3 tokens8: age 4/9 held-out vs event 1/9
+  task 3 tokens16: age 4/9 held-out vs event 0/9
+  task 5 tokens8: age 8/10 held-out vs event 5/10
+
+Offline action prediction remains insufficient for selecting rollout checkpoints or methods.
+```
 
 ## 2026-06-28 Seed-44 Event-Gated Restart And Validation Decoupling
 

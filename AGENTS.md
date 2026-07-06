@@ -108,13 +108,16 @@ task 3: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_an
     results/diagnostic_tokens16_task3_seed44_20260706.md
 
 artifact backup:
-  local: /workspace/run_backups/vla_run_artifacts_20260706_142909.tar.gz
-  Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/ba97afc794b6c739fb8b2f2a26704bf9564a892c
+  local: /workspace/run_backups/vla_run_artifacts_20260706_173219.tar.gz
+  Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4780124dc7a4fdf835108a0af718e2a95e9f2f7b
 ```
 
 The old positive Kitchen4/task-3 event-gated result used seed 42, 20k samples per epoch, and
 tokens16/64 older frames. The current seed-44 cheap tokens16 rerun did not reproduce it. Do not
 attribute the old result to tokens16 alone; seed and training-sample budget remain major confounds.
+Across the July 2026 cheap diagnostics, age-gated is consistently more robust online than the
+current event-gated implementation. Treat the current event gate as suspect until a matched
+seed-42/20k-sample Kitchen4 rerun or a gate-design fix changes the result.
 
 Latest paper-seed task-2 phase-ACT state as of 2026-06-23:
 

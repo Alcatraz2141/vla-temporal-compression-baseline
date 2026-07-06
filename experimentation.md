@@ -59,8 +59,8 @@ summaries:
   results/diagnostic_tokens16_task3_seed44_20260706.md
 
 artifact backup:
-  /workspace/run_backups/vla_run_artifacts_20260706_142909.tar.gz
-  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/ba97afc794b6c739fb8b2f2a26704bf9564a892c
+  /workspace/run_backups/vla_run_artifacts_20260706_173219.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4780124dc7a4fdf835108a0af718e2a95e9f2f7b
 ```
 
 Investigation of the older positive Kitchen4/task-3 event-gated run found that it differed from
@@ -69,6 +69,15 @@ epoch instead of 5k, and tokens16/64 older frames instead of tokens8/32 older fr
 seed-44 tokens16 rerun did not recover the old behavior, so tokens16 alone is not a sufficient
 explanation. The result should be treated as protocol-sensitive until a matched seed-42 and
 sample-budget rerun is available.
+
+Final interpretation:
+
+```text
+The current event gate is not a robust winner under the cheap diagnostic protocol.
+Age-gated memory is the stronger control on task 2, task 3, and task 5 held-out rollouts.
+The old Kitchen4 positive result should not be cited as evidence for event gating without
+a matched seed-42, tokens16, 20k-sample rerun against age-gated.
+```
 
 ## 2026-07-04 Task-2 Fast-Token Event-vs-Age Diagnostic
 

@@ -52,13 +52,14 @@ task 3, age-gated tokens16:
   offline continuous_mse 0.17082886149485907, held-out 4/9
 
 artifact backup:
-  /workspace/run_backups/vla_run_artifacts_20260706_142909.tar.gz
-  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/ba97afc794b6c739fb8b2f2a26704bf9564a892c
+  /workspace/run_backups/vla_run_artifacts_20260706_173219.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4780124dc7a4fdf835108a0af718e2a95e9f2f7b
 ```
 
 The old positive Kitchen4/task-3 event-gated run used seed 42, 20k samples per epoch, and tokens16.
 The current cheap seed-44 tokens16 rerun did not reproduce it, so tokens16 alone should not be
-treated as the explanation.
+treated as the explanation. The current cheap diagnostics favor age-gated memory over the event
+gate on online rollout, even when offline MSE differences are small or misleading.
 
 Latest fast memory diagnostic from 2026-07-04:
 

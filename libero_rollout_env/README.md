@@ -103,12 +103,14 @@ task 3 age-gated tokens16:
   checkpoint: checkpoints/diagnostic_age_gated_task3_seed44_tokens16/diagnostic_age_gated_act_h20_task3_tokens16_seed44/best.pt
 
 artifact backup:
-  /workspace/run_backups/vla_run_artifacts_20260706_142909.tar.gz
-  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/ba97afc794b6c739fb8b2f2a26704bf9564a892c
+  /workspace/run_backups/vla_run_artifacts_20260706_173219.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4780124dc7a4fdf835108a0af718e2a95e9f2f7b
 ```
 
 These cheap reruns reinforce that rollout behavior is not reliably predicted by offline MSE, and
 that the old positive Kitchen4/task-3 event-gated result should be treated as protocol-sensitive.
+For rollout-facing reporting, age-gated memory is currently the stronger cheap diagnostic baseline;
+do not present the current event-gated implementation as reliably better.
 
 As of 2026-06-24, random task-2 phase-ACT seed `187` completed:
 

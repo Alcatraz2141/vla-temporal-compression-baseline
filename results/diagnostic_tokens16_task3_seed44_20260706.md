@@ -87,3 +87,7 @@ age-gated tokens16:   continuous_mse 0.17082886149485907, held-out 4/9
 The old positive Kitchen4 result remains most plausibly explained by the combined protocol
 difference: seed 42, 20k samples per epoch, and tokens16/64 older frames. Tokens16 alone did not
 reproduce it at seed 44 with 5k samples per epoch.
+
+Final conclusion: under the current cheap diagnostic protocol, age-gated tokens16 is materially
+better than event-gated tokens16 online, while event-gated tokens16 is worse than event-gated
+tokens8. The current evidence does not support using this run as a positive event-gating result.
