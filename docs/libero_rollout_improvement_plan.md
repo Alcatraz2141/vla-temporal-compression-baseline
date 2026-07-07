@@ -2,6 +2,56 @@
 
 Date: 2026-05-30
 
+## 2026-07-07 Task-3 Seed-42 20k Tokens16 Reproduction
+
+The old positive Kitchen4/task-3 event-gated result was rerun with the matched high-budget
+diagnostic protocol.
+
+```text
+task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
+seed: 42
+samples_per_epoch: 20000
+max_memory_tokens: 16
+older context frames: 64
+chunk_size: 4
+epochs: 20
+rollout: train10 / val4 / test5, max_steps 300, temporal ensemble
+```
+
+Result:
+
+```text
+event-gated epoch-17 best.pt:
+  offline continuous_mse: 0.09638847038149834
+  rollout train10 / val4 / test5: 1/10, 2/4, 3/5 = 6/19
+  held-out: 5/9
+
+event-gated epoch-20 last.pt:
+  offline continuous_mse: 0.0882494921485583
+  rollout train10 / val4 / test5: 7/10, 4/4, 4/5 = 15/19
+  held-out: 8/9
+
+age-gated epoch-20 best.pt / last.pt:
+  offline continuous_mse: 0.07588838351269563
+  rollout train10 / val4 / test5: 3/10, 1/4, 1/5 = 5/19
+  held-out: 2/9
+```
+
+This reproduces the old June rollout aggregate for both event-gated and age-gated ACT. The
+apparent mismatch was due to checkpoint selection: current decoupled validation selected
+event-gated epoch 17, but rollout reporting for this reproduction should use epoch-20 `last.pt`.
+Offline MSE should not be compared directly against the old June CSV because the validation/eval
+loader semantics changed after the old run.
+
+Summary: `results/diagnostic_tokens16_task3_seed42_20k_20260707.md`
+
+Artifact backup:
+
+```text
+/workspace/run_backups/vla_task3_seed42_tokens16_20k_20260707.tar.gz
+https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3b6d6ce8e35a7950a9b3fe1b3a952f13be809193
+```
+
 ## 2026-07-06 Fast Diagnostic Rollout Audit
 
 Additional cheap ACT-memory diagnostics were run with seed 44, 5k samples per epoch, 30 epochs,
@@ -34,10 +84,11 @@ artifact backup:
   https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4780124dc7a4fdf835108a0af718e2a95e9f2f7b
 ```
 
-The old positive Kitchen4/task-3 event-gated run remains a protocol-sensitive result. It used seed
-42, 20k samples per epoch, and tokens16/64 older frames. The current seed-44 tokens16 rerun did not
-recover the positive behavior, so future analysis should not attribute the old result to the
-larger memory-token budget alone.
+The old positive Kitchen4/task-3 event-gated run remains protocol-sensitive. It used seed 42, 20k
+samples per epoch, and tokens16/64 older frames. The current seed-44 tokens16 rerun did not recover
+the positive behavior, but the matched 2026-07-07 seed-42/20k/tokens16 rerun did reproduce the old
+rollout aggregate with event-gated epoch-20 `last.pt`. Future analysis should not attribute the old
+result to the larger memory-token budget alone.
 
 Current rollout-facing conclusion:
 
@@ -50,6 +101,8 @@ The cheap diagnostics now favor age-gated memory online:
   task 5 tokens8: age 8/10 held-out vs event 5/10
 
 Offline action prediction remains insufficient for selecting rollout checkpoints or methods.
+The seed-42/20k Task-3 reproduction is a positive event-gated case, but it is not representative of
+the cheap seed-44 diagnostics.
 ```
 
 ## 2026-06-28 Seed-44 Event-Gated Restart And Validation Decoupling
@@ -478,6 +531,15 @@ held-out:
   phase ACT:       3/9
   event-gated ACT: 8/9
   age-gated ACT:   2/9
+```
+
+2026-07-07 reproduction note:
+
+```text
+The matched seed-42/20k/tokens16 rerun reproduced this rollout aggregate exactly when using the
+event-gated epoch-20 last.pt checkpoint. Current decoupled validation selected epoch-17 best.pt,
+which rolled out much worse, so the correct reporting checkpoint for this reproduction is
+epoch-20 last.pt. The age-gated rerun also reproduced 5/19 total and 2/9 held-out at epoch 20.
 ```
 
 Matched flips:

@@ -107,10 +107,12 @@ artifact backup:
   https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/4780124dc7a4fdf835108a0af718e2a95e9f2f7b
 ```
 
-These cheap reruns reinforce that rollout behavior is not reliably predicted by offline MSE, and
-that the old positive Kitchen4/task-3 event-gated result should be treated as protocol-sensitive.
-For rollout-facing reporting, age-gated memory is currently the stronger cheap diagnostic baseline;
-do not present the current event-gated implementation as reliably better.
+These cheap reruns reinforce that rollout behavior is not reliably predicted by offline MSE. The old
+positive Kitchen4/task-3 event-gated result remains protocol-sensitive: a matched 2026-07-07
+seed-42/20k/tokens16 rerun reproduced it only when reporting event-gated epoch-20 `last.pt`, while
+the seed-44 cheap diagnostics did not. For rollout-facing reporting, age-gated memory is currently
+the stronger cheap diagnostic baseline; do not present the current event-gated implementation as
+reliably better across protocols.
 
 As of 2026-06-24, random task-2 phase-ACT seed `187` completed:
 

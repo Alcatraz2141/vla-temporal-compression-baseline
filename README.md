@@ -28,6 +28,38 @@ results/       baseline metrics CSV
 
 ## Current Diagnostic State
 
+Latest matched Task-3 reproduction audit from 2026-07-07:
+
+```text
+task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
+protocol: seed 42, samples_per_epoch 20000, max_memory_tokens 16, chunk_size 4,
+          20 epochs, temporal-ensemble rollouts
+
+event-gated:
+  config: configs/diagnostic_event_gated_act_task3_seed42_tokens16_20k.yaml
+  checkpoint for rollout reporting: epoch-20 last.pt
+  offline continuous_mse: 0.0882494921485583
+  rollout train10 / val4 / test5: 7/10, 4/4, 4/5 = 15/19
+  held-out val+test: 8/9
+
+age-gated:
+  config: configs/diagnostic_age_gated_act_task3_seed42_tokens16_20k.yaml
+  checkpoint: epoch-20 best.pt / last.pt
+  offline continuous_mse: 0.07588838351269563
+  rollout train10 / val4 / test5: 3/10, 1/4, 1/5 = 5/19
+  held-out val+test: 2/9
+
+summary: results/diagnostic_tokens16_task3_seed42_20k_20260707.md
+artifact backup:
+  /workspace/run_backups/vla_task3_seed42_tokens16_20k_20260707.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3b6d6ce8e35a7950a9b3fe1b3a952f13be809193
+```
+
+This matched seed-42/20k/tokens16 audit reproduces the old Kitchen4 rollout aggregate for both
+event-gated and age-gated ACT. The initially selected event-gated `best.pt` at epoch 17 is much
+weaker online, so report epoch-20 `last.pt` for this reproduction. The discrepancy is a checkpoint
+selection artifact from the validation decoupling change, not a failure to reproduce the rollout.
+
 Latest fast diagnostics from 2026-07-06:
 
 ```text
@@ -57,9 +89,10 @@ artifact backup:
 ```
 
 The old positive Kitchen4/task-3 event-gated run used seed 42, 20k samples per epoch, and tokens16.
-The current cheap seed-44 tokens16 rerun did not reproduce it, so tokens16 alone should not be
-treated as the explanation. The current cheap diagnostics favor age-gated memory over the event
-gate on online rollout, even when offline MSE differences are small or misleading.
+The matched 2026-07-07 rerun reproduced that result with event-gated epoch-20 `last.pt`; the cheap
+seed-44 tokens16 rerun did not, so seed and sample budget remain important. The cheap diagnostics
+still favor age-gated memory online, but the seed-42/20k Task-3 result remains a real positive
+event-gated case under its original protocol.
 
 Latest fast memory diagnostic from 2026-07-04:
 

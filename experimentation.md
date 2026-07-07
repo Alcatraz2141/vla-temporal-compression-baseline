@@ -2,6 +2,88 @@
 
 Date: 2026-05-19
 
+## 2026-07-07 Task-3 Seed-42 20k Tokens16 Reproduction Audit
+
+Matched rerun of the older positive Kitchen4/task-3 result:
+
+```text
+task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
+seed: 42
+samples_per_epoch: 20000
+epochs: 20
+batch_size: 32
+chunk_size: 4
+max_memory_tokens: 16
+older context frames: 64
+rollout: split-aware train10 / val4 / test5, max_steps 300, temporal ensemble
+```
+
+Event-gated ACT:
+
+```text
+config: configs/diagnostic_event_gated_act_task3_seed42_tokens16_20k.yaml
+checkpoint dir: checkpoints/diagnostic_event_gated_task3_seed42_tokens16_20k
+best checkpoint by current decoupled validation: epoch 17, best_val 0.06795417641599973
+epoch 20 train_loss: 0.044135
+epoch 20 val_loss: 0.090545
+
+epoch-17 best.pt offline continuous_mse: 0.09638847038149834
+epoch-17 best.pt rollout: train10 1/10, val4 2/4, test5 3/5 = 6/19
+epoch-17 best.pt held-out: 5/9
+
+epoch-20 last.pt offline continuous_mse: 0.0882494921485583
+epoch-20 last.pt offline continuous_mae: 0.20001773784557977
+epoch-20 last.pt gripper_sign_accuracy: 0.9885416726271311
+epoch-20 last.pt rollout: train10 7/10, val4 4/4, test5 4/5 = 15/19
+epoch-20 last.pt held-out: 8/9
+epoch-20 successful episodes:
+  train: [0, 2, 3, 4, 6, 9, 11]
+  val:   [1, 8, 20, 39]
+  test:  [10, 15, 35, 37]
+```
+
+Age-gated ACT:
+
+```text
+config: configs/diagnostic_age_gated_act_task3_seed42_tokens16_20k.yaml
+checkpoint dir: checkpoints/diagnostic_age_gated_task3_seed42_tokens16_20k
+best checkpoint by current decoupled validation: epoch 20, best_val 0.057931252444783844
+
+epoch-20 best.pt / last.pt offline continuous_mse: 0.07588838351269563
+epoch-20 best.pt / last.pt offline continuous_mae: 0.18988387286663055
+epoch-20 best.pt / last.pt gripper_sign_accuracy: 0.9783854186534882
+epoch-20 rollout: train10 3/10, val4 1/4, test5 1/5 = 5/19
+epoch-20 held-out: 2/9
+successful episodes:
+  train: [0, 7, 11]
+  val:   [39]
+  test:  [35]
+```
+
+Reproduction conclusion:
+
+```text
+The old Task-3 seed-42/20k/tokens16 rollout result is reproduced when event-gated reporting uses
+epoch-20 last.pt rather than the current validation-selected epoch-17 best.pt.
+
+The apparent mismatch came from checkpoint selection after validation decoupling. Current
+build_dataloader uses call intent, not split name, so val_split=train no longer runs the old
+stochastic train-mode validation path. That changes best.pt selection and offline eval values.
+
+Do not compare the old June offline continuous_mse values directly to the current July eval CSVs
+without recreating the old eval loader behavior. For rollout-facing reporting, cite event-gated
+epoch-20 last.pt and age-gated epoch-20 best/last.
+```
+
+Summary:
+
+```text
+results/diagnostic_tokens16_task3_seed42_20k_20260707.md
+artifact backup:
+  /workspace/run_backups/vla_task3_seed42_tokens16_20k_20260707.tar.gz
+  https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3b6d6ce8e35a7950a9b3fe1b3a952f13be809193
+```
+
 ## 2026-07-06 Task-5 And Task-3 Fast Diagnostics
 
 Matched cheap diagnostic protocol:
@@ -65,18 +147,20 @@ artifact backup:
 
 Investigation of the older positive Kitchen4/task-3 event-gated run found that it differed from
 the current cheap diagnostic in three material ways: seed 42 instead of seed 44, 20k samples per
-epoch instead of 5k, and tokens16/64 older frames instead of tokens8/32 older frames. The current
-seed-44 tokens16 rerun did not recover the old behavior, so tokens16 alone is not a sufficient
-explanation. The result should be treated as protocol-sensitive until a matched seed-42 and
-sample-budget rerun is available.
+epoch instead of 5k, and tokens16/64 older frames instead of tokens8/32 older frames. The matched
+2026-07-07 seed-42/20k/tokens16 rerun reproduced the old rollout aggregate when using event-gated
+epoch-20 `last.pt`, while the current validation-selected epoch-17 `best.pt` was much weaker
+online. Therefore tokens16 alone is not a sufficient explanation, but the original seed-42/20k
+protocol remains a real positive event-gated Task-3 case.
 
 Final interpretation:
 
 ```text
 The current event gate is not a robust winner under the cheap diagnostic protocol.
-Age-gated memory is the stronger control on task 2, task 3, and task 5 held-out rollouts.
-The old Kitchen4 positive result should not be cited as evidence for event gating without
-a matched seed-42, tokens16, 20k-sample rerun against age-gated.
+Age-gated memory is the stronger control on the cheap task 2, task 3, and task 5 held-out rollouts.
+The old Kitchen4 positive result can be cited only with its matched seed-42/20k/tokens16 protocol
+and event-gated epoch-20 last.pt checkpoint; it should not be generalized to the cheap seed-44
+diagnostics.
 ```
 
 ## 2026-07-04 Task-2 Fast-Token Event-vs-Age Diagnostic

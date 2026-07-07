@@ -113,11 +113,50 @@ artifact backup:
 ```
 
 The old positive Kitchen4/task-3 event-gated result used seed 42, 20k samples per epoch, and
-tokens16/64 older frames. The current seed-44 cheap tokens16 rerun did not reproduce it. Do not
-attribute the old result to tokens16 alone; seed and training-sample budget remain major confounds.
-Across the July 2026 cheap diagnostics, age-gated is consistently more robust online than the
-current event-gated implementation. Treat the current event gate as suspect until a matched
-seed-42/20k-sample Kitchen4 rerun or a gate-design fix changes the result.
+tokens16/64 older frames. The current seed-44 cheap tokens16 rerun did not reproduce it, while the
+matched 2026-07-07 seed-42/20k/tokens16 rerun did reproduce it with event-gated epoch-20 `last.pt`.
+Do not attribute the old result to tokens16 alone; seed and training-sample budget remain major
+confounds. Across the July 2026 cheap diagnostics, age-gated is consistently more robust online
+than the current event-gated implementation, but Task-3 seed-42/20k remains a positive event-gated
+case under its original protocol.
+
+Matched Task-3 seed-42/20k/tokens16 reproduction audit from 2026-07-07:
+
+```text
+task: KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it
+protocol: diagnostic ACT memory, seed 42, samples_per_epoch 20000, max_memory_tokens 16,
+          chunk_size 4, 20 epochs, temporal-ensemble rollouts
+
+event-gated:
+  config: configs/diagnostic_event_gated_act_task3_seed42_tokens16_20k.yaml
+  rollout reporting checkpoint: epoch-20 last.pt
+  offline continuous_mse: 0.0882494921485583
+  rollout train10 / val4 / test5: 7/10, 4/4, 4/5 = 15/19
+  held-out val+test: 8/9
+
+age-gated:
+  config: configs/diagnostic_age_gated_act_task3_seed42_tokens16_20k.yaml
+  checkpoint: epoch-20 best.pt / last.pt
+  offline continuous_mse: 0.07588838351269563
+  rollout train10 / val4 / test5: 3/10, 1/4, 1/5 = 5/19
+  held-out val+test: 2/9
+
+event-gated current-validation best.pt:
+  epoch: 17
+  rollout train10 / val4 / test5: 1/10, 2/4, 3/5 = 6/19
+  held-out val+test: 5/9
+
+summary: results/diagnostic_tokens16_task3_seed42_20k_20260707.md
+artifact backup:
+  local: /workspace/run_backups/vla_task3_seed42_tokens16_20k_20260707.tar.gz
+  Hugging Face commit: https://huggingface.co/datasets/Alcatraz1412/vla-run-backups/commit/3b6d6ce8e35a7950a9b3fe1b3a952f13be809193
+```
+
+Interpretation: the old positive Kitchen4/task-3 event-gated rollout is reproducible under the
+matched seed-42/20k/tokens16 protocol, but it depends on reporting epoch-20 `last.pt`. The current
+decoupled validation path selects a weaker epoch-17 `best.pt`, so validation-selected checkpoints
+remain unreliable for rollout reporting. Do not compare old June offline MSE directly against the
+current July eval CSVs unless the old train-mode validation/eval loader is recreated.
 
 Latest paper-seed task-2 phase-ACT state as of 2026-06-23:
 
